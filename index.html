@@ -72,6 +72,10 @@ button.sm{padding:6px 10px;font-size:12px;margin-top:0}
 .note-item a{color:var(--ac);word-break:break-all;font-size:13px}
 audio{width:100%;height:36px;margin-top:6px}
 .badge{background:var(--wr);color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700}
+details summary{cursor:pointer;font-weight:700;font-size:15px}
+.help ol{padding-left:20px;margin:10px 0 0}
+.help li{margin-bottom:10px;font-size:13.5px;line-height:1.45}
+.help b{color:var(--ac)}
 </style>
 </head>
 <body>
@@ -117,8 +121,8 @@ const SURAH_AT_PAGE=[
 const TOTAL=604;
 const DEFAULTS={
   onboarded:false,name:'',email:'',reminderTime:'07:00',
-  mode:'both', // 'both' | 'hifdh' | 'revision'
-  method:'ottoman', // 'ottoman' | 'classic' | 'custom'
+  mode:'both',
+  method:'ottoman',
   frontier:0,newPerDay:1,revPerDay:1,sabakPages:5,
   chunks:[5,10,15,0],cycle:0,juz:1,period:1,
   theme:'light',color:'emerald',
@@ -520,7 +524,17 @@ async function render(){
   /* TAB 3: PROFILE & SETTINGS */
   else if(TAB==='settings'){
     const cols=[['emerald','#1f5f4a'],['blue','#1d4ed8'],['gold','#9a6700'],['plum','#6d28d9']];
-    $('app').innerHTML=`<div class="card"><h2>👤 Account & Appearance</h2>
+    $('app').innerHTML=`<div class="card help"><details><summary>❓ App Guide & How It Works</summary><ol>
+      <li><b>Three Simple Tabs:</b> Use <b>Today</b> for your daily plan, <b>Tools</b> for repetition counting, voice recordings, and Tajweed video notes, and <b>Profile & Settings</b> to customize your schedule.</li>
+      <li><b>Daily Plan Tasks:</b> Depending on your Study Category, you will see <b>New Hifdh</b> (next pages to memorize), <b>Recent Revision / Sabak Dhor</b> (your most recently memorized pages), and <b>Cycle Revision</b> (older Juz). Tap <b>Mushaf ↗</b> on any task to open that exact page on Quran.com.</li>
+      <li><b>Ticking & Undo:</b> Tap a task box when finished. Ticking New Hifdh advances your total pages; ticking Cycle Revision advances you to the next Juz. Made a mistake? Tap <b>Undo last tick</b>. Missed a day? Just carry on—nothing breaks.</li>
+      <li><b>Revision Methods:</b> <b>Ottoman Method</b> rotates through the last 5, 10, 15 pages, and full Juz across your memorized Juz before starting a new Period. <b>Classic</b> revises 1 full Juz per day, and <b>Custom</b> lets you enter your own cycle sizes (use <code>0</code> for whole Juz).</li>
+      <li><b>Progress Visuals:</b> The top bar tracks pages out of 604. The 30-Juz grid shows each Juz filling up. The 28-day strip shows colored squares for days all tasks were finished, gold for partial days, and grey for rest days.</li>
+      <li><b>Tools Tab:</b> Use the <b>Tasbih Counter</b> to count verse repetitions while memorizing, the <b>Voice Recorder</b> to record and review your recitation offline, and the <b>Tajweed Folder</b> to save video links and notes.</li>
+      <li><b>Backups & Reminders:</b> Tap <b>Email Progress</b> to send yourself a progress summary, and tap <b>Export Backup</b> every couple of weeks to keep a safe copy of your data.</li>
+    </ol></details></div>
+
+    <div class="card"><h2>👤 Account & Appearance</h2>
       <div class="two">
         <div><label class="f">Your Name</label><input type="text" id="stName" value="${s.name}"></div>
         <div><label class="f">Your Email</label><input type="email" id="stEmail" value="${s.email}"></div>
