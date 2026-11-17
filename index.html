@@ -221,6 +221,7 @@ body{background:var(--bg);padding:16px 16px 100px}
 .chip.s{background:var(--ac);color:#fff;border-color:var(--ac)}
 .chip.w{border-color:var(--wr);color:#8a5a00;background:transparent}
 .chip.p{border-style:dashed}
+.chip.x{min-width:0;padding:6px 10px}
 [data-theme="dark"] .chip.w{color:var(--wr)}
 </style>
 </head>
@@ -294,31 +295,34 @@ function locLabel(a,b){
   return sur+', Juz '+(ja===jb?ja:ja+'–'+jb)+', Hizb '+(ha===hb?ha:ha+'–'+hb);
 }
 function syncPst(s){
-  const t=(typeof s.pst==='string'&&s.pst.length===TOTAL)?s.pst.split(''):new Array(TOTAL).fill('0');
-  const lim=Math.ceil(s.frontier||0);
-  for(let i=0;i<TOTAL;i++){if(i<lim){if(t[i]==='0')t[i]='s'}else t[i]='0'}
+  if(typeof s.pst==='string'&&s.pst.length===TOTAL)return;
+  const t=new Array(TOTAL).fill('0'),lim=Math.min(TOTAL,Math.ceil(s.frontier||0));
+  for(let i=0;i<lim;i++)t[i]='s';
   s.pst=t.join('');
 }
+function markPgs(s,a,b,ch,onlyEmpty){const t=s.pst.split('');for(let p=a;p<=b&&p<=TOTAL;p++)if(!onlyEmpty||t[p-1]==='0')t[p-1]=ch;s.pst=t.join('')}
+const memCount=s=>{const c=pstCount(s,1,TOTAL);return c.g+c.w};
 function pstCount(s,a,b){let g=0,w=0;for(let p=a;p<=b;p++){const c=s.pst[p-1];if(c==='s')g++;else if(c==='w')w++}return{g,w,n:b-a+1}}
 const stkInner=(g,w,n)=>`<i class="g" style="width:${g/n*100}%"></i><i class="w" style="width:${w/n*100}%"></i>`;
 function surahState(s,i){const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0)return'none';if(c.g+c.w<c.n)return'part';return c.w?'weak':'strong'}
-function setStrength(a,b,ch){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);D=null;render()}
-function toggleSurah(i){const s=loadState();const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0){toast('Not memorized yet');return}setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],c.w>0?'s':'w')}
-const CHC={strong:'s',weak:'w',part:'p',none:''},CHL={strong:'✓ Strong',weak:'Weak',part:'In progress',none:'Not yet'};
+function setStrength(a,b,ch,all){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(all||t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);D=null;render()}
+function clearSurah(i){if(!confirm('Remove '+SURAH_AT_PAGE[i][1]+' from your memorized pages?'))return;setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'0',true)}
+function toggleSurah(i){const s=loadState();const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0){setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'w',true);return}setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],c.w>0?'s':'w')}
+const CHC={strong:'s',weak:'w',part:'p',none:''},CHL={strong:'✓ Strong',weak:'Weak',part:'In progress',none:'+ Add'};
 function strengthCard(s){
   const all=pstCount(s,1,TOTAL);
   let rows='';
   for(let j=1;j<=30;j++){
     const a=JUZ_START[j],b=juzEnd(j),c=pstCount(s,a,b);
-    const body=SURAH_AT_PAGE.map((x,i)=>i).filter(i=>juzOf(SURAH_AT_PAGE[i][0])===j).map(i=>{const st=surahState(s,i);return `<div class="sr"><b>${esc(SURAH_AT_PAGE[i][1])}</b><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button></div>`}).join('');
+    const body=SURAH_AT_PAGE.map((x,i)=>i).filter(i=>juzOf(SURAH_AT_PAGE[i][0])===j).map(i=>{const st=surahState(s,i);return `<div class="sr"><b>${esc(SURAH_AT_PAGE[i][1])}</b><span style="display:flex;gap:6px"><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button>${st!=='none'?`<button class="chip x" aria-label="Remove" onclick="clearSurah(${i})">✕</button>`:''}</span></div>`}).join('');
     rows+=`<details class="jz" ${OPEN_JUZ.has(j)?'open':''} ontoggle="this.open?OPEN_JUZ.add(${j}):OPEN_JUZ.delete(${j})">
       <summary><b>Juz ${j}</b><div class="sbar">${stkInner(c.g,c.w,c.n)}</div><span>${c.g+c.w?Math.round(c.g/c.n*100)+'%':'–'}</span></summary>
       ${body||'<div class="mu" style="padding:8px 2px">No surah starts in this juz.</div>'}
-      ${c.g+c.w?`<div class="row" style="justify-content:flex-end;gap:6px;margin-top:4px"><button class="g sm" onclick="setStrength(${a},${b},'s')">Mark all strong</button><button class="g sm" onclick="setStrength(${a},${b},'w')">Mark all weak</button></div>`:''}
+      <div class="row" style="justify-content:flex-end;gap:6px;margin-top:4px"><button class="g sm" onclick="setStrength(${a},${b},'s',true)">Whole juz as strong</button><button class="g sm" onclick="setStrength(${a},${b},'w',true)">Whole juz as weak</button></div>
     </details>`;
   }
   return `<div class="card"><div class="row"><h2>Memory strength</h2><span class="pill">${Math.round(all.g/TOTAL*100)}% strong</span></div>
-    <div class="mu" style="margin-bottom:10px">New pages start weak. Tap a surah to switch it between weak and strong.</div>
+    <div class="mu" style="margin-bottom:10px">Add the surahs you already know. Tap a surah to switch it between weak and strong.</div>
     <div class="sbar" style="height:10px">${stkInner(all.g,all.w,TOTAL)}</div>
     <div class="mu" style="margin:8px 0 6px">Strong ${all.g} pages · Weak ${all.w} pages · Not yet ${TOTAL-all.g-all.w}</div>${rows}</div>`;
 }
@@ -490,7 +494,7 @@ const api={
     for(let i=27;i>=0;i--){const d=addDays(today,-i);const o=days[d];strip.push({d,s:o?(allDone(o)?2:(anyDone(o)?1:0)):0})}
     let streak=0;for(let k=strip[27].s===2?27:26;k>=0&&strip[k].s===2;k--)streak++;
     const juz=[];
-    for(let j=1;j<=30;j++){const len=juzEnd(j)-JUZ_START[j]+1;juz.push(Math.max(0,Math.min(len,s.frontier-JUZ_START[j]+1))/len)}
+    for(let j=1;j<=30;j++){const len=juzEnd(j)-JUZ_START[j]+1;const c=pstCount(s,JUZ_START[j],juzEnd(j));juz.push((c.g+c.w)/len)}
     const remaining=Math.max(0,TOTAL-s.frontier);
     const eta=(s.mode!=='revision'&&s.newPerDay>0&&remaining>0)?addDays(today,Math.ceil(remaining/s.newPerDay)-1):null;
     return{state:s,day,stats:{juz,strip,streak,remaining,eta}};
@@ -571,7 +575,7 @@ const api={
     if(['both','hifdh','revision'].includes(f.mode))s.mode=f.mode;
     if(['tikrar','ottoman','simple'].includes(f.method))s.method=f.method;
     s.chunks=chunks.slice(0,8);
-    const fr=parseFloat(f.frontier);if(!isNaN(fr))s.frontier=Math.max(0,Math.min(TOTAL,Math.round(fr*2)/2));
+    const fr=parseFloat(f.frontier);if(!isNaN(fr)){const oF=Math.ceil(s.frontier);s.frontier=Math.max(0,Math.min(TOTAL,Math.round(fr*2)/2));const nF=Math.ceil(s.frontier);if(nF>oF)markPgs(s,oF+1,nF,'s',true);else if(nF<oF)markPgs(s,nF+1,oF,'0',false)}
     const np=parseFloat(f.newPerDay);if(!isNaN(np))s.newPerDay=Math.max(0,Math.min(20,Math.round(np*2)/2));
     const num=(v,def,lo,hi)=>{const n=parseInt(v,10);return isNaN(n)?def:Math.max(lo,Math.min(hi,n))};
     s.revPerDay=num(f.revPerDay,s.revPerDay,1,5);
@@ -591,7 +595,9 @@ const api={
   addPages(today,n){
     const s=loadState();
     const add=parseFloat(n)||0;
+    const oN=Math.ceil(s.frontier);
     s.frontier=Math.min(TOTAL,Math.round((s.frontier+Math.max(0,add))*2)/2);
+    markPgs(s,oN+1,Math.ceil(s.frontier),'s',true);
     saveState(s);dropIfUnticked(today);
     return api.getData(today);
   }
@@ -884,7 +890,7 @@ function sendEmailSummary(){
     `Assalamu Alaikum ${s.name||''},\n\n`+
     `My Companion Hifdh Summary (${T()}):\n`+
     `• Current Station: Rank ${juzOf(Math.max(1,s.frontier))} of 30 (Juz ${juzOf(Math.max(1,s.frontier))})\n`+
-    `• Memorized: ${s.frontier} / 604 pages (${Math.round(s.frontier/604*100)}%)\n`+
+    `• Memorized: ${memCount(s)} / 604 pages (${Math.round(memCount(s)/604*100)}%)\n`+
     `• Active Streak: ${st.streak} day(s)\n\n`+
     `"Read and ascend, for your station will be at the last verse you recite."`
   );
@@ -1053,17 +1059,16 @@ function saveProfile(){
 }
 /* ---------- Today screen (v2) ---------- */
 function rToday(s,st,day,rank){
-  const pct=Math.round(s.frontier/604*100);
-  const cnt=pstCount(s,1,TOTAL);
+  const cnt=pstCount(s,1,TOTAL),mem=cnt.g+cnt.w,pct=Math.round(mem/604*100);
   const curJ=(s.frontier>0&&s.frontier>=juzEnd(rank)&&rank<30)?rank+1:rank;
   const jlen=juzEnd(curJ)-JUZ_START[curJ]+1;
-  const jdone=Math.max(0,Math.min(jlen,s.frontier-JUZ_START[curJ]+1));
+  const jc=pstCount(s,JUZ_START[curJ],juzEnd(curJ)),jdone=jc.g+jc.w;
   const jp=Math.round(jdone/jlen*100);
   setHdr(`<div class="row"><h1 class="brand light">My Companion</h1>${themeBtn(s)}</div><div class="tagline">Today’s Journey</div><div class="hello">Assalamu Alaikum${s.name?', '+esc(s.name):''}</div>`);
   const mush=p=>`<a class="pl c0" href="https://quran.com/page/${p}" target="_blank" onclick="event.stopPropagation()">Mushaf ↗</a>`;
   const card=(key,done,title,sub,pills)=>`<div class="tcard ${done?'done':''}" onclick="call('tick','${key}')"><div class="chk">${done?'✓':''}</div><div style="flex:1;min-width:0"><div class="ttl">${title}</div><div class="tsub">${sub}</div><div class="pills">${pills}</div></div></div>`;
   let h=`<div class="card pcard"><h2>Today’s Progress</h2>
-    <div class="row"><span class="rk">${s.mode==='revision'?'Revision mastery':`Rank ${rank} of 30`}</span><span class="pc2">${pct}% <small>(${s.frontier} of 604 pages)</small></span></div>
+    <div class="row"><span class="rk">${s.mode==='revision'?'Revision mastery':`Rank ${rank} of 30`}</span><span class="pc2">${pct}% <small>(${mem} of 604 pages)</small></span></div>
     <div class="sbar" style="margin:12px 0 6px;height:10px">${stkInner(cnt.g,cnt.w,TOTAL)}</div><div class="mu" style="margin-bottom:8px">Strong ${cnt.g} · Weak ${cnt.w} pages</div>
     <div class="row mu"><span>🔥 ${st.streak} day streak</span><span>${s.mode!=='revision'&&st.eta?'Finish: '+fmt(st.eta):''}</span></div>
     <div style="border-top:1px solid var(--bd);margin-top:14px;padding-top:12px">
@@ -1228,7 +1233,7 @@ async function render(){
   if(TAB==='today'){rToday(s,st,day,rank)}
   /* TAB 2: ASCEND (Winding Landscape Journey Map) */
   else if(TAB==='journey'){
-    const pct=Math.round(s.frontier/604*100);
+    const mem=memCount(s),pct=Math.round(mem/604*100);
     const pagesToNext=Math.max(0,juzEnd(rank)-s.frontier);
     let pathHtml=`<div class="summit-crown">
       <div class="summit-badge">👑</div>
@@ -1257,7 +1262,7 @@ async function render(){
     $('app').innerHTML=strengthCard(s)+`<div class="card">
       <div class="row"><h2>🏔️ Winding Ascension Path</h2><span class="pill">Rank ${rank} of 30</span></div>
       <div class="row mu" style="margin-bottom:12px">
-        <span>Memorized: <b>${s.frontier} / 604 pages</b> (${pct}%)</span>
+        <span>Memorized: <b>${mem} / 604 pages</b> (${pct}%)</span>
         <span>${pagesToNext>0?`${pagesToNext}p to Rank ${Math.min(30,rank+1)}`:'Summit Reached!'}</span>
       </div>
       <div class="winding-map">${pathHtml}</div>
