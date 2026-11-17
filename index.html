@@ -2,820 +2,112 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Hifdh Tracker</title>
+<title>My Companion</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1f5f4a" id="metaTheme">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
 :root{
-  --bg:#f4f6f5;--card:#ffffff;--tx:#18221e;--mu:#64746c;--bd:#e2e8e4;--wr:#d4a017;
-  --ac:#1f5f4a;--ac2:#e3f1eb;--sh:0 2px 10px rgba(0,0,0,.04);
+  --bg:#f5f7f6;--card:#ffffff;--tx:#16201c;--mu:#63736b;--bd:#e3e9e6;--wr:#d99b16;
+  --ac:#1f5f4a;--ac2:#e3f1eb;--sh:0 4px 16px rgba(0,0,0,.04);
 }
 [data-theme="dark"]{
-  --bg:#0f1513;--card:#18211e;--tx:#ebf0ed;--mu:#8fa097;--bd:#26342e;
-  --sh:0 2px 12px rgba(0,0,0,.25);
+  --bg:#0d1311;--card:#161f1c;--tx:#ebf1ee;--mu:#8b9d94;--bd:#24332d;
+  --sh:0 4px 20px rgba(0,0,0,.3);
 }
 [data-color="emerald"]{--ac:#1f5f4a;--ac2:#e3f1eb}
-[data-theme="dark"][data-color="emerald"]{--ac:#4cbf93;--ac2:#1f352c}
-[data-color="blue"]{--ac:#1d4ed8;--ac2:#e0ecff}
-[data-theme="dark"][data-color="blue"]{--ac:#60a5fa;--ac2:#1c2b45}
-[data-color="gold"]{--ac:#9a6700;--ac2:#fef3c7}
-[data-theme="dark"][data-color="gold"]{--ac:#fbbf24;--ac2:#382c14}
-[data-color="plum"]{--ac:#6d28d9;--ac2:#ede9fe}
-[data-theme="dark"][data-color="plum"]{--ac:#a78bfa;--ac2:#2a1f42}
+[data-theme="dark"][data-color="emerald"]{--ac:#4cbf93;--ac2:#1b3229}
+[data-color="blue"]{--ac:#2563eb;--ac2:#e0ecff}
+[data-theme="dark"][data-color="blue"]{--ac:#60a5fa;--ac2:#1a2942}
+[data-color="gold"]{--ac:#a16207;--ac2:#fef3c7}
+[data-theme="dark"][data-color="gold"]{--ac:#fbbf24;--ac2:#352912}
+[data-color="plum"]{--ac:#7c3aed;--ac2:#ede9fe}
+[data-theme="dark"][data-color="plum"]{--ac:#a78bfa;--ac2:#281d40}
 
-*{box-sizing:border-box}
-body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);padding:16px 16px 84px;max-width:560px;margin:auto;transition:background .2s,color .2s}
-h1{font-size:19px;margin:0;letter-spacing:-.2px}
-h2{font-size:15px;margin:0 0 10px;letter-spacing:-.1px}
-.sub{font-size:12.5px;color:var(--mu);margin-top:2px}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:var(--sh)}
-.bar{height:9px;background:var(--ac2);border-radius:99px;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--ac);border-radius:99px;transition:width .35s ease}
-.mu{color:var(--mu);font-size:13px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--tx);padding:14px 14px 88px;max-width:560px;margin:auto;transition:background .25s,color .25s}
+h1{font-size:18px;margin:0;font-weight:750;letter-spacing:-.3px}
+h2{font-size:15px;margin:0 0 10px;font-weight:700;letter-spacing:-.2px}
+.sub{font-size:12px;color:var(--mu);margin-top:2px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin-bottom:13px;box-shadow:var(--sh)}
+.bar{height:8px;background:var(--ac2);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ac);border-radius:99px;transition:width .4s ease}
+.mu{color:var(--mu);font-size:12.5px;line-height:1.45}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
 /* Header & Avatar */
 .hdr{margin-bottom:14px}
-.avatar-btn{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--bd);padding:4px 10px 4px 4px;border-radius:99px;cursor:pointer;color:var(--tx);box-shadow:var(--sh)}
-.avatar{width:32px;height:32px;border-radius:50%;background:var(--ac);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none}
+.avatar-btn{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--bd);padding:4px 10px 4px 4px;border-radius:99px;cursor:pointer;color:var(--tx);box-shadow:var(--sh);margin:0}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--ac);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none}
 .avatar img{width:100%;height:100%;object-fit:cover}
-.avatar-lg{width:64px;height:64px;font-size:22px}
+.avatar-lg{width:62px;height:62px;font-size:21px}
+
+/* Buttons & Inputs */
+label.f{display:block;font-size:11.5px;color:var(--mu);margin:10px 0 4px;font-weight:600}
+input[type=number],input[type=text],input[type=email],select,textarea{
+  width:100%;padding:10px 12px;border-radius:11px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:13.5px;font-family:inherit;outline:none
+}
+input:focus,select:focus,textarea:focus{border-color:var(--ac)}
+button{padding:10px 14px;border-radius:11px;border:0;background:var(--ac);color:#fff;font-size:13.5px;font-weight:600;margin-top:8px;cursor:pointer;transition:opacity .15s,transform .1s}
+button:active{transform:scale(.98)}
+button.g{background:transparent;color:var(--ac);border:1px solid var(--bd)}
+button.d{background:#b91c1c;color:#fff}
+button.sm{padding:6px 11px;font-size:12px;margin-top:0;border-radius:9px}
+.pill{display:inline-block;font-size:10.5px;padding:3px 9px;border-radius:99px;background:var(--ac2);color:var(--ac);font-weight:700}
+.cyc{display:flex;gap:6px;flex-wrap:wrap}
+.cy{padding:5px 12px;border-radius:99px;border:1px solid var(--bd);font-size:12px;cursor:pointer;background:var(--bg);color:var(--mu)}
+.cy.on{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}
+#msg{color:#b91c1c;font-size:12.5px;min-height:16px;margin-bottom:4px;font-weight:600}
+
+/* 3-Slide Onboarding Carousel */
+.ob-wrap{text-align:center;padding:12px 6px}
+.ob-art{width:120px;height:120px;border-radius:32px;background:var(--ac2);color:var(--ac);display:flex;align-items:center;justify-content:center;font-size:54px;margin:12px auto 18px;box-shadow:0 10px 28px rgba(0,0,0,.06);animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.dots{display:flex;justify-content:center;gap:7px;margin:18px 0}
+.dot{width:8px;height:8px;border-radius:99px;background:var(--bd);transition:all .25s}
+.dot.on{width:24px;background:var(--ac)}
 
 /* Tasks */
-.task{display:flex;gap:12px;align-items:center;padding:13px;border:1px solid var(--bd);border-radius:13px;margin-bottom:9px;cursor:pointer;transition:all .15s}
+.task{display:flex;gap:12px;align-items:center;padding:13px;border:1px solid var(--bd);border-radius:14px;margin-bottom:8px;cursor:pointer;transition:all .15s}
 .task.done{background:var(--ac2);border-color:var(--ac)}
-.task input{width:21px;height:21px;accent-color:var(--ac);flex:none}
-.task b{display:block;font-size:14.5px;margin:2px 0}
-.tag{font-size:10.5px;color:var(--ac);font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.task input{width:20px;height:20px;accent-color:var(--ac);flex:none}
+.task b{display:block;font-size:14px;margin:2px 0}
+.tag{font-size:10px;color:var(--ac);font-weight:750;text-transform:uppercase;letter-spacing:.5px}
+
+/* Animated 30-Rank Staircase to the Light */
+.stair-viewport{position:relative;max-height:410px;overflow-y:auto;padding:18px 10px 10px;border-radius:14px;background:linear-gradient(180deg, rgba(251,191,36,0.14) 0%, var(--bg) 38%);border:1px solid var(--bd);scroll-behavior:smooth}
+.summit-beacon{text-align:center;padding:14px 10px 18px;margin-bottom:10px;border-radius:14px;background:radial-gradient(circle, rgba(251,191,36,0.28) 0%, transparent 75%)}
+.summit-orb{width:54px;height:54px;border-radius:50%;margin:0 auto 8px;background: radial-gradient(circle, #fff 10%, #fbbf24 55%, #d97706 100%);box-shadow:0 0 28px #fbbf24, 0 0 55px rgba(251,191,36,.6);display:flex;align-items:center;justify-content:center;font-size:24px;animation:pulseGlow 2.4s infinite alternate}
+@keyframes pulseGlow{from{transform:scale(.96);box-shadow:0 0 18px #fbbf24}to{transform:scale(1.05);box-shadow:0 0 36px #fbbf24,0 0 60px rgba(251,191,36,.8)}}
+.stair-step{display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:7px;border-radius:12px;border:1px solid var(--bd);background:var(--card);transition:transform .25s,border-color .25s;position:relative}
+.stair-step.climbed{background:var(--ac2);border-color:transparent;opacity:.88}
+.stair-step.current{border:2px solid var(--ac);box-shadow:0 4px 16px rgba(31,95,74,.18);transform:scale(1.01)}
+.step-badge{width:30px;height:30px;border-radius:10px;background:var(--bd);color:var(--tx);font-weight:750;font-size:11.5px;display:flex;align-items:center;justify-content:center;flex:none}
+.stair-step.climbed .step-badge,.stair-step.current .step-badge{background:var(--ac);color:#fff}
+.climber-pin{padding:2px 8px;border-radius:99px;background:var(--ac);color:#fff;font-size:10px;font-weight:700;animation:float 2s infinite ease-in-out}
 
 /* Grids & Strips */
 .grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
 .j{aspect-ratio:1;border-radius:7px;font-size:11px;display:flex;align-items:center;justify-content:center;border:1px solid var(--bd);position:relative;overflow:hidden}
-.j span{position:relative;z-index:1}.j i{position:absolute;left:0;bottom:0;width:100%;background:var(--ac);opacity:.5}
+.j span{position:relative;z-index:1}.j i{position:absolute;left:0;bottom:0;width:100%;background:var(--ac);opacity:.45}
 .strip{display:grid;grid-template-columns:repeat(14,1fr);gap:4px}
-.s{aspect-ratio:1;border-radius:4px;background:var(--bd)}
-.s1{background:var(--wr)}.s2{background:var(--ac)}
-.cyc{display:flex;gap:6px;flex-wrap:wrap}
-.cy{padding:5px 11px;border-radius:20px;border:1px solid var(--bd);font-size:12px}
-.cy.on{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}
+.s{aspect-ratio:1;border-radius:4px;background:var(--bd)}.s1{background:var(--wr)}.s2{background:var(--ac)}
 
-/* 30-Step Ascension Ladder */
-.hadith-quote{font-size:12.5px;color:var(--mu);font-style:italic;background:var(--bg);padding:10px 12px;border-radius:10px;border-left:3px solid var(--ac);margin-bottom:12px;line-height:1.4}
-.ladder{display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto;padding-right:4px}
-.step-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;border:1px solid var(--bd);font-size:13px;background:var(--bg)}
-.step-row.climbed{background:var(--ac2);border-color:transparent}
-.step-row.current{background:var(--card);border:2px solid var(--ac);box-shadow:0 2px 8px rgba(0,0,0,.08);font-weight:600}
-.step-row.summit{border-color:var(--wr)}
-.step-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--bd);color:var(--tx);flex:none}
-.step-row.climbed .step-num,.step-row.current .step-num{background:var(--ac);color:#fff}
-.step-row.summit .step-num{background:var(--wr);color:#fff}
-.step-bar{flex:1;height:6px;background:var(--bd);border-radius:99px;overflow:hidden}
-.step-bar i{display:block;height:100%;background:var(--ac)}
+/* Centered Minimalist Tasbih */
+.tasbih-stage{min-height:66vh;display:flex;flex-direction:column;justify-content:space-between;padding:18px;border-radius:22px;position:relative;transition:all .3s;border:1px solid var(--bd)}
+.t-theme-emerald{background:linear-gradient(160deg,var(--card),var(--ac2));--t-ring:var(--ac)}
+.t-theme-midnight{background:linear-gradient(160deg,#0f172a,#1e293b);color:#f8fafc;--t-ring:#38bdf8;border-color:#334155}
+.t-theme-sand{background:linear-gradient(160deg,#fdfbf7,#f3ead8);color:#423629;--t-ring:#b45309;border-color:#e6dac3}
+.t-theme-gold{background:linear-gradient(160deg,#1c1917,#292524);color:#fef3c7;--t-ring:#fbbf24;border-color:#44403c}
+.t-theme-ocean{background:linear-gradient(160deg,#082f49,#0c4a6e);color:#e0f2fe;--t-ring:#38bdf8;border-color:#0369a1}
+.tasbih-center{margin:auto;text-align:center}
+.tasbih-orb{width:210px;height:210px;border-radius:50%;border:7px solid var(--t-ring,var(--ac));background:rgba(255,255,255,.06);backdrop-filter:blur(4px);color:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:16px auto;cursor:pointer;box-shadow:0 12px 34px rgba(0,0,0,.15);transition:transform .08s}
+.tasbih-orb:active{transform:scale(.94)}
+.tasbih-num{font-size:48px;font-weight:800;line-height:1}
+.tasbih-sub{font-size:12px;opacity:.8;margin-top:6px;font-weight:500}
+.pop-menu{position:absolute;top:54px;right:14px;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:14px;padding:14px;width:255px;box-shadow:0 12px 32px rgba(0,0,0,.22);z-index:30}
 
-/* Forms & Buttons */
-label.f{display:block;font-size:12px;color:var(--mu);margin:10px 0 4px;font-weight:600}
-input[type=number],input[type=text],input[type=email],select,textarea{
-  width:100%;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:14px;font-family:inherit
-}
-textarea{min-height:74px;resize:vertical}
-button{padding:10px 14px;border-radius:10px;border:0;background:var(--ac);color:#fff;font-size:14px;font-weight:600;margin-top:10px;cursor:pointer}
-button.g{background:transparent;color:var(--ac);border:1px solid var(--ac)}
-button.d{background:#b3382c;color:#fff}
-button.sm{padding:6px 11px;font-size:12px;margin-top:0}
-#msg{color:#b3382c;font-size:13px;min-height:18px;margin-bottom:4px}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.hint{font-size:12px;color:var(--mu);margin:3px 0 0;line-height:1.35}
-
-/* 5-Tab Bottom Navigation */
-.nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--bd);display:flex;justify-content:space-around;padding:7px 4px 10px;z-index:20;max-width:560px;margin:auto}
-.nav button{background:none;color:var(--mu);margin:0;padding:4px 6px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;flex:1}
-.nav button .ico{font-size:17px;line-height:1}
-.nav button.active{color:var(--ac);font-weight:700}
-
-/* Dedicated Tools Styling */
-.tasbih-ring{width:190px;height:190px;border-radius:50%;border:6px solid var(--ac2);display:flex;align-items:center;justify-content:center;margin:18px auto;position:relative}
-.tasbih-btn{width:160px;height:160px;border-radius:50%;font-size:38px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0;box-shadow:0 6px 20px rgba(0,0,0,.14);transition:transform .08s}
-.tasbih-btn:active{transform:scale(.95)}
-.tasbih-btn span{font-size:12px;font-weight:500;opacity:.9;margin-top:4px}
-.presets{display:flex;gap:6px;justify-content:center;margin-bottom:12px}
-.rec-btn{width:84px;height:84px;border-radius:50%;font-size:26px;display:flex;align-items:center;justify-content:center;margin:16px auto;box-shadow:0 4px 16px rgba(0,0,0,.15)}
-.swatches{display:flex;gap:10px;margin-top:6px}
-.swatch{width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent}
-.swatch.on{border-color:var(--tx);transform:scale(1.1)}
-.note-item{border:1px solid var(--bd);border-radius:12px;padding:12px;margin-top:10px;background:var(--bg)}
-.note-item a{color:var(--ac);word-break:break-all;font-size:13px;font-weight:600;text-decoration:none}
-.pill{display:inline-block;font-size:10.5px;padding:2px 8px;border-radius:99px;background:var(--ac2);color:var(--ac);font-weight:700;margin-bottom:4px}
-audio{width:100%;height:36px;margin-top:8px}
-.badge{background:var(--wr);color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;cursor:pointer}
-details summary{cursor:pointer;font-weight:700;font-size:15px}
-.help ol{padding-left:20px;margin:10px 0 0}
-.help li{margin-bottom:10px;font-size:13.5px;line-height:1.45}
-.help b{color:var(--ac)}
-
-/* Milestone Celebration Modal */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;backdrop-filter:blur(2px)}
-.modal-card{background:var(--card);border:2px solid var(--ac);border-radius:20px;padding:24px 20px;max-width:380px;width:100%;text-align:center;box-shadow:0 12px 32px rgba(0,0,0,.25);animation:pop .25s ease}
-@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
-.modal-ico{font-size:44px;margin-bottom:8px}
-.modal-title{font-size:19px;font-weight:800;color:var(--ac);margin-bottom:6px}
-.modal-body{font-size:14px;line-height:1.5;color:var(--tx);margin-bottom:16px}
-</style>
-</head>
-<body>
-
-<div class="row hdr">
-  <div>
-    <h1 id="greeting">📖 Hifdh Tracker</h1>
-    <div class="sub" id="subGreeting">Consistent daily progress</div>
-  </div>
-  <div class="row" style="gap:6px">
-    <button class="g sm" onclick="toggleTheme()" id="themeBtn" title="Switch Theme">🌙</button>
-    <button class="avatar-btn" id="profileBtn" onclick="setTab('settings')" style="display:none">
-      <div class="avatar" id="hdrAvatar">H</div>
-      <span style="font-size:12px;font-weight:600">Profile</span>
-    </button>
-  </div>
-</div>
-
-<div id="msg"></div>
-<div id="app" class="mu">Loading…</div>
-<div id="modalRoot"></div>
-
-<nav class="nav" id="bottomNav" style="display:none">
-  <button id="nav-today" class="active" onclick="setTab('today')"><span class="ico">📖</span>Today</button>
-  <button id="nav-journey" onclick="setTab('journey')"><span class="ico">🏔️</span>Journey</button>
-  <button id="nav-tasbih" onclick="setTab('tasbih')"><span class="ico">📿</span>Tasbih</button>
-  <button id="nav-recite" onclick="setTab('recite')"><span class="ico">🎙️</span>Recite</button>
-  <button id="nav-library" onclick="setTab('library')"><span class="ico">📂</span>Library</button>
-</nav>
-
-<script>
-const JUZ_START=[0,1,22,42,62,82,102,122,142,162,182,202,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582];
-const SURAH_AT_PAGE=[
-  [1,"Al-Fatihah"],[2,"Al-Baqarah"],[50,"Ali 'Imran"],[77,"An-Nisa"],[106,"Al-Ma'idah"],[128,"Al-An'am"],
-  [151,"Al-A'raf"],[177,"Al-Anfal"],[187,"At-Tawbah"],[208,"Yunus"],[221,"Hud"],[235,"Yusuf"],
-  [249,"Ar-Ra'd"],[255,"Ibrahim"],[262,"Al-Hijr"],[267,"An-Nahl"],[282,"Al-Isra"],[293,"Al-Kahf"],
-  [305,"Maryam"],[312,"Ta-Ha"],[322,"Al-Anbiya"],[332,"Al-Hajj"],[342,"Al-Mu'minun"],[350,"An-Nur"],
-  [359,"Al-Furqan"],[367,"Ash-Shu'ara"],[377,"An-Naml"],[385,"Al-Qasas"],[396,"Al-'Ankabut"],[404,"Ar-Rum"],
-  [411,"Luqman"],[415,"As-Sajdah"],[418,"Al-Ahzab"],[428,"Saba"],[434,"Fatir"],[440,"Ya-Sin"],
-  [446,"As-Saffat"],[453,"Sad"],[458,"Az-Zumar"],[467,"Ghafir"],[477,"Fussilat"],[483,"Ash-Shura"],
-  [489,"Az-Zukhruf"],[496,"Ad-Dukhan"],[499,"Al-Jathiyah"],[502,"Al-Ahqaf"],[507,"Muhammad"],[511,"Al-Fath"],
-  [515,"Al-Hujurat"],[518,"Qaf"],[520,"Adh-Dhariyat"],[523,"At-Tur"],[526,"An-Najm"],[528,"Al-Qamar"],
-  [531,"Ar-Rahman"],[534,"Al-Waqi'ah"],[537,"Al-Hadid"],[542,"Al-Mujadila"],[545,"Al-Hashr"],[549,"Al-Mumtahanah"],
-  [551,"As-Saff"],[553,"Al-Jumu'ah"],[554,"Al-Munafiqun"],[556,"At-Taghabun"],[558,"At-Talaq"],[560,"At-Tahrim"],
-  [562,"Al-Mulk"],[564,"Al-Qalam"],[566,"Al-Haqqah"],[568,"Al-Ma'arij"],[570,"Nuh"],[572,"Al-Jinn"],
-  [574,"Al-Muzzammil"],[575,"Al-Muddaththir"],[577,"Al-Qiyamah"],[578,"Al-Insan"],[580,"Al-Mursalat"],
-  [582,"An-Naba"],[583,"An-Nazi'at"],[585,"'Abasa"],[586,"At-Takwir"],[587,"Al-Infitar"],[587,"Al-Mutaffifin"],
-  [589,"Al-Inshiqaq"],[590,"Al-Buruj"],[591,"At-Tariq"],[591,"Al-A'la"],[592,"Al-Ghashiyah"],[593,"Al-Fajr"],
-  [594,"Al-Balad"],[595,"Ash-Shams"],[595,"Al-Layl"],[596,"Ad-Duhaa"],[596,"Ash-Sharh"],[597,"At-Tin"],
-  [597,"Al-'Alaq"],[598,"Al-Qadr"],[598,"Al-Bayyinah"],[599,"Az-Zalzalah"],[599,"Al-'Adiyat"],[600,"Al-Qari'ah"],
-  [600,"At-Takathur"],[601,"Al-'Asr"],[601,"Al-Humazah"],[601,"Al-Fil"],[602,"Quraysh"],[602,"Al-Ma'un"],
-  [602,"Al-Kawthar"],[603,"Al-Kafirun"],[603,"An-Nasr"],[603,"Al-Masad"],[604,"Al-Ikhlas"],[604,"Al-Falaq"],[604,"An-Nas"]
-];
-const TOTAL=604;
-const DEFAULTS={
-  onboarded:false,name:'',avatar:'',email:'',
-  mode:'both',method:'ottoman',
-  frontier:0,newPerDay:1,revPerDay:1,sabakPages:5,
-  chunks:[5,10,15,0],cycle:0,juz:1,period:1,
-  theme:'light',color:'emerald',
-  tasbih:0,tasbihTarget:33,tasbihTotal:0,
-  libFilter:'All',lastBackup:''
-};
-
-const pad=n=>String(n).padStart(2,'0');
-const T=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-let D=null, TAB='today', mediaRec=null, recChunks=[], isRecording=false;
-const $=id=>document.getElementById(id);
-const LS=window.localStorage;
-function ld(k,d){try{const v=LS.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
-function sv(k,v){try{LS.setItem(k,JSON.stringify(v))}catch(e){$('msg').textContent='Could not save: '+e.message}}
-
-const juzEnd=j=>j===30?TOTAL:JUZ_START[j+1]-1;
-function juzOf(p){for(let j=30;j>=1;j--)if(p>=JUZ_START[j])return j;return 1}
-function surahIdxOf(p){let idx=0;for(let i=0;i<SURAH_AT_PAGE.length;i++){if(p>=SURAH_AT_PAGE[i][0])idx=i;else break}return idx}
-const surahOf=p=>SURAH_AT_PAGE[surahIdxOf(p)][1];
-
-const loadState=()=>Object.assign({},DEFAULTS,ld('hifdh_state',{}));
-const saveState=s=>sv('hifdh_state',s);
-const loadDays=()=>ld('hifdh_days',{});
-const loadNotes=()=>ld('hifdh_notes',[]);
-const saveNotes=n=>sv('hifdh_notes',n);
-
-function applyTheme(s){
-  document.documentElement.setAttribute('data-theme',s.theme||'light');
-  document.documentElement.setAttribute('data-color',s.color||'emerald');
-  const colors={emerald:'#1f5f4a',blue:'#1d4ed8',gold:'#9a6700',plum:'#6d28d9'};
-  $('metaTheme').setAttribute('content',colors[s.color]||'#1f5f4a');
-  $('themeBtn').textContent=s.theme==='dark'?'☀️':'🌙';
-}
-function toggleTheme(){
-  const s=loadState();s.theme=s.theme==='dark'?'light':'dark';
-  saveState(s);applyTheme(s);if(TAB==='settings')render();
-}
-function setColor(c){const s=loadState();s.color=c;saveState(s);applyTheme(s);render()}
-function setTab(t){
-  TAB=t;
-  ['today','journey','tasbih','recite','library'].forEach(x=>$('nav-'+x).classList.toggle('active',x===t));
-  render();
-}
-
-function showCelebration(ico,title,body){
-  $('modalRoot').innerHTML=`<div class="modal-bg" onclick="closeModal()">
-    <div class="modal-card" onclick="event.stopPropagation()">
-      <div class="modal-ico">${ico}</div>
-      <div class="modal-title">${title}</div>
-      <div class="modal-body">${body}</div>
-      <button style="width:100%" onclick="closeModal()">Alḥamdulillāh · Continue</button>
-    </div>
-  </div>`;
-}
-function closeModal(){$('modalRoot').innerHTML=''}
-
-function addDays(str,k){const p=str.split('-');const d=new Date(+p[0],+p[1]-1,+p[2]);d.setDate(d.getDate()+k);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
-const anyDone=day=>(day.n&&day.n.done)||(day.sb&&day.sb.done)||day.r.some(t=>t.done);
-function allDone(day){
-  const t=(day.n?1:0)+(day.sb?1:0)+day.r.length;if(!t)return false;
-  return(!day.n||day.n.done)&&(!day.sb||day.sb.done)&&day.r.every(x=>x.done);
-}
-
-function makePlan(s){
-  const plan={n:null,sb:null,r:[],u:[]};
-  const doHifdh=s.mode==='both'||s.mode==='hifdh';
-  const doRev=s.mode==='both'||s.mode==='revision';
-  if(doHifdh && s.newPerDay>0 && s.frontier<TOTAL){
-    plan.n={a:s.frontier+1,b:Math.min(TOTAL,s.frontier+s.newPerDay),done:false};
-  }
-  if(doRev && s.sabakPages>0 && s.frontier>=1){
-    const start=Math.max(1,s.frontier-s.sabakPages+1);
-    plan.sb={a:start,b:s.frontier,done:false};
-  }
-  if(doRev && s.frontier>=1){
-    let pos={c:s.cycle,j:s.juz,p:s.period};
-    const chunks=s.method==='classic'?[0]:s.chunks;
-    if(pos.c>=chunks.length)pos.c=0;
-    for(let i=0;i<s.revPerDay;i++){
-      const top=juzOf(s.frontier);
-      if(pos.j>top){pos.j=1;pos.c++;if(pos.c>=chunks.length){pos.c=0;pos.p++}}
-      const end=Math.min(juzEnd(pos.j),s.frontier),st=JUZ_START[pos.j],N=chunks[pos.c];
-      const from=N>0?Math.max(st,end-N+1):st;
-      const before={c:pos.c,j:pos.j,p:pos.p},after={c:pos.c,j:pos.j+1,p:pos.p};
-      plan.r.push({j:pos.j,a:from,b:end,c:pos.c,p:pos.p,n:N,done:false,before,after});
-      pos={c:after.c,j:after.j,p:after.p};
-    }
-  }
-  return plan;
-}
-
-const api={
-  getData(today){
-    const s=loadState(),days=loadDays();
-    applyTheme(s);
-    let day=days[today];
-    if(!day||!anyDone(day)){day=makePlan(s);days[today]=day}
-    const cutoff=addDays(today,-400);
-    Object.keys(days).forEach(k=>{if(k<cutoff)delete days[k]});
-    sv('hifdh_days',days);
-    const strip=[];
-    for(let i=27;i>=0;i--){const d=addDays(today,-i);const o=days[d];strip.push({d,s:o?(allDone(o)?2:(anyDone(o)?1:0)):0})}
-    let streak=0;for(let k=strip[27].s===2?27:26;k>=0&&strip[k].s===2;k--)streak++;
-    const juz=[];
-    for(let j=1;j<=30;j++){const len=juzEnd(j)-JUZ_START[j]+1;juz.push(Math.max(0,Math.min(len,s.frontier-JUZ_START[j]+1))/len)}
-    const remaining=TOTAL-s.frontier;
-    const eta=(s.mode!=='revision'&&s.newPerDay>0&&remaining>0)?addDays(today,Math.ceil(remaining/s.newPerDay)-1):null;
-    return{state:s,day,stats:{juz,strip,streak,remaining,eta}};
-  },
-  tick(today,key){
-    const s=loadState(),days=loadDays(),day=days[today];
-    const task=key==='n'?day.n:(key==='sb'?day.sb:day.r[+key.slice(1)]);
-    if(!task)return{error:'Task not found.'};
-    if(!task.done){
-      if(key==='n'){
-        const oldF=s.frontier;
-        task.prev=oldF;
-        s.frontier=Math.max(s.frontier,task.b);
-        const newF=s.frontier;
-        /* Check Milestones: Khatmah, Juz, or Surah */
-        if(newF===TOTAL && oldF<TOTAL){
-          showCelebration('👑','Māshā’Allāh! Khatmah Complete!','You have reached the Summit—all 604 pages of the Noble Qur’an! May Allah make it a light for you in this world and the Hereafter.');
-        }else{
-          const oldJ=oldF>0?juzOf(oldF):0, newJ=juzOf(newF);
-          if(newF===juzEnd(newJ) && oldF<newF){
-            showCelebration('🏔️',`Juz ${newJ} Complete!`,`Allāhu Akbar! You completed Juz ${newJ} and ascended to Rank ${Math.min(30,newJ+1)} of 30.`);
-          }else if(newF<TOTAL && surahIdxOf(newF+1)>surahIdxOf(newF) && newF>oldF){
-            const finishedSurah=surahOf(newF);
-            showCelebration('✨',`Surah ${finishedSurah} Complete!`,`Māshā’Allāh! You finished memorizing Surah ${finishedSurah}. Keep climbing step by step!`);
-          }
-        }
-      }
-      else if(key.startsWith('r')){
-        const topJuz=juzOf(s.frontier);
-        const chunks=s.method==='classic'?[0]:s.chunks;
-        s.cycle=task.after.c;s.juz=task.after.j;s.period=task.after.p;
-        if(task.j>=topJuz && topJuz>=1){
-          if(task.c+1>=chunks.length){
-            showCelebration('🌟',`Period ${task.p} Complete!`,`Māshā’Allāh! You finished every cycle of Period ${task.p} across all memorized Juz. Starting Period ${task.p+1}!`);
-          }else{
-            showCelebration('🔄',`Revision Cycle ${task.c+1} Complete!`,`Well done! You completed Cycle ${task.c+1} (${chunkName(task.n)}) across all your memorized Juz.`);
-          }
-        }
-      }
-      task.done=true;day.u.push(key);
-    }else{
-      if(day.u[day.u.length-1]!==key)return{error:'Undo the most recent tick first.'};
-      if(key==='n')s.frontier=task.prev;
-      else if(key.startsWith('r')){s.cycle=task.before.c;s.juz=task.before.j;s.period=task.before.p}
-      task.done=false;day.u.pop();
-    }
-    saveState(s);sv('hifdh_days',days);
-    return api.getData(today);
-  },
-  saveSettings(today,f){
-    const s=loadState();
-    s.onboarded=true;
-    s.name=(f.name||'').trim();
-    s.email=(f.email||'').trim();
-    s.mode=f.mode||'both';
-    s.method=f.method||'ottoman';
-    if(s.method==='ottoman')s.chunks=[5,10,15,0];
-    else if(s.method==='classic')s.chunks=[0];
-    else{
-      const chunks=String(f.chunks).split(',').map(x=>parseInt(x,10)).filter(x=>!isNaN(x)&&x>=0&&x<=21);
-      if(!chunks.length)return{error:'Custom cycle sizes must look like 5,10,15,0 (0 = whole juz).'};
-      s.chunks=chunks.slice(0,8);
-    }
-    s.frontier=Math.max(0,Math.min(TOTAL,parseInt(f.frontier,10)||0));
-    s.newPerDay=Math.max(0,Math.min(20,parseInt(f.newPerDay,10)||0));
-    s.revPerDay=Math.max(0,Math.min(5,parseInt(f.revPerDay,10)||0));
-    s.sabakPages=Math.max(0,Math.min(30,parseInt(f.sabakPages,10)||0));
-    s.cycle=Math.max(0,Math.min(s.chunks.length-1,(parseInt(f.cycle,10)||1)-1));
-    s.juz=Math.max(1,Math.min(30,parseInt(f.juz,10)||1));
-    s.period=Math.max(1,parseInt(f.period,10)||1);
-    saveState(s);dropIfUnticked(today);
-    return api.getData(today);
-  },
-  addPages(today,n){
-    const s=loadState();
-    s.frontier=Math.min(TOTAL,s.frontier+Math.max(0,parseInt(n,10)||0));
-    saveState(s);dropIfUnticked(today);
-    return api.getData(today);
-  }
-};
-
-function dropIfUnticked(today){const d=loadDays();if(d[today]&&!anyDone(d[today])){delete d[today];sv('hifdh_days',d)}}
-function call(fn,...a){
-  $('msg').textContent='';
-  try{const r=api[fn](T(),...a);if(r&&r.error){$('msg').textContent=r.error;return}if(r)D=r}
-  catch(e){$('msg').textContent=e.message;return}
-  render();
-}
-
-/* Profile Photo Compressor */
-function uploadAvatar(inp){
-  const f=inp.files[0];if(!f)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      const canvas=document.createElement('canvas');
-      canvas.width=128;canvas.height=128;
-      const ctx=canvas.getContext('2d');
-      const min=Math.min(img.width,img.height);
-      ctx.drawImage(img,(img.width-min)/2,(img.height-min)/2,min,min,0,0,128,128);
-      const s=loadState();s.avatar=canvas.toDataURL('image/jpeg',0.8);
-      saveState(s);D.state=s;render();
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(f);
-}
-function removeAvatar(){const s=loadState();s.avatar='';saveState(s);D.state=s;render()}
-
-/* Tasbih */
-function tapTasbih(){
-  const s=loadState();
-  s.tasbih=(s.tasbih||0)+1;
-  s.tasbihTotal=(s.tasbihTotal||0)+1;
-  saveState(s);
-  if(navigator.vibrate)navigator.vibrate(s.tasbih===s.tasbihTarget?[60,40,60]:25);
-  D.state=s;render();
-}
-function resetTasbih(){const s=loadState();s.tasbih=0;saveState(s);D.state=s;render()}
-function setTasbihTarget(v){const s=loadState();s.tasbihTarget=Math.max(1,parseInt(v,10)||33);saveState(s);D.state=s;render()}
-
-/* Library (Tajweed Videos & Study Notes) */
-function addNote(){
-  const title=$('ntTitle').value.trim(),cat=$('ntCat').value,link=$('ntLink').value.trim(),body=$('ntBody').value.trim();
-  if(!title&&!link&&!body)return;
-  const list=loadNotes();
-  list.unshift({id:Date.now(),date:T(),cat,title:title||'Untitled Note',link,body});
-  saveNotes(list);render();
-}
-function delNote(id){saveNotes(loadNotes().filter(x=>x.id!==id));render()}
-function setLibFilter(f){const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
-
-/* Offline Voice Recorder */
-function openAudioDB(){
-  return new Promise((res,rej)=>{
-    const req=indexedDB.open('hifdh_audio_db',1);
-    req.onupgradeneeded=e=>e.target.result.createObjectStore('clips',{keyPath:'id'});
-    req.onsuccess=e=>res(e.target.result);
-    req.onerror=e=>rej(e);
-  });
-}
-async function toggleRecord(){
-  if(!isRecording){
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-      recChunks=[];mediaRec=new MediaRecorder(stream);
-      mediaRec.ondataavailable=e=>{if(e.data.size>0)recChunks.push(e.data)};
-      mediaRec.onstop=async()=>{
-        const blob=new Blob(recChunks,{type:mediaRec.mimeType||'audio/webm'});
-        stream.getTracks().forEach(t=>t.stop());
-        const label=prompt('Label this recitation (e.g., Surah Al-Mulk p.562):','Recitation '+T())||('Recitation '+T());
-        const db=await openAudioDB();
-        const tx=db.transaction('clips','readwrite');
-        tx.objectStore('clips').put({id:Date.now(),date:T(),label,blob});
-        tx.oncomplete=()=>render();
-      };
-      mediaRec.start();isRecording=true;render();
-    }catch(e){$('msg').textContent='Microphone permission needed: '+e.message}
-  }else{
-    mediaRec.stop();isRecording=false;render();
-  }
-}
-async function loadClips(){
-  try{
-    const db=await openAudioDB();
-    return new Promise(res=>{
-      const req=db.transaction('clips','readonly').objectStore('clips').getAll();
-      req.onsuccess=()=>res((req.result||[]).sort((a,b)=>b.id-a.id));
-      req.onerror=()=>res([]);
-    });
-  }catch(e){return[]}
-}
-async function deleteClip(id){
-  const db=await openAudioDB();
-  const tx=db.transaction('clips','readwrite');
-  tx.objectStore('clips').delete(id);
-  tx.oncomplete=()=>render();
-}
-
-/* Email & Notifications */
-function sendEmailSummary(){
-  const s=D.state,st=D.stats;
-  const to=encodeURIComponent(s.email||'');
-  const subj=encodeURIComponent(`Hifdh Progress Update — ${s.name||'Student'} (${T()})`);
-  const body=encodeURIComponent(
-    `Assalamu Alaikum ${s.name||''},\n\n`+
-    `Here is your Hifdh Tracker summary for ${T()}:\n`+
-    `• Ascended Rank: Rank ${juzOf(Math.max(1,s.frontier))} of 30 (Juz ${juzOf(Math.max(1,s.frontier))})\n`+
-    `• Memorized: ${s.frontier} / 604 pages (${Math.round(s.frontier/604*100)}%)\n`+
-    `• Current Streak: ${st.streak} day(s)\n`+
-    `• Revision Position: Period ${s.period}, Cycle ${s.cycle+1}, Next Juz ${s.juz}\n\n`+
-    `"Read and ascend, and recite slowly as you recited in the world..."\n`+
-    `Keep going—every page elevates your rank.`
-  );
-  window.location.href=`mailto:${to}?subject=${subj}&body=${body}`;
-}
-function enableReminder(){
-  if(!('Notification' in window)){$('msg').textContent='Notifications not supported on this browser.';return}
-  Notification.requestPermission().then(p=>{
-    if(p==='granted')new Notification('Hifdh Tracker',{body:`Assalamu Alaikum ${D.state.name||''}! Daily reminder is active.`});
-    else $('msg').textContent='Notification permission denied in browser settings.';
-  });
-}
-
-/* Backup & Reset */
-function exportData(){
-  const s=loadState();s.lastBackup=T();saveState(s);
-  const blob=new Blob([JSON.stringify({app:'hifdh',v:3,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hifdh-backup-'+T()+'.json';
-  document.body.appendChild(a);a.click();a.remove();render();
-}
-function importData(inp){
-  const f=inp.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{try{
-    const o=JSON.parse(r.result);
-    if(o.app!=='hifdh'||!o.state||!o.days)throw new Error('This is not a Hifdh backup file.');
-    if(!confirm('Replace your current data with this backup?'))return;
-    saveState(Object.assign({},DEFAULTS,o.state));sv('hifdh_days',o.days);
-    if(o.notes)saveNotes(o.notes);
-    D=null;render();
-  }catch(e){$('msg').textContent=e.message}};
-  r.readAsText(f);inp.value='';
-}
-function resetAll(){LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');D=null;render()}
-
-const rng=(a,b)=>a===b?`Page ${a}`:`Pages ${a}–${b}`;
-const chunkName=n=>n>0?`last ${n} pages`:'whole juz';
-function fmt(d){return d?new Date(d+'T00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'—'}
-const initials=name=>(name||'H').trim().split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
-
-async function render(){
-  if(!D){call('getData');return}
-  const s=D.state,st=D.stats,day=D.day;
-  const rank=s.frontier>0?juzOf(s.frontier):1;
-  $('greeting').textContent=s.name?`Assalamu Alaikum, ${s.name}`:'Hifdh Tracker';
-  $('subGreeting').textContent=`Rank ${rank} of 30 · ${s.frontier}/604 pages`;
-
-  if(s.onboarded){
-    $('profileBtn').style.display='flex';
-    $('hdrAvatar').innerHTML=s.avatar?`<img src="${s.avatar}" alt="">`:initials(s.name);
-    $('bottomNav').style.display='flex';
-  }else{
-    $('profileBtn').style.display='none';
-    $('bottomNav').style.display='none';
-    $('app').innerHTML=`<div class="card"><h2>Welcome! Create Your Hifdh Profile</h2>
-    <label class="f">Your Name</label><input type="text" id="obName" placeholder="e.g., Shohzodbek" value="${s.name}">
-    <label class="f">Your Email (for progress summaries)</label><input type="email" id="obEmail" placeholder="you@example.com" value="${s.email}">
-    <label class="f">Study Category</label>
-    <select id="obMode">
-      <option value="both" ${s.mode==='both'?'selected':''}>Both (New Hifdh + Revision)</option>
-      <option value="hifdh" ${s.mode==='hifdh'?'selected':''}>Hifdh Only (New Memorization)</option>
-      <option value="revision" ${s.mode==='revision'?'selected':''}>Revision Only (Muraja'ah)</option>
-    </select>
-    <label class="f">Revision Method</label>
-    <select id="obMethod" onchange="$('obCustomBox').style.display=this.value==='custom'?'block':'none'">
-      <option value="ottoman" ${s.method==='ottoman'?'selected':''}>Ottoman Method (5, 10, 15 pages, then whole juz)</option>
-      <option value="classic" ${s.method==='classic'?'selected':''}>Classic Full-Juz Method (1 full juz per day)</option>
-      <option value="custom" ${s.method==='custom'?'selected':''}>Custom Cycle (Create your own)</option>
-    </select>
-    <div id="obCustomBox" style="display:${s.method==='custom'?'block':'none'}">
-      <label class="f">Custom Cycle Sizes (comma separated, 0 = whole juz)</label>
-      <input type="text" id="obChunks" value="${s.chunks.join(',')}">
-    </div>
-    <div class="two">
-      <div><label class="f">Last Page Memorized (0–604)</label><input type="number" id="obFr" value="${s.frontier}"></div>
-      <div><label class="f">Recent Revision (Sabak Dhor pages)</label><input type="number" id="obSb" value="${s.sabakPages}"></div>
-    </div>
-    <button style="width:100%;margin-top:14px" onclick="finishOnboarding()">Start My Journey</button></div>`;
-    return;
-  }
-
-  /* TAB 1: TODAY */
-  if(TAB==='today'){
-    const pct=Math.round(s.frontier/604*100);
-    const needBackup=!s.lastBackup || (new Date(T())-new Date(s.lastBackup))/(1000*60*60*24)>=14;
-    let h=`<div class="card">
-      <div class="row"><b>🏔️ Rank ${rank} / 30 · Juz ${rank}</b><span class="mu">${pct}%</span></div>
-      <div class="bar" style="margin:9px 0"><i style="width:${s.frontier/6.04}%"></i></div>
-      <div class="row mu"><span>🔥 Streak: ${st.streak} day${st.streak==1?'':'s'}</span><span>${st.eta?'Summit: '+fmt(st.eta):s.frontier+' / 604 pages'}</span></div>
-    </div>`;
-
-    h+=`<div class="card"><div class="row"><h2>Today's Plan</h2>${needBackup?'<span class="badge" onclick="setTab(\'settings\')">Backup due</span>':''}</div>`;
-    if(day.n){
-      h+=`<div class="task ${day.n.done?'done':''}" onclick="call('tick','n')">
-        <input type="checkbox" ${day.n.done?'checked':''} onclick="event.preventDefault()">
-        <div style="flex:1"><span class="tag">New Hifdh</span><b>${rng(day.n.a,day.n.b)} · ${surahOf(day.n.a)}</b></div>
-        <a href="https://quran.com/page/${day.n.a}" target="_blank" onclick="event.stopPropagation()" class="mu" style="text-decoration:none;font-weight:700">Mushaf ↗</a>
-      </div>`;
-    }
-    if(day.sb){
-      h+=`<div class="task ${day.sb.done?'done':''}" onclick="call('tick','sb')">
-        <input type="checkbox" ${day.sb.done?'checked':''} onclick="event.preventDefault()">
-        <div style="flex:1"><span class="tag">Recent Revision (Last ${s.sabakPages}p)</span><b>${rng(day.sb.a,day.sb.b)} · ${surahOf(day.sb.a)}</b></div>
-        <a href="https://quran.com/page/${day.sb.a}" target="_blank" onclick="event.stopPropagation()" class="mu" style="text-decoration:none;font-weight:700">Mushaf ↗</a>
-      </div>`;
-    }
-    day.r.forEach((t,i)=>{
-      h+=`<div class="task ${t.done?'done':''}" onclick="call('tick','r${i}')">
-        <input type="checkbox" ${t.done?'checked':''} onclick="event.preventDefault()">
-        <div style="flex:1"><span class="tag">Cycle Revision</span><b>Juz ${t.j} · ${rng(t.a,t.b)}</b><span class="mu">${surahOf(t.a)} · ${chunkName(t.n)}</span></div>
-        <a href="https://quran.com/page/${t.a}" target="_blank" onclick="event.stopPropagation()" class="mu" style="text-decoration:none;font-weight:700">Mushaf ↗</a>
-      </div>`;
-    });
-
-    if(!day.n&&!day.sb&&!day.r.length)h+=`<div class="mu">Nothing planned today. Adjust your pages in Profile & Settings.</div>`;
-    else if(day.u.length){
-      const totalTasks=(day.n?1:0)+(day.sb?1:0)+day.r.length;
-      h+=`<div class="mu">${day.u.length===totalTasks?'✅ All tasks complete today, māshā’Allāh!':''}</div><button class="g sm" style="margin-top:8px" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button>`;
-    }
-    h+=`</div>`;
-
-    if(s.mode!=='hifdh'){
-      const chunks=s.method==='classic'?[0]:s.chunks;
-      h+=`<div class="card"><h2>Active Revision Cycle (Period ${s.period})</h2><div class="cyc">`+
-      chunks.map((n,i)=>`<span class="cy ${i==s.cycle?'on':''}">${i+1}. ${chunkName(n)}</span>`).join('')+
-      `</div><div class="mu" style="margin-top:8px">Next Juz in rotation: Juz ${s.juz<=30?s.juz:1}</div></div>`;
-    }
-    $('app').innerHTML=h;
-  }
-
-  /* TAB 2: JOURNEY (30-Step Ascension + Classic Grids) */
-  else if(TAB==='journey'){
-    const pct=Math.round(s.frontier/604*100);
-    const pagesToNext=juzEnd(rank)-s.frontier;
-    let ladderHtml='';
-    for(let j=30;j>=1;j--){
-      const fill=Math.round(st.juz[j-1]*100);
-      const isClimbed=fill===100;
-      const isCurrent=(j===rank && !isClimbed) || (j===30 && s.frontier===TOTAL);
-      const cls=j===30?'summit':(isCurrent?'current':(isClimbed?'climbed':''));
-      const label=j===30?'👑 Rank 30 · Summit (Khatmah)':`Rank ${j} · Juz ${j}`;
-      const status=isClimbed?'✅':(isCurrent?`${fill}%`:`${fill}%`);
-      ladderHtml+=`<div class="step-row ${cls}">
-        <div class="step-num">${j===30?'★':j}</div>
-        <div style="flex:1">
-          <div class="row" style="margin-bottom:4px"><span>${label}</span><span class="mu">${status}</span></div>
-          <div class="step-bar"><i style="width:${fill}%"></i></div>
-        </div>
-      </div>`;
-    }
-
-    $('app').innerHTML=`<div class="card">
-      <div class="row"><h2>🏔️ The 30-Step Ascension</h2><span class="pill">Rank ${rank} / 30</span></div>
-      <div class="hadith-quote">“It will be said to the companion of the Qur’an: Read and ascend, and recite slowly as you recited in the world, for your station will be at the last verse you recite.”</div>
-      <div class="row mu" style="margin-bottom:10px">
-        <span>Total: <b>${s.frontier} / 604</b> (${pct}%)</span>
-        <span>${pagesToNext>0?`${pagesToNext}p to Rank ${Math.min(30,rank+1)}`:'Rank Complete!'}</span>
-      </div>
-      <div class="ladder">${ladderHtml}</div>
-    </div>
-
-    <div class="card"><h2>30-Juz Mastery Grid</h2><div class="grid">`+
-      st.juz.map((f,i)=>`<div class="j"><i style="height:${f*100}%"></i><span>${i+1}</span></div>`).join('')+
-    `</div></div>
-
-    <div class="card"><div class="row"><h2>Last 28 Days Consistency</h2><span class="mu">🔥 ${st.streak}d streak</span></div><div class="strip">`+
-      st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
-    `</div></div>`;
-  }
-
-  /* TAB 3: TASBIH (Dedicated Repetition Counter) */
-  else if(TAB==='tasbih'){
-    const count=s.tasbih||0, target=s.tasbihTarget||33;
-    const reached=count>=target;
-    $('app').innerHTML=`<div class="card" style="text-align:center">
-      <h2>📿 Repetition & Tasbih Counter</h2>
-      <div class="mu">Tap the circle for each verse repetition while memorizing or for daily dhikr.</div>
-      <div class="tasbih-ring" style="${reached?'border-color:var(--ac)':''}">
-        <button class="tasbih-btn" onclick="tapTasbih()">${count}<span>${reached?'Target Reached!':'Target: '+target}</span></button>
-      </div>
-      <div class="presets">
-        ${[10,20,33,100].map(p=>`<button class="g sm" style="${target===p?'background:var(--ac);color:#fff':''}" onclick="setTasbihTarget(${p})">${p}x</button>`).join('')}
-      </div>
-      <div class="row" style="justify-content:center;gap:12px;margin-top:8px">
-        <button class="g sm" onclick="resetTasbih()">Reset Counter</button>
-        <span class="mu">Lifetime taps: <b>${s.tasbihTotal||0}</b></span>
-      </div>
-      <div class="row" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--bd)">
-        <span class="mu">Custom target:</span>
-        <input type="number" style="width:90px" value="${target}" onchange="setTasbihTarget(this.value)">
-      </div>
-    </div>`;
-  }
-
-  /* TAB 4: RECITE (Dedicated Voice Studio) */
-  else if(TAB==='recite'){
-    const clips=await loadClips();
-    $('app').innerHTML=`<div class="card" style="text-align:center">
-      <h2>🎙️ Voice Recitation Studio</h2>
-      <div class="mu">Record yourself reciting from memory offline, then listen back to spot hesitations or Tajweed slips.</div>
-      <button class="rec-btn ${isRecording?'d':''}" onclick="toggleRecord()">${isRecording?'⏹':'●'}</button>
-      <div style="font-weight:700;font-size:13px;color:${isRecording?'#b3382c':'var(--ac)'}">${isRecording?'Recording... Tap to Stop & Save':'Tap to Start Recording'}</div>
-    </div>
-    <div class="card"><h2>Saved Recitations (${clips.length})</h2>
-      ${clips.length?clips.map(c=>{
-        const url=URL.createObjectURL(c.blob);
-        return `<div class="note-item"><div class="row"><b>${c.label}</b><button class="g sm" onclick="deleteClip(${c.id})">Delete</button></div><div class="mu">${c.date}</div><audio controls src="${url}"></audio></div>`;
-      }).join(''):'<div class="mu">No recordings yet. Tap the microphone button above to record your first recitation.</div>'}
-    </div>`;
-  }
-
-  /* TAB 5: LIBRARY (Tajweed Videos & Study Notes) */
-  else if(TAB==='library'){
-    const notes=loadNotes();
-    const cats=['All','Tajweed Video','Mutashabihat','Reflection'];
-    const filtered=s.libFilter==='All'?notes:notes.filter(n=>(n.cat||'Reflection')===s.libFilter);
-    $('app').innerHTML=`<div class="card">
-      <h2>📂 Tajweed & Study Library</h2>
-      <div class="mu">Organize Tajweed video links, similar verses (Mutashabihat), and personal notes.</div>
-      <div class="two">
-        <div><label class="f">Title</label><input type="text" id="ntTitle" placeholder="e.g., Madd Rules / p.214"></div>
-        <div><label class="f">Folder / Category</label>
-          <select id="ntCat">
-            <option value="Tajweed Video">Tajweed Video</option>
-            <option value="Mutashabihat">Mutashabihat</option>
-            <option value="Reflection">Reflection</option>
-          </select>
-        </div>
-      </div>
-      <label class="f">Video or Resource Link (optional)</label><input type="text" id="ntLink" placeholder="https://youtube.com/...">
-      <label class="f">Notes & Timestamps</label><textarea id="ntBody" placeholder="Write key takeaways or verse notes..."></textarea>
-      <button style="width:100%" onclick="addNote()">Save to Library</button>
-    </div>
-
-    <div class="card">
-      <div class="cyc" style="margin-bottom:10px">${cats.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" style="cursor:pointer" onclick="setLibFilter('${c}')">${c}</span>`).join('')}</div>
-      ${filtered.length?filtered.map(n=>`<div class="note-item">
-        <div class="row"><span class="pill">${n.cat||'Reflection'}</span><button class="g sm" onclick="delNote(${n.id})">Delete</button></div>
-        <div style="font-weight:700;margin-top:2px">${n.title}</div>
-        <div class="mu">${n.date}</div>
-        ${n.link?`<div style="margin-top:6px"><a href="${n.link}" target="_blank">🔗 Open Video / Link ↗</a></div>`:''}
-        ${n.body?`<div style="margin-top:6px;font-size:13.5px;white-space:pre-wrap;line-height:1.45">${n.body}</div>`:''}
-      </div>`).join(''):'<div class="mu">No items in this folder yet.</div>'}
-    </div>`;
-  }
-
-  /* PROFILE & SETTINGS (Accessed via Top-Right Avatar) */
-  else if(TAB==='settings'){
-    const cols=[['emerald','#1f5f4a'],['blue','#1d4ed8'],['gold','#9a6700'],['plum','#6d28d9']];
-    $('app').innerHTML=`<div class="card help"><details><summary>❓ App Guide & How It Works</summary><ol>
-      <li><b>Five Clean Sections:</b> Use <b>Today</b> for your daily tasks, <b>Journey</b> for your 30-Step Ascension climb and grids, <b>Tasbih</b> for verse repetitions, <b>Recite</b> for offline voice recordings, and <b>Library</b> for Tajweed videos and notes.</li>
-      <li><b>30-Step Ascension:</b> Each Juz represents 1 Rank toward the 30-Juz Summit. Completing a Surah, Juz, or Revision Cycle triggers a congratulatory milestone pop-up.</li>
-      <li><b>Daily Plan & Sabak Dhor:</b> Tick tasks as you finish them. <b>Recent Revision</b> keeps your last memorized pages fresh daily, while <b>Cycle Revision</b> rotates through your older Juz.</li>
-      <li><b>Backups & Reminders:</b> Tap <b>Email Progress</b> to send yourself a progress update, and tap <b>Export Backup</b> regularly to keep a safe copy of your data.</li>
-    </ol></details></div>
-
-    <div class="card"><h2>👤 Profile & Appearance</h2>
-      <div class="row" style="justify-content:flex-start;gap:14px;margin-bottom:10px">
-        <div class="avatar avatar-lg">${s.avatar?`<img src="${s.avatar}" alt="">`:initials(s.name)}</div>
-        <div>
-          <button class="sm" onclick="$('avInp').click()">Upload Photo</button>
-          ${s.avatar?`<button class="g sm" style="margin-left:6px" onclick="removeAvatar()">Remove</button>`:''}
-          <div class="hint">Optional · Saved privately on your phone</div>
-          <input type="file" id="avInp" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
-        </div>
-      </div>
-      <div class="two">
-        <div><label class="f">Your Name</label><input type="text" id="stName" value="${s.name}"></div>
-        <div><label class="f">Your Email</label><input type="email" id="stEmail" value="${s.email}"></div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <div><label class="f" style="margin:0">Theme Mode</label><div class="mu">${s.theme==='dark'?'Night Theme':'Light Theme'}</div></div>
-        <button class="g sm" onclick="toggleTheme()">Switch to ${s.theme==='dark'?'Light':'Night'}</button>
-      </div>
-      <label class="f">Interface Color</label>
-      <div class="swatches">${cols.map(c=>`<div class="swatch ${s.color===c[0]?'on':''}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></div>`).join('')}</div>
-      <div class="two" style="margin-top:12px">
-        <button class="g sm" onclick="enableReminder()">🔔 Enable Daily Alert</button>
-        <button class="g sm" onclick="sendEmailSummary()">✉️ Email Progress</button>
-      </div>
-    </div>
-
-    <div class="card"><h2>📖 Hifdh & Revision Plan</h2>
-      <label class="f">Study Category</label>
-      <select id="stMode">
-        <option value="both" ${s.mode==='both'?'selected':''}>Both (New Hifdh + Revision)</option>
-        <option value="hifdh" ${s.mode==='hifdh'?'selected':''}>Hifdh Only</option>
-        <option value="revision" ${s.mode==='revision'?'selected':''}>Revision Only</option>
-      </select>
-      <label class="f">Revision Method</label>
-      <select id="stMethod" onchange="$('customChunkWrap').style.display=this.value==='custom'?'block':'none'">
-        <option value="ottoman" ${s.method==='ottoman'?'selected':''}>Ottoman Method (5, 10, 15 pages, whole juz)</option>
-        <option value="classic" ${s.method==='classic'?'selected':''}>Classic Full-Juz Method (1 full juz/day)</option>
-        <option value="custom" ${s.method==='custom'?'selected':''}>Custom Method (Your own sizes)</option>
-      </select>
-      <div id="customChunkWrap" style="display:${s.method==='custom'?'block':'none'}">
-        <label class="f">Custom Cycle Sizes (0 = whole juz)</label>
-        <input type="text" id="ch" value="${s.chunks.join(',')}">
-      </div>
-      <div class="two">
-        <div><label class="f">Last Page Memorized</label><input type="number" id="fr" value="${s.frontier}"></div>
-        <div><label class="f">Recent Revision (Sabak Dhor pages)</label><input type="number" id="sb" value="${s.sabakPages}"><div class="hint">0 to turn off</div></div>
-        <div><label class="f">New Pages / Day</label><input type="number" id="np" value="${s.newPerDay}"></div>
-        <div><label class="f">Juz Revised / Day</label><input type="number" id="rp" value="${s.revPerDay}"></div>
-        <div><label class="f">Period #</label><input type="number" id="pe" value="${s.period}"></div>
-        <div><label class="f">Current Cycle #</label><input type="number" id="cy" value="${s.cycle+1}"></div>
-        <div><label class="f">Next Juz in Cycle</label><input type="number" id="ju" value="${s.juz}"></div>
-      </div>
-      <button style="width:100%" onclick="save()">Save All Settings</button>
-    </div>
-
-    <div class="card"><h2>⚡ Quick Actions & Backup</h2>
-      <label class="f">Add Extra Memorized Pages</label>
-      <div class="row"><input type="number" id="ad" value="1" style="width:90px"><button class="sm" onclick="call('addPages',$('ad').value)">Add Pages</button></div>
-      <label class="f" style="margin-top:14px">Backup Data (Last backup: ${s.lastBackup||'Never'})</label>
-      <div class="two"><button onclick="exportData()">Export Backup</button><button class="g" onclick="$('imp').click()">Import Backup</button></div>
-      <input type="file" id="imp" accept=".json,application/json" style="display:none" onchange="importData(this)">
-      <button class="d" style="width:100%;margin-top:16px" onclick="if(confirm('Delete ALL your data?')){resetAll()}">Reset Everything</button>
-    </div>`;
-  }
-}
-
-function finishOnboarding(){
-  call('saveSettings',{
-    name:$('obName').value,email:$('obEmail').value,mode:$('obMode').value,method:$('obMethod').value,
-    chunks:$('obChunks')?$('obChunks').value:'5,10,15,0',frontier:$('obFr').value,sabakPages:$('obSb').value,
-    newPerDay:1,revPerDay:1,period:1,cycle:1,juz:1
-  });
-}
-function save(){
-  call('saveSettings',{
-    name:$('stName').value,email:$('stEmail').value,mode:$('stMode').value,method:$('stMethod').value,
-    chunks:$('ch')?$('ch').value:'5,10,15,0',frontier:$('fr').value,sabakPages:$('sb').value,
-    newPerDay:$('np').value,revPerDay:$('rp').value,period:$('pe').value,cycle:$('cy').value,juz:$('ju').value
-  });
-}
-
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){D=null;render()}});
-if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-render();
-</script>
-</body>
-</html>
+/* Rich Text Editor & Media Vault */
+.rt-bar{display:flex;gap:5px;flex-wrap:wrap;padding:7px;background:var(--bg);border:1px solid var(--bd);border-radius:10px 10
