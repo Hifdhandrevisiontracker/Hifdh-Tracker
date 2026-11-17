@@ -178,14 +178,14 @@ body{background:var(--bg);padding:16px 16px 100px}
 .rk{font-size:18px;font-weight:500}
 .pc2{font-size:15px;color:var(--ac);font-weight:650}
 .pc2 small{color:var(--mu);font-weight:500;font-size:13px}
-.tcard{background:var(--card);border-radius:26px;padding:20px;margin-bottom:14px;box-shadow:var(--sh);display:flex;gap:16px;cursor:pointer;border:1.5px solid transparent;transition:.15s}
+.tcard{background:var(--card);border-radius:26px;padding:var(--tpad);margin-bottom:14px;box-shadow:var(--sh);display:flex;gap:var(--tgap);cursor:pointer;border:1.5px solid transparent;transition:.15s}
 .tcard.done{background:var(--ac2);border-color:var(--ac)}
-.chk{width:34px;height:34px;border-radius:10px;border:2px solid #b9c4be;flex:none;display:flex;align-items:center;justify-content:center;margin-top:3px;color:#fff;font-size:19px;font-weight:800}
+.chk{width:var(--chk);height:var(--chk);border-radius:9px;border:2px solid #b9c4be;flex:none;display:flex;align-items:center;justify-content:center;margin-top:3px;color:#fff;font-size:calc(var(--chk)*.55);font-weight:800}
 .tcard.done .chk{background:var(--ac);border-color:var(--ac)}
-.ttl{font-size:26px;font-weight:700;letter-spacing:-.5px;line-height:1.15}
-.tsub{font-size:18px;margin-top:4px}
+.ttl{font-size:var(--ttl);font-weight:700;letter-spacing:-.5px;line-height:1.15}
+.tsub{font-size:var(--tsub);margin-top:4px}
 .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.pl{padding:8px 15px;border-radius:99px;font-size:14px;font-weight:550;cursor:pointer;border:1.5px solid transparent;text-decoration:none;display:inline-block}
+.pl{padding:var(--plp);border-radius:99px;font-size:var(--plf);font-weight:550;cursor:pointer;border:1.5px solid transparent;text-decoration:none;display:inline-block}
 .pl.c0{background:#e6ece8;color:#2d3d35}.pl.c1{background:#d6dccf;color:#3f4a3b}.pl.c2{background:#bfdbe0;color:#16505c}.pl.c3{background:#a8dcc0;color:#0d4a31}.pl.c4{background:#cdeab8;color:#355a17}
 .pl.soft{background:var(--bg);color:var(--mu);cursor:default;font-weight:500}
 .pl.on{background:var(--ac)!important;color:#fff!important}
@@ -197,6 +197,12 @@ body{background:var(--bg);padding:16px 16px 100px}
 .nav button svg{width:22px;height:22px}
 #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);background:var(--ac);color:#fff;padding:11px 18px;border-radius:99px;font-size:13.5px;font-weight:650;opacity:0;pointer-events:none;transition:.25s;z-index:80;max-width:88vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+:root{--chk:28px;--ttl:22px;--tsub:16px;--tpad:16px;--tgap:14px;--plp:7px 13px;--plf:13px}
+[data-cards="s"]{--chk:22px;--ttl:18px;--tsub:14px;--tpad:12px;--tgap:12px;--plp:5px 10px;--plf:12px}
+[data-cards="l"]{--chk:34px;--ttl:26px;--tsub:18px;--tpad:20px;--tgap:16px;--plp:8px 15px;--plf:14px}
+[data-size="s"] #app,[data-size="s"] #hdr{zoom:.9}
+[data-size="l"] #app,[data-size="l"] #hdr{zoom:1.12}
 </style>
 </head>
 <body>
@@ -240,7 +246,7 @@ const DEFAULTS={
   tasbihMode:'ayah',tasbihPhrase:'SubḥānAllāh',
   tasbih:0,tasbihTarget:40,tasbihTotal:0,tasbihTheme:'emerald',
   folders:['Tajweed Lessons','Mutashabihat','Tafsir & Reflections'],
-  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:''
+  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m'
 };
 
 const pad=n=>String(n).padStart(2,'0');
@@ -284,6 +290,8 @@ const saveNotes=n=>sv('hifdh_notes',n);
 function applyTheme(s){
   document.documentElement.setAttribute('data-theme',s.theme||'light');
   document.documentElement.setAttribute('data-color',s.color||'emerald');
+  document.documentElement.setAttribute('data-size',s.uiText||'m');
+  document.documentElement.setAttribute('data-cards',s.uiCard||'m');
   const colors={emerald:'#1f5f4a',blue:'#2563eb',gold:'#a16207',plum:'#7c3aed'};
   $('metaTheme').setAttribute('content',colors[s.color]||'#1f5f4a');
 }
@@ -870,6 +878,7 @@ function buildNav(){$('bottomNav').innerHTML=NAV.map(n=>`<button id="nav-${n[0]}
 function setHdr(h){$('hdr').innerHTML=h}
 const themeBtn=s=>`<button class="g sm" onclick="toggleTheme()" id="themeBtn" title="Switch theme">${s.theme==='dark'?'☀️':'🌙'}</button>`;
 function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);D=null;render()}
+function setUi(k,v){const s=loadState();s[k]=v;saveState(s);applyTheme(s);if(D)D.state=s;render()}
 /* ---------- plan form (shared by first-time setup and Settings) ---------- */
 let DR=null;
 function initDraft(){
@@ -977,13 +986,21 @@ function saveProfile(){
 /* ---------- Today screen (v2) ---------- */
 function rToday(s,st,day,rank){
   const pct=Math.round(s.frontier/604*100);
+  const curJ=(s.frontier>0&&s.frontier>=juzEnd(rank)&&rank<30)?rank+1:rank;
+  const jlen=juzEnd(curJ)-JUZ_START[curJ]+1;
+  const jdone=Math.max(0,Math.min(jlen,s.frontier-JUZ_START[curJ]+1));
+  const jp=Math.round(jdone/jlen*100);
   setHdr(`<div class="row"><h1 class="brand light">My Companion</h1>${themeBtn(s)}</div><div class="tagline">Today’s Journey</div><div class="hello">Assalamu Alaikum${s.name?', '+esc(s.name):''}</div>`);
   const mush=p=>`<a class="pl c0" href="https://quran.com/page/${p}" target="_blank" onclick="event.stopPropagation()">Mushaf ↗</a>`;
   const card=(key,done,title,sub,pills)=>`<div class="tcard ${done?'done':''}" onclick="call('tick','${key}')"><div class="chk">${done?'✓':''}</div><div style="flex:1;min-width:0"><div class="ttl">${title}</div><div class="tsub">${sub}</div><div class="pills">${pills}</div></div></div>`;
   let h=`<div class="card pcard"><h2>Today’s Progress</h2>
     <div class="row"><span class="rk">${s.mode==='revision'?'Revision mastery':`Rank ${rank} of 30`}</span><span class="pc2">${pct}% <small>(${s.frontier} of 604 pages)</small></span></div>
     <div class="bar" style="margin:12px 0 10px;height:10px"><i style="width:${s.frontier/6.04}%"></i></div>
-    <div class="row mu"><span>🔥 ${st.streak} day streak</span><span>${s.mode!=='revision'&&st.eta?'Finish: '+fmt(st.eta):''}</span></div></div>`;
+    <div class="row mu"><span>🔥 ${st.streak} day streak</span><span>${s.mode!=='revision'&&st.eta?'Finish: '+fmt(st.eta):''}</span></div>
+    <div style="border-top:1px solid var(--bd);margin-top:14px;padding-top:12px">
+      <div class="row"><span class="rk" style="font-size:16px">Juz ${curJ}</span><span class="pc2">${jp}% <small>(${jdone} of ${jlen} pages)</small></span></div>
+      <div class="bar" style="margin-top:8px"><i style="width:${jp}%"></i></div>
+    </div></div>`;
 
   if(day.n){
     const subs=day.n.subs||{};
@@ -1046,6 +1063,13 @@ function rSettings(s){
         <p><b>✨ Simple Daily.</b> Your daily new pages, a few recent pages, and a steady juz rotation. Change the sizes in Advanced fine-tuning.</p>
       </div>
     </details></div>
+
+    <div class="card"><h2>🔍 Display size</h2>
+      <label class="f" style="margin-top:0">Text size</label>
+      <div class="pace">${[['s','Small'],['m','Medium'],['l','Large']].map(x=>`<span class="${(s.uiText||'m')===x[0]?'on':''}" onclick="setUi('uiText','${x[0]}')">${x[1]}</span>`).join('')}</div>
+      <label class="f">Task card &amp; tick box size</label>
+      <div class="pace">${[['s','Small'],['m','Medium'],['l','Large']].map(x=>`<span class="${(s.uiCard||'m')===x[0]?'on':''}" onclick="setUi('uiCard','${x[0]}')">${x[1]}</span>`).join('')}</div>
+    </div>
 
     <div class="card"><h2>👤 Profile & Appearance</h2>
       <div class="row" style="justify-content:flex-start;gap:14px;margin-bottom:10px">
@@ -1153,7 +1177,7 @@ async function render(){
         <div class="node-info">
           <div class="row">
             <b>Rank ${j} · Juz ${j}</b>
-            ${isCurrent?`<span class="pill">Current</span>`:`<span class="mu">${fill}%</span>`}
+            ${isCurrent?`<span class="pill">Current · ${fill}%</span>`:`<span class="mu">${fill}%</span>`}
           </div>
           <div class="mu">Surah: ${juzSurahRange(j)}</div>
         </div>
