@@ -203,6 +203,25 @@ body{background:var(--bg);padding:16px 16px 100px}
 [data-cards="l"]{--chk:34px;--ttl:26px;--tsub:18px;--tpad:20px;--tgap:16px;--plp:8px 15px;--plf:14px}
 [data-size="s"] #app,[data-size="s"] #hdr{zoom:.9}
 [data-size="l"] #app,[data-size="l"] #hdr{zoom:1.12}
+
+/* ===== memory strength ===== */
+.sbar{display:flex;height:8px;background:var(--ac2);border-radius:99px;overflow:hidden}
+.sbar i{display:block;height:100%}
+.sbar .g{background:var(--ac)}
+.sbar .w{background:var(--wr) repeating-linear-gradient(135deg,transparent 0 3px,rgba(255,255,255,.55) 3px 5px)}
+.jz{border-top:1px solid var(--bd);padding:10px 0}
+.jz summary{display:flex;align-items:center;gap:10px;list-style:none}
+.jz summary::-webkit-details-marker{display:none}
+.jz summary b{width:54px;font-size:13.5px}
+.jz summary .sbar{flex:1}
+.jz summary span{font-size:12px;color:var(--mu);width:40px;text-align:right}
+.sr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 2px}
+.sr b{font-size:13.5px;font-weight:550}
+.chip{font-size:12px;font-weight:650;padding:6px 12px;border-radius:99px;border:1.5px solid var(--bd);background:transparent;color:var(--mu);margin:0;min-width:92px}
+.chip.s{background:var(--ac);color:#fff;border-color:var(--ac)}
+.chip.w{border-color:var(--wr);color:#8a5a00;background:transparent}
+.chip.p{border-style:dashed}
+[data-theme="dark"] .chip.w{color:var(--wr)}
 </style>
 </head>
 <body>
@@ -236,6 +255,8 @@ const SURAH_AT_PAGE=[
   [602,"Al-Kawthar"],[603,"Al-Kafirun"],[603,"An-Nasr"],[603,"Al-Masad"],[604,"Al-Ikhlas"],[604,"Al-Falaq"],[604,"An-Nas"]
 ];
 const TOTAL=604;
+const HS=[1,11,22,32,42,51,62,72,82,92,102,112,121,132,142,151,162,173,182,192,201,212,222,231,242,252,262,272,282,292,302,312,322,332,342,352,362,371,382,392,402,413,422,431,442,451,462,472,482,491,502,513,522,531,542,553,562,572,582,591];
+const SURAH_END=[1,49,76,106,127,150,176,186,207,221,235,248,255,261,267,281,293,304,312,321,331,341,349,359,366,376,385,396,404,410,414,417,427,434,440,445,452,458,467,476,482,489,495,498,502,506,510,515,517,520,523,525,528,531,534,537,541,545,548,551,552,554,555,557,559,561,564,566,568,570,571,573,575,577,578,580,581,583,584,585,586,587,589,589,590,591,592,592,594,594,595,596,596,596,597,597,598,599,599,600,600,600,601,601,601,602,602,602,603,603,603,604,604,604];
 const DEFAULTS={
   seenIntro:false,onboarded:false,name:'',avatar:'',email:'',
   mode:'both',method:'tikrar',
@@ -246,12 +267,12 @@ const DEFAULTS={
   tasbihMode:'ayah',tasbihPhrase:'SubḥānAllāh',
   tasbih:0,tasbihTarget:40,tasbihTotal:0,tasbihTheme:'emerald',
   folders:['Tajweed Lessons','Mutashabihat','Tafsir & Reflections'],
-  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m'
+  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m',pst:''
 };
 
 const pad=n=>String(n).padStart(2,'0');
 const T=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-let D=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false;
+let OPEN_JUZ=new Set(), D=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false;
 let mediaRec=null, recChunks=[], isRecording=false, audioDevices=[], selectedMic='', selectedMime='';
 const $=id=>document.getElementById(id);
 const LS=window.localStorage;
@@ -262,6 +283,47 @@ const juzEnd=j=>j===30?TOTAL:JUZ_START[j+1]-1;
 function juzOf(p){const pg=Math.max(1,Math.ceil(p));for(let j=30;j>=1;j--)if(pg>=JUZ_START[j])return j;return 1}
 function surahIdxOf(p){const pg=Math.max(1,Math.ceil(p));let idx=0;for(let i=0;i<SURAH_AT_PAGE.length;i++){if(pg>=SURAH_AT_PAGE[i][0])idx=i;else break}return idx}
 const surahOf=p=>SURAH_AT_PAGE[surahIdxOf(p)][1];
+
+/*STRENGTH*/
+const hzFirst=p=>Math.max(1,HS.filter(x=>x<p).length);
+const hzLast=p=>HS.filter(x=>x<=p).length;
+function locLabel(a,b){
+  const nm=[];SURAH_AT_PAGE.forEach((x,i)=>{if(x[0]<=b&&SURAH_END[i]>=a)nm.push(x[1])});
+  const sur=nm.length===1?'Surah '+nm[0]:nm.length<=3?'Surahs '+nm.slice(0,-1).join(', ')+' & '+nm[nm.length-1]:'Surahs '+nm[0]+' to '+nm[nm.length-1];
+  const ja=juzOf(a),jb=juzOf(b),ha=hzFirst(a),hb=hzLast(b);
+  return sur+', Juz '+(ja===jb?ja:ja+'–'+jb)+', Hizb '+(ha===hb?ha:ha+'–'+hb);
+}
+function syncPst(s){
+  const t=(typeof s.pst==='string'&&s.pst.length===TOTAL)?s.pst.split(''):new Array(TOTAL).fill('0');
+  const lim=Math.ceil(s.frontier||0);
+  for(let i=0;i<TOTAL;i++){if(i<lim){if(t[i]==='0')t[i]='s'}else t[i]='0'}
+  s.pst=t.join('');
+}
+function pstCount(s,a,b){let g=0,w=0;for(let p=a;p<=b;p++){const c=s.pst[p-1];if(c==='s')g++;else if(c==='w')w++}return{g,w,n:b-a+1}}
+const stkInner=(g,w,n)=>`<i class="g" style="width:${g/n*100}%"></i><i class="w" style="width:${w/n*100}%"></i>`;
+function surahState(s,i){const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0)return'none';if(c.g+c.w<c.n)return'part';return c.w?'weak':'strong'}
+function setStrength(a,b,ch){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);D=null;render()}
+function toggleSurah(i){const s=loadState();const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0){toast('Not memorized yet');return}setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],c.w>0?'s':'w')}
+const CHC={strong:'s',weak:'w',part:'p',none:''},CHL={strong:'✓ Strong',weak:'Weak',part:'In progress',none:'Not yet'};
+function strengthCard(s){
+  const all=pstCount(s,1,TOTAL);
+  let rows='';
+  for(let j=1;j<=30;j++){
+    const a=JUZ_START[j],b=juzEnd(j),c=pstCount(s,a,b);
+    const body=SURAH_AT_PAGE.map((x,i)=>i).filter(i=>juzOf(SURAH_AT_PAGE[i][0])===j).map(i=>{const st=surahState(s,i);return `<div class="sr"><b>${esc(SURAH_AT_PAGE[i][1])}</b><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button></div>`}).join('');
+    rows+=`<details class="jz" ${OPEN_JUZ.has(j)?'open':''} ontoggle="this.open?OPEN_JUZ.add(${j}):OPEN_JUZ.delete(${j})">
+      <summary><b>Juz ${j}</b><div class="sbar">${stkInner(c.g,c.w,c.n)}</div><span>${c.g+c.w?Math.round(c.g/c.n*100)+'%':'–'}</span></summary>
+      ${body||'<div class="mu" style="padding:8px 2px">No surah starts in this juz.</div>'}
+      ${c.g+c.w?`<div class="row" style="justify-content:flex-end;gap:6px;margin-top:4px"><button class="g sm" onclick="setStrength(${a},${b},'s')">Mark all strong</button><button class="g sm" onclick="setStrength(${a},${b},'w')">Mark all weak</button></div>`:''}
+    </details>`;
+  }
+  return `<div class="card"><div class="row"><h2>Memory strength</h2><span class="pill">${Math.round(all.g/TOTAL*100)}% strong</span></div>
+    <div class="mu" style="margin-bottom:10px">New pages start weak. Tap a surah to switch it between weak and strong.</div>
+    <div class="sbar" style="height:10px">${stkInner(all.g,all.w,TOTAL)}</div>
+    <div class="mu" style="margin:8px 0 6px">Strong ${all.g} pages · Weak ${all.w} pages · Not yet ${TOTAL-all.g-all.w}</div>${rows}</div>`;
+}
+/*END*/
+
 function juzSurahRange(j){
   const s1=surahOf(JUZ_START[j]), s2=surahOf(juzEnd(j));
   return s1===s2?s1:`${s1} – ${s2}`;
@@ -277,9 +339,12 @@ function rngUnits(u1,u2,useHalf){
 const pageFromUnit=u=>Math.max(1,Math.min(TOTAL,Math.ceil(u/2)));
 
 const loadState=()=>{
-  const s=Object.assign({},DEFAULTS,ld('hifdh_state',{}));
+  const raw=ld('hifdh_state',{});
+  if(raw&&raw.frontier!==undefined&&!raw.pst&&!LS.getItem('hifdh_backup_pre_strength'))sv('hifdh_backup_pre_strength',raw);
+  const s=Object.assign({},DEFAULTS,raw);
   if(!['tikrar','ottoman','simple'].includes(s.method))s.method='simple';
   if(!Array.isArray(s.chunks)||!s.chunks.length)s.chunks=[5,10,15,0];
+  syncPst(s);
   return s;
 };
 const saveState=s=>sv('hifdh_state',s);
@@ -438,7 +503,10 @@ const api={
       if(key==='n'){
         const oldF=s.frontier;
         task.prev=oldF;
+        const pA=task.a,pB=Math.min(TOTAL,Math.ceil(task.b));
+        task.pp=s.pst.slice(pA-1,pB);
         s.frontier=Math.max(s.frontier,task.b);
+        {const t=s.pst.split('');for(let p=pA;p<=pB;p++)if(t[p-1]==='0')t[p-1]='w';s.pst=t.join('')}
         const newF=s.frontier;
         if(newF>=TOTAL && oldF<TOTAL){
           showCelebration('👑','Māshā’Allāh! Khatmah Complete!','You have ascended all 30 Ranks to the Radiant Summit—all 604 pages of the Noble Qur’an!');
@@ -475,7 +543,7 @@ const api={
       task.done=true;day.u.push(key);
     }else{
       if(day.u[day.u.length-1]!==key)return{error:'Undo the most recent tick first.'};
-      if(key==='n')s.frontier=task.prev;
+      if(key==='n'){s.frontier=task.prev;if(task.pp!=null){const pA=task.a,pB=Math.min(TOTAL,Math.ceil(task.b));s.pst=s.pst.slice(0,pA-1)+task.pp+s.pst.slice(pB)}}
       else if(key.startsWith('r')){
         if(task.isTikrar){s.tourDay=task.before.tourDay;s.tourNum=task.before.tourNum}
         else{s.cycle=task.before.c;s.juz=task.before.j;s.period=task.before.p}
@@ -986,6 +1054,7 @@ function saveProfile(){
 /* ---------- Today screen (v2) ---------- */
 function rToday(s,st,day,rank){
   const pct=Math.round(s.frontier/604*100);
+  const cnt=pstCount(s,1,TOTAL);
   const curJ=(s.frontier>0&&s.frontier>=juzEnd(rank)&&rank<30)?rank+1:rank;
   const jlen=juzEnd(curJ)-JUZ_START[curJ]+1;
   const jdone=Math.max(0,Math.min(jlen,s.frontier-JUZ_START[curJ]+1));
@@ -995,7 +1064,7 @@ function rToday(s,st,day,rank){
   const card=(key,done,title,sub,pills)=>`<div class="tcard ${done?'done':''}" onclick="call('tick','${key}')"><div class="chk">${done?'✓':''}</div><div style="flex:1;min-width:0"><div class="ttl">${title}</div><div class="tsub">${sub}</div><div class="pills">${pills}</div></div></div>`;
   let h=`<div class="card pcard"><h2>Today’s Progress</h2>
     <div class="row"><span class="rk">${s.mode==='revision'?'Revision mastery':`Rank ${rank} of 30`}</span><span class="pc2">${pct}% <small>(${s.frontier} of 604 pages)</small></span></div>
-    <div class="bar" style="margin:12px 0 10px;height:10px"><i style="width:${s.frontier/6.04}%"></i></div>
+    <div class="sbar" style="margin:12px 0 6px;height:10px">${stkInner(cnt.g,cnt.w,TOTAL)}</div><div class="mu" style="margin-bottom:8px">Strong ${cnt.g} · Weak ${cnt.w} pages</div>
     <div class="row mu"><span>🔥 ${st.streak} day streak</span><span>${s.mode!=='revision'&&st.eta?'Finish: '+fmt(st.eta):''}</span></div>
     <div style="border-top:1px solid var(--bd);margin-top:14px;padding-top:12px">
       <div class="row"><span class="rk" style="font-size:16px">Juz ${curJ}</span><span class="pc2">${jp}% <small>(${jdone} of ${jlen} pages)</small></span></div>
@@ -1014,7 +1083,7 @@ function rToday(s,st,day,rank){
       pills+=sp('record','c4','Record 3x',subs.record?"call('tickSub','record')":"setTab('recite')");
     }
     pills+=mush(day.n.a);
-    h+=card('n',day.n.done,'New '+rngUnits(day.n.uA,day.n.uB,day.n.useHalf),esc(surahOf(day.n.a)),pills);
+    h+=card('n',day.n.done,'New '+rngUnits(day.n.uA,day.n.uB,day.n.useHalf),esc(locLabel(day.n.a,Math.min(TOTAL,Math.ceil(day.n.b)))),pills);
   }
   if(day.sb){
     const sbRng=rngUnits(day.sb.uA||day.sb.a*2-1,day.sb.uB||day.sb.b*2,day.sb.useHalf);
@@ -1185,7 +1254,7 @@ async function render(){
     }
     pathHtml+=`</div>`;
 
-    $('app').innerHTML=`<div class="card">
+    $('app').innerHTML=strengthCard(s)+`<div class="card">
       <div class="row"><h2>🏔️ Winding Ascension Path</h2><span class="pill">Rank ${rank} of 30</span></div>
       <div class="row mu" style="margin-bottom:12px">
         <span>Memorized: <b>${s.frontier} / 604 pages</b> (${pct}%)</span>
