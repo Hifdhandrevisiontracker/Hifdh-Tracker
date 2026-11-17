@@ -27,7 +27,7 @@
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--tx);padding:14px 14px 88px;max-width:560px;margin:auto;transition:background .25s,color .25s}
-h1{font-size:18px;margin:0;font-weight:750;letter-spacing:-.3px}
+h1{font-size:19px;margin:0;font-weight:750;letter-spacing:-.3px}
 h2{font-size:15px;margin:0 0 10px;font-weight:700;letter-spacing:-.2px}
 .sub{font-size:12px;color:var(--mu);margin-top:2px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;margin-bottom:13px;box-shadow:var(--sh)}
@@ -57,9 +57,15 @@ button.d{background:#b91c1c;color:#fff}
 button.sm{padding:6px 11px;font-size:12px;margin-top:0;border-radius:9px}
 .pill{display:inline-block;font-size:10.5px;padding:3px 9px;border-radius:99px;background:var(--ac2);color:var(--ac);font-weight:700}
 .cyc{display:flex;gap:6px;flex-wrap:wrap}
-.cy{padding:5px 12px;border-radius:99px;border:1px solid var(--bd);font-size:12px;cursor:pointer;background:var(--bg);color:var(--mu)}
-.cy.on{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}
+.cy{padding:6px 13px;border-radius:99px;border:1px solid var(--bd);font-size:12px;cursor:pointer;background:var(--bg);color:var(--mu);font-weight:600}
+.cy.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 #msg{color:#b91c1c;font-size:12.5px;min-height:16px;margin-bottom:4px;font-weight:600}
+
+/* Visual Card Selectors for Onboarding & Settings */
+.choice-card{border:1.5px solid var(--bd);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;background:var(--card);transition:all .15s;display:flex;align-items:center;justify-content:space-between}
+.choice-card.on{border-color:var(--ac);background:var(--ac2);box-shadow:0 2px 12px rgba(31,95,74,.1)}
+.choice-card b{font-size:13.5px;display:block}
+.choice-card span{font-size:11.5px;color:var(--mu)}
 
 /* 3-Slide Onboarding Carousel */
 .ob-wrap{text-align:center;padding:12px 6px}
@@ -68,39 +74,32 @@ button.sm{padding:6px 11px;font-size:12px;margin-top:0;border-radius:9px}
 .dots{display:flex;justify-content:center;gap:7px;margin:16px 0}
 .dot{width:8px;height:8px;border-radius:99px;background:var(--bd);transition:all .25s}
 .dot.on{width:24px;background:var(--ac)}
-.method-card{border:1.5px solid var(--bd);border-radius:14px;padding:12px;margin-top:8px;cursor:pointer;text-align:left;background:var(--bg);transition:all .15s}
-.method-card.on{border-color:var(--ac);background:var(--ac2)}
 
-/* Tasks & Tikrar Sub-Checklist */
+/* Tasks & Compact Tikrar Habit Pills */
 .task-wrap{border:1px solid var(--bd);border-radius:14px;margin-bottom:9px;overflow:hidden;background:var(--card);transition:all .15s}
 .task-wrap.done{background:var(--ac2);border-color:var(--ac)}
 .task{display:flex;gap:12px;align-items:center;padding:13px;cursor:pointer}
 .task input{width:20px;height:20px;accent-color:var(--ac);flex:none}
 .task b{display:block;font-size:14px;margin:2px 0}
 .tag{font-size:10px;color:var(--ac);font-weight:750;text-transform:uppercase;letter-spacing:.5px}
-.sub-steps{padding:10px 13px 12px;border-top:1px dashed var(--bd);background:var(--bg)}
-.sub-step{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;font-size:12.5px}
-.sub-step label{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1}
-.sub-step input{width:16px;height:16px;accent-color:var(--ac)}
+.tikrar-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.tpill{font-size:10.5px;padding:3px 8px;border-radius:7px;border:1px solid var(--bd);background:var(--bg);color:var(--mu);cursor:pointer;font-weight:600}
+.tpill.done{background:var(--ac);color:#fff;border-color:var(--ac)}
 
-/* Animated 30-Rank Staircase to the Light */
-.stair-viewport{position:relative;max-height:410px;overflow-y:auto;padding:18px 10px 10px;border-radius:14px;background:linear-gradient(180deg, rgba(251,191,36,0.15) 0%, var(--bg) 38%);border:1px solid var(--bd);scroll-behavior:smooth}
-.summit-beacon{text-align:center;padding:14px 10px 18px;margin-bottom:10px;border-radius:14px;background:radial-gradient(circle, rgba(251,191,36,0.28) 0%, transparent 75%)}
-.summit-orb{width:54px;height:54px;border-radius:50%;margin:0 auto 8px;background:radial-gradient(circle, #fff 10%, #fbbf24 55%, #d97706 100%);box-shadow:0 0 28px #fbbf24, 0 0 55px rgba(251,191,36,.6);display:flex;align-items:center;justify-content:center;font-size:24px;animation:pulseGlow 2.4s infinite alternate}
-@keyframes pulseGlow{from{transform:scale(.96);box-shadow:0 0 18px #fbbf24}to{transform:scale(1.05);box-shadow:0 0 36px #fbbf24,0 0 60px rgba(251,191,36,.8)}}
-.stair-step{display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:7px;border-radius:12px;border:1px solid var(--bd);background:var(--card);transition:transform .25s,border-color .25s;position:relative}
-.stair-step.climbed{background:var(--ac2);border-color:transparent;opacity:.88}
-.stair-step.current{border:2px solid var(--ac);box-shadow:0 4px 16px rgba(31,95,74,.18);transform:scale(1.01)}
-.step-badge{width:30px;height:30px;border-radius:10px;background:var(--bd);color:var(--tx);font-weight:750;font-size:11.5px;display:flex;align-items:center;justify-content:center;flex:none}
-.stair-step.climbed .step-badge,.stair-step.current .step-badge{background:var(--ac);color:#fff}
-.climber-pin{padding:2px 8px;border-radius:99px;background:var(--ac);color:#fff;font-size:10px;font-weight:700;animation:float 2s infinite ease-in-out}
-
-/* Grids & Strips */
-.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
-.j{aspect-ratio:1;border-radius:7px;font-size:11px;display:flex;align-items:center;justify-content:center;border:1px solid var(--bd);position:relative;overflow:hidden}
-.j span{position:relative;z-index:1}.j i{position:absolute;left:0;bottom:0;width:100%;background:var(--ac);opacity:.45}
-.strip{display:grid;grid-template-columns:repeat(14,1fr);gap:4px}
-.s{aspect-ratio:1;border-radius:4px;background:var(--bd)}.s1{background:var(--wr)}.s2{background:var(--ac)}
+/* Winding Landscape Journey Map */
+.winding-map{position:relative;padding:24px 10px 30px;border-radius:18px;background:linear-gradient(180deg, #f4eee1 0%, var(--bg) 60%);border:1px solid var(--bd);overflow:hidden}
+.summit-crown{text-align:center;margin-bottom:18px}
+.summit-badge{width:56px;height:56px;border-radius:50%;margin:0 auto 6px;background:radial-gradient(circle, #fff 10%, #fbbf24 55%, #d97706 100%);box-shadow:0 0 25px rgba(251,191,36,.7);display:flex;align-items:center;justify-content:center;font-size:24px;animation:pulseGlow 2.4s infinite alternate}
+@keyframes pulseGlow{from{transform:scale(.96)}to{transform:scale(1.06)}}
+.path-container{display:flex;flex-direction:column;gap:16px;align-items:center;position:relative}
+.path-node{width:100%;max-width:340px;display:flex;align-items:center;gap:14px;padding:10px 14px;border-radius:16px;background:var(--card);border:1.5px solid var(--bd);box-shadow:var(--sh);transition:transform .2s}
+.path-node.climbed{background:var(--ac2);border-color:transparent;opacity:.88}
+.path-node.current{border:2px solid var(--ac);box-shadow:0 6px 20px rgba(31,95,74,.2);transform:scale(1.03);background:var(--card)}
+.node-bubble{width:38px;height:38px;border-radius:50%;background:var(--bd);color:var(--tx);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none}
+.path-node.climbed .node-bubble,.path-node.current .node-bubble{background:var(--ac);color:#fff}
+.node-info{flex:1}
+.node-info b{font-size:13.5px;display:block}
+.node-info .mu{font-size:11.5px}
 
 /* Centered Minimalist Tasbih */
 .tasbih-stage{min-height:66vh;display:flex;flex-direction:column;justify-content:space-between;padding:18px;border-radius:22px;position:relative;transition:all .3s;border:1px solid var(--bd)}
@@ -197,11 +196,10 @@ const SURAH_AT_PAGE=[
 const TOTAL=604;
 const DEFAULTS={
   seenIntro:false,onboarded:false,name:'',avatar:'',email:'',
-  mode:'both', /* 'both' | 'hifdh' | 'revision' */
-  method:'tikrar', /* 'tikrar' | 'ottoman' | 'classic' | 'custom' */
+  mode:'both',method:'tikrar',
   frontier:0,newPerDay:1,revPerDay:1,sabakPages:5,
   chunks:[5,10,15,0],cycle:0,juz:1,period:1,
-  tourDay:1,tourNum:1, /* For Tikrar 6-day review circuit */
+  tourDay:1,tourNum:1,
   theme:'light',color:'emerald',
   tasbihMode:'ayah',tasbihPhrase:'SubḥānAllāh',
   tasbih:0,tasbihTarget:40,tasbihTotal:0,tasbihTheme:'emerald',
@@ -211,7 +209,7 @@ const DEFAULTS={
 
 const pad=n=>String(n).padStart(2,'0');
 const T=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-let D=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false, SHOW_SUBSTEPS=true;
+let D=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false;
 let mediaRec=null, recChunks=[], isRecording=false, audioDevices=[], selectedMic='', selectedMime='';
 const $=id=>document.getElementById(id);
 const LS=window.localStorage;
@@ -227,18 +225,9 @@ function juzSurahRange(j){
   return s1===s2?s1:`${s1} – ${s2}`;
 }
 
-/* Half-Page (h1 / h2) Formatting Helpers */
-function fmtFace(u){
-  /* u is in half-page units (1 = 1 h1, 2 = 1 h2, 3 = 2 h1, 4 = 2 h2) */
-  const page=Math.ceil(u/2);
-  const half=(u%2===1)?'h1':'h2';
-  return `${page} ${half}`;
-}
+function fmtFace(u){const p=Math.ceil(u/2), half=(u%2===1)?'h1':'h2'; return `${p} ${half}`}
 function rngUnits(u1,u2,useHalf){
-  if(!useHalf){
-    const p1=Math.ceil(u1/2), p2=Math.ceil(u2/2);
-    return p1===p2?`Page ${p1}`:`Pages ${p1}–${p2}`;
-  }
+  if(!useHalf){const p1=Math.ceil(u1/2), p2=Math.ceil(u2/2); return p1===p2?`Page ${p1}`:`Pages ${p1}–${p2}`}
   if(u1===u2)return `Page ${fmtFace(u1)}`;
   if(u1%2===1 && u2===u1+1)return `Page ${Math.ceil(u1/2)} (h1–h2)`;
   return `Pages ${fmtFace(u1)} → ${fmtFace(u2)}`;
@@ -268,7 +257,7 @@ function setTab(t){
   ['today','journey','tasbih','recite','library'].forEach(x=>$('nav-'+x).classList.toggle('active',x===t));
   render();
   if(t==='journey'){
-    setTimeout(()=>{const el=document.querySelector('.stair-step.current');if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},120);
+    setTimeout(()=>{const el=document.querySelector('.path-node.current');if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},120);
   }
 }
 function jumpToTasbih(targetCount){
@@ -296,7 +285,6 @@ function allDone(day){
   return(!day.n||day.n.done)&&(!day.sb||day.sb.done)&&day.r.every(x=>x.done);
 }
 
-/* Unified Plan Builder: Supports Tikrar (0.5, 1, 2, 3), Ottoman, Classic & Custom */
 function makePlan(s){
   const plan={n:null,sb:null,r:[],u:[]};
   const doHifdh=s.mode==='both'||s.mode==='hifdh';
@@ -307,7 +295,6 @@ function makePlan(s){
   const stepUnits=Math.max(1,Math.round(stepPages*2));
   const totalUnits=TOTAL*2;
 
-  /* 1. NEW HIFDH */
   if(doHifdh && stepPages>0 && curUnits<totalUnits){
     const uA=curUnits+1;
     const uB=Math.min(totalUnits,curUnits+stepUnits);
@@ -318,20 +305,15 @@ function makePlan(s){
     };
   }
 
-  /* 2. TIKRAR (MADINAH) CONNECTIVITY & 6-DAY REVIEW CIRCUIT */
   if(s.method==='tikrar'){
-    /* In Tikrar, Connectivity Window is 25 daily portions (30 days minus graduations) */
     const connWindowUnits=25*stepUnits;
     if(curUnits>=stepUnits){
-      /* Connectivity (Ar-Rabt): Mastered pages over recent window */
       const connEnd=curUnits;
       const connStart=Math.max(1,connEnd-connWindowUnits+1);
       plan.sb={
         uA:connStart,uB:connEnd,a:pageFromUnit(connStart),b:pageFromUnit(connEnd),
-        useHalf,label:'Connectivity (Ar-Rabt)',done:false
+        useHalf,label:'Recent Connection (Ar-Rabt)',done:false
       };
-
-      /* Old Memorization Pool (Review / Al-Muraja'ah): Pages before Connectivity window */
       if(doRev){
         const oldEnd=curUnits>=totalUnits ? totalUnits : (connStart-1);
         if(oldEnd>=1){
@@ -352,7 +334,6 @@ function makePlan(s){
     return plan;
   }
 
-  /* 3. OTTOMAN / CLASSIC / CUSTOM RECENT REVISION & CYCLE REVISION */
   if(s.sabakPages>0 && curUnits>=1 && (doRev || s.mode==='hifdh')){
     const sbUnits=Math.round(s.sabakPages*2);
     const startU=Math.max(1,curUnits-sbUnits+1);
@@ -407,7 +388,7 @@ const api={
         s.frontier=Math.max(s.frontier,task.b);
         const newF=s.frontier;
         if(newF>=TOTAL && oldF<TOTAL){
-          showCelebration('👑','Māshā’Allāh! Khatmah Complete!','You have ascended all 30 Ranks to the Radiant Summit—all 604 pages of the Noble Qur’an! Now begin the 6-Day Full Revision Circuit for 6 months.');
+          showCelebration('👑','Māshā’Allāh! Khatmah Complete!','You have ascended all 30 Ranks to the Radiant Summit—all 604 pages of the Noble Qur’an!');
         }else{
           const newJ=juzOf(newF);
           if(newF===juzEnd(newJ) && oldF<newF){
@@ -490,7 +471,7 @@ const api={
   },
   addPages(today,n){
     const s=loadState();
-    const add= parseFloat(n)||0;
+    const add=parseFloat(n)||0;
     s.frontier=Math.min(TOTAL,Math.round((s.frontier+Math.max(0,add))*2)/2);
     saveState(s);dropIfUnticked(today);
     return api.getData(today);
@@ -505,7 +486,6 @@ function call(fn,...a){
   render();
 }
 
-/* Profile Photo Compressor */
 function uploadAvatar(inp){
   const f=inp.files[0];if(!f)return;
   const reader=new FileReader();
@@ -526,7 +506,6 @@ function uploadAvatar(inp){
 }
 function removeAvatar(){const s=loadState();s.avatar='';saveState(s);D.state=s;render()}
 
-/* Enhanced Tasbih Functions */
 function tapTasbih(){
   const s=loadState();
   s.tasbih=(s.tasbih||0)+1;
@@ -545,7 +524,6 @@ function setTasbihMode(m){const s=loadState();s.tasbihMode=m;s.tasbih=0;s.tasbih
 function setTasbihPhrase(p){const s=loadState();s.tasbihPhrase=p;saveState(s);D.state=s;render()}
 function setTasbihTheme(th){const s=loadState();s.tasbihTheme=th;saveState(s);D.state=s;render()}
 
-/* IndexedDB Unified Database (Audio Clips + Offline Media Vault) */
 function openDB(){
   return new Promise((res,rej)=>{
     const req=indexedDB.open('my_companion_db',2);
@@ -559,7 +537,6 @@ function openDB(){
   });
 }
 
-/* Upgraded Voice Studio */
 async function initMics(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.enumerateDevices)return;
   try{
@@ -640,7 +617,6 @@ async function deleteClip(id){
   tx.oncomplete=()=>render();
 }
 
-/* Offline Media Vault */
 async function uploadVaultMedia(inp){
   const f=inp.files[0];if(!f)return;
   const title=prompt('Title for this media file:',f.name.replace(/\.[^/.]+$/,''))||f.name;
@@ -667,7 +643,6 @@ async function deleteVaultItem(id){
   tx.oncomplete=()=>render();
 }
 
-/* Rich Notes, Folders, Smart AI Polish & Export */
 function addFolder(){
   const name=prompt('New Folder / Lesson Category Name:');
   if(!name||!name.trim())return;
@@ -779,7 +754,6 @@ function ytEmbedUrl(url){
   return m?`https://www.youtube.com/embed/${m[1]}`:null;
 }
 
-/* Email & Notifications */
 function sendEmailSummary(){
   const s=D.state,st=D.stats;
   const to=encodeURIComponent(s.email||'');
@@ -801,10 +775,9 @@ function enableReminder(){
   });
 }
 
-/* Backup & Reset */
 function exportData(){
   const s=loadState();s.lastBackup=T();saveState(s);
-  const blob=new Blob([JSON.stringify({app:'hifdh',v:6,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({app:'hifdh',v:7,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='my-companion-backup-'+T()+'.json';
   document.body.appendChild(a);a.click();a.remove();render();
 }
@@ -842,9 +815,9 @@ async function render(){
     $('profileBtn').style.display='none';
     $('bottomNav').style.display='none';
     const slides=[
-      {ico:'📖',title:'Welcome to My Companion',desc:'Your minimalist daily companion for Qur’an memorization (Hifdh) and revision—featuring the Madinah Tikrar Program, the Ottoman Method, or your own Custom Plan.'},
-      {ico:'🏔️',title:'Recite & Ascend — Rank by Rank',desc:'Watch your station elevate up a 30-Rank illuminated staircase toward the Summit light as you complete each Surah, Juz, and Revision Circuit.'},
-      {ico:'🎙️',title:'Tailored to How You Study',desc:'Whether you are doing Hifdh Only, Revision Only, or Both—enjoy a centered Tasbih counter, Voice Studio, Rich Notes & Offline Media Vault.'}
+      {ico:'📖',title:'Welcome to My Companion',desc:'Your minimalist daily companion for Qur’an memorization and revision—featuring the winding path ascension and Tikrar study habits.'},
+      {ico:'🏔️',title:'Winding Ascension Path',desc:'Watch your station elevate step-by-step up the 30-Rank path toward the Radiant Summit light as you master each Juz.'},
+      {ico:'🎙️',title:'Tailored to Your Goal',desc:'Choose Hifdh Only, Revision Only, or Both—with built-in Tasbih counter, Voice Studio, and Rich Notes.'}
     ];
     const cur=slides[OB_SLIDE];
     $('app').innerHTML=`<div class="card ob-wrap">
@@ -855,61 +828,41 @@ async function render(){
       <div class="dots">${slides.map((_,i)=>`<div class="dot ${i===OB_SLIDE?'on':''}"></div>`).join('')}</div>
       <div class="row" style="margin-top:10px">
         ${OB_SLIDE>0?`<button class="g" style="flex:1" onclick="OB_SLIDE--;render()">Back</button>`:'<div style="flex:1"></div>'}
-        <button style="flex:2" onclick="${OB_SLIDE<2?'OB_SLIDE++;render()':'skipIntro()'}">${OB_SLIDE<2?'Next →':'Choose My Setup'}</button>
+        <button style="flex:2" onclick="${OB_SLIDE<2?'OB_SLIDE++;render()':'skipIntro()'}">${OB_SLIDE<2?'Next →':'Set Up My Companion'}</button>
       </div>
     </div>`;
     return;
   }
 
-  /* 2. FIRST-TIME PROFILE & METHOD SETUP */
+  /* 2. VISUAL FIRST-TIME SETUP CARDS */
   if(!s.onboarded){
     $('profileBtn').style.display='none';
     $('bottomNav').style.display='none';
+    const modes=[['both','🌱 Both Hifdh & Revision','Daily new memorization plus smart connection & review cycles'],['hifdh','📖 Hifdh Only','Focus exclusively on new memorization and Ar-Rabt connectivity'],['revision','🔄 Revision Only','Muraja’ah and 6-day review circuits for memorized pages']];
+    const methods=[['tikrar','🕌 Madinah Tikrar','5 daily habits + connectivity + 6-day review circuit'],['ottoman','🌙 Ottoman Cycles','Progressive 5p, 10p, 15p, whole Juz revision rounds'],['classic','📖 Classic Juz','Full Juz daily rotation'],['custom','⚙️ Custom Pace','Your own custom page chunks']];
+    const paces=[0.5,1,2,3];
+
     $('app').innerHTML=`<div class="card">
-      <h2>Customize Your Companion</h2>
-      <div class="mu" style="margin-bottom:8px">Tell us how you want to use the app—we will tailor every screen to your choice.</div>
-      <label class="f">Your Name</label><input type="text" id="obName" placeholder="e.g., Shohzodbek" value="${s.name}">
-      <label class="f">1. How do you want to use My Companion?</label>
-      <select id="obMode" onchange="updateObUI()">
-        <option value="both" ${s.mode==='both'?'selected':''}>Both (New Hifdh + Revision)</option>
-        <option value="hifdh" ${s.mode==='hifdh'?'selected':''}>Hifdh Only (New Memorization & Connection)</option>
-        <option value="revision" ${s.mode==='revision'?'selected':''}>Revision Only (Muraja'ah of Memorized Pages)</option>
-      </select>
+      <h2>Welcome O Memorizer</h2>
+      <div class="mu" style="margin-bottom:12px">Let’s tailor your companion in 3 simple taps.</div>
+      <label class="f">Your Name</label><input type="text" id="obName" placeholder="e.g., Shohzodbek" value="${s.name}" style="margin-bottom:12px">
 
-      <label class="f">2. Choose Your Study Method</label>
-      <select id="obMethod" onchange="updateObUI()">
-        <option value="tikrar" ${s.method==='tikrar'?'selected':''}>🕌 Tikrar (Madinah) Method — 5 Steps + Connectivity + 6-Day Circuit</option>
-        <option value="ottoman" ${s.method==='ottoman'?'selected':''}>🌙 Ottoman Method — Progressive 5, 10, 15, Whole Juz Cycles</option>
-        <option value="classic" ${s.method==='classic'?'selected':''}>📖 Classic Method — Full Juz Daily Rotation</option>
-        <option value="custom" ${s.method==='custom'?'selected':''}>⚙️ Custom Method — Build Your Own Pace & Cycles</option>
-      </select>
+      <label class="f">1. Your Goal</label>
+      ${modes.map(m=>`<div class="choice-card ${s.mode===m[0]?'on':''}" onclick="setObMode('${m[0]}')"><div><b>${m[1]}</b><span>${m[2]}</span></div></div>`).join('')}
 
-      <div id="obMethodExplain" class="method-card on" style="font-size:12.5px;line-height:1.45;margin-top:8px"></div>
+      <label class="f" style="margin-top:12px">2. Study Method</label>
+      ${methods.map(mt=>`<div class="choice-card ${s.method===mt[0]?'on':''}" onclick="setObMethod('${mt[0]}')"><div><b>${mt[1]}</b><span>${mt[2]}</span></div></div>`).join('')}
 
-      <div class="two" style="margin-top:6px">
-        <div id="obNewWrap">
-          <label class="f">New Hifdh / Day (Pages)</label>
-          <select id="obNewPerDay">
-            <option value="0.5">0.5 Page (Half-Page h1/h2)</option>
-            <option value="1" selected>1 Page / Day</option>
-            <option value="2">2 Pages / Day</option>
-            <option value="3">3 Pages / Day</option>
-          </select>
-        </div>
-        <div>
-          <label class="f">Pages Already Memorized (0–604)</label>
-          <input type="number" step="0.5" id="obFr" value="${s.frontier}">
-        </div>
+      <label class="f" style="margin-top:12px">3. Daily New Pace (Pages)</label>
+      <div class="cyc">
+        ${paces.map(p=>`<span class="cy ${(s.newPerDay===p)?'on':''}" onclick="setObPace(${p})">${p===0.5?'½ Page':p+' Page'+(p>1?'s':'')}</span>`).join('')}
       </div>
 
-      <div id="obExtraWrap" class="two" style="display:none">
-        <div><label class="f">Recent Revision (Sabak Dhor pages)</label><input type="number" id="obSb" value="${s.sabakPages}"></div>
-        <div><label class="f">Custom Cycles (0=full juz)</label><input type="text" id="obChunks" value="${s.chunks.join(',')}"></div>
-      </div>
+      <label class="f" style="margin-top:12px">Pages Already Memorized (0–604)</label>
+      <input type="number" step="0.5" id="obFr" value="${s.frontier}">
 
-      <button style="width:100%;margin-top:14px" onclick="finishOnboarding()">Launch My Companion</button>
+      <button style="width:100%;margin-top:16px" onclick="finishOnboarding()">Start My Journey 🚀</button>
     </div>`;
-    setTimeout(updateObUI,20);
     return;
   }
 
@@ -917,10 +870,10 @@ async function render(){
   $('hdrAvatar').innerHTML=s.avatar?`<img src="${s.avatar}" alt="">`:initials(s.name);
   $('bottomNav').style.display='flex';
 
-  /* TAB 1: TODAY (Dynamically Tailored to Mode & Method) */
+  /* TAB 1: TODAY (Tailored to Mode & Tikrar Pill Badges) */
   if(TAB==='today'){
     const pct=Math.round(s.frontier/604*100);
-    const methodLabel={tikrar:'🕌 Tikrar (Madinah)',ottoman:'🌙 Ottoman Cycles',classic:'📖 Classic Juz',custom:'⚙️ Custom Plan'}[s.method]||'Plan';
+    const methodLabel={tikrar:'🕌 Tikrar',ottoman:'🌙 Ottoman',classic:'📖 Classic',custom:'⚙️ Custom'}[s.method]||'Plan';
 
     let h=`<div class="card">
       <div class="row">
@@ -936,7 +889,6 @@ async function render(){
 
     h+=`<div class="card"><div class="row"><h2>Today's ${s.mode==='revision'?'Revision':(s.mode==='hifdh'?'Hifdh':'Study')} Plan</h2><span class="mu">${T()}</span></div>`;
 
-    /* NEW HIFDH CARD (With Interactive Tikrar 5-Step Sub-Checklist if Tikrar is active) */
     if(day.n && s.mode!=='revision'){
       const rngTxt=rngUnits(day.n.uA,day.n.uB,day.n.useHalf);
       const subs=day.n.subs||{};
@@ -949,37 +901,18 @@ async function render(){
           </div>
           <a href="https://quran.com/page/${day.n.a}" target="_blank" onclick="event.stopPropagation()" class="mu" style="text-decoration:none;font-weight:700">Mushaf ↗</a>
         </div>
-        ${s.method==='tikrar'?`<div class="sub-steps">
-          <div class="row" style="margin-bottom:4px">
-            <span style="font-size:11px;font-weight:700;color:var(--ac)">🕌 TIKRAR 5-STEP HABITS</span>
-            <button class="g sm" style="padding:2px 7px;font-size:10.5px" onclick="SHOW_SUBSTEPS=!SHOW_SUBSTEPS;render()">${SHOW_SUBSTEPS?'Hide':'Show'}</button>
+        ${s.method==='tikrar'?`<div style="padding:0 13px 12px">
+          <div class="tikrar-pills">
+            <span class="tpill ${subs.yest?'done':''}" onclick="event.stopPropagation();call('tickSub','yest')">Yesterday 5x</span>
+            <span class="tpill ${subs.listen?'done':''}" onclick="event.stopPropagation();call('tickSub','listen')">🎧 Listen 3x</span>
+            <span class="tpill ${subs.tafsir?'done':''}" onclick="event.stopPropagation();call('tickSub','tafsir')">📖 Tafsir</span>
+            <span class="tpill ${subs.repeat?'done':''}" onclick="event.stopPropagation();jumpToTasbih(${day.n.repTarget||40})">📿 Repeat ${day.n.repTarget||40}x</span>
+            <span class="tpill ${subs.record?'done':''}" onclick="event.stopPropagation();setTab('recite')">🎙️ Record 3x</span>
           </div>
-          ${SHOW_SUBSTEPS?`
-            <div class="sub-step">
-              <label><input type="checkbox" ${subs.yest?'checked':''} onchange="call('tickSub','yest')">1. Yesterday's Repeat (5x from memory)</label>
-            </div>
-            <div class="sub-step">
-              <label><input type="checkbox" ${subs.listen?'checked':''} onchange="call('tickSub','listen')">2. Hearing: Listen to master reciter (3x)</label>
-              <a href="https://quran.com/page/${day.n.a}" target="_blank" class="pill" style="text-decoration:none">Listen ↗</a>
-            </div>
-            <div class="sub-step">
-              <label><input type="checkbox" ${subs.tafsir?'checked':''} onchange="call('tickSub','tafsir')">3. Interpretation: Read Tafsir (1x)</label>
-              <a href="https://quran.com/page/${day.n.a}/tafsirs" target="_blank" class="pill" style="text-decoration:none">Tafsir ↗</a>
-            </div>
-            <div class="sub-step">
-              <label><input type="checkbox" ${subs.repeat?'checked':''} onchange="call('tickSub','repeat')">4. Repetition: Recite ${day.n.repTarget||40}x</label>
-              <button class="g sm" style="padding:3px 8px;font-size:11px" onclick="jumpToTasbih(${day.n.repTarget||40})">📿 ${day.n.repTarget||40}x Counter</button>
-            </div>
-            <div class="sub-step">
-              <label><input type="checkbox" ${subs.record?'checked':''} onchange="call('tickSub','record')">5. Register: Record 3x from memory & check</label>
-              <button class="g sm" style="padding:3px 8px;font-size:11px" onclick="setTab('recite')">🎙️ Studio</button>
-            </div>
-          `:''}
         </div>`:''}
       </div>`;
     }
 
-    /* CONNECTIVITY (AR-RABT) OR RECENT REVISION (SABAK DHOR) */
     if(day.sb){
       const sbRng=rngUnits(day.sb.uA||day.sb.a*2-1, day.sb.uB||day.sb.b*2, day.sb.useHalf);
       h+=`<div class="task-wrap ${day.sb.done?'done':''}">
@@ -988,14 +921,12 @@ async function render(){
           <div style="flex:1">
             <span class="tag">${day.sb.label||'Recent Revision'}</span>
             <b>${sbRng} · ${surahOf(day.sb.a)}</b>
-            <span class="mu">${s.method==='tikrar'?'Recite 1x from memory without looking at Mushaf':''}</span>
           </div>
           <a href="https://quran.com/page/${day.sb.a}" target="_blank" onclick="event.stopPropagation()" class="mu" style="text-decoration:none;font-weight:700">Mushaf ↗</a>
         </div>
       </div>`;
     }
 
-    /* OLD MEMORIZATION REVIEW (6-DAY TIKRAR CIRCUIT OR OTTOMAN/CUSTOM CYCLES) */
     if(s.mode!=='hifdh'){
       day.r.forEach((t,i)=>{
         if(t.isTikrar){
@@ -1006,7 +937,7 @@ async function render(){
               <div style="flex:1">
                 <span class="tag">6-Day Review · Tour #${t.tourNum} (Day ${t.tourDay}/6)</span>
                 <b>${rRng}</b>
-                <span class="mu">${surahOf(t.a)} → ${surahOf(t.b)} · Old Memorization</span>
+                <span class="mu">${surahOf(t.a)} → ${surahOf(t.b)}</span>
               </div>
               <a href="https://quran.com/page/${t.a}" target="_blank" onclick="event.stopPropagation()" class="mu" style="text-decoration:none;font-weight:700">Mushaf ↗</a>
             </div>
@@ -1027,82 +958,66 @@ async function render(){
       });
     }
 
-    if(!day.n&&!day.sb&&!day.r.length){
-      h+=`<div class="mu">No tasks scheduled yet. If you selected Revision Only, make sure your "Pages Already Memorized" is greater than 0 in Profile & Settings.</div>`;
-    }else if(day.u.length){
-      const totalTasks=(day.n&&s.mode!=='revision'?1:0)+(day.sb?1:0)+(s.mode!=='hifdh'?day.r.length:0);
-      h+=`<div class="mu">${day.u.length>=totalTasks?'✅ All daily tasks complete, māshā’Allāh!':''}</div><button class="g sm" style="margin-top:8px" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button>`;
+    if(!day.n&&!day.sb&&!day.r.length)h+=`<div class="mu">No tasks scheduled yet. Adjust your pages in Profile & Settings.</div>`;
+    else if(day.u.length){
+      h+=`<button class="g sm" style="margin-top:4px" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button>`;
     }
     h+=`</div>`;
 
-    /* ACTIVE REVISION STATUS CARD */
-    if(s.mode!=='hifdh'){
-      if(s.method==='tikrar'){
-        h+=`<div class="card">
-          <div class="row"><h2>🕌 Tikrar 6-Day Review Circuit</h2><span class="pill">Tour #${s.tourNum||1}</span></div>
-          <div class="cyc">`+
-            [1,2,3,4,5,6].map(d=>`<span class="cy ${(s.tourDay||1)===d?'on':''}">Day ${d}</span>`).join('')+
-          `</div>
-          <div class="mu" style="margin-top:8px">Every 6 days, you complete a full circuit (Tour) of all pages that have graduated from your Connectivity window.</div>
-        </div>`;
-      }else{
-        const chunks=s.method==='classic'?[0]:s.chunks;
-        h+=`<div class="card"><h2>🌙 Active Revision Cycle (Period ${s.period})</h2><div class="cyc">`+
-        chunks.map((n,i)=>`<span class="cy ${i==s.cycle?'on':''}">${i+1}. ${chunkName(n)}</span>`).join('')+
-        `</div><div class="mu" style="margin-top:8px">Next Juz in rotation: Juz ${s.juz<=30?s.juz:1}</div></div>`;
-      }
+    if(s.mode!=='hifdh' && s.method==='tikrar'){
+      h+=`<div class="card">
+        <div class="row"><h2>🕌 Tikrar Review Circuit</h2><span class="pill">Tour #${s.tourNum||1}</span></div>
+        <div class="cyc">`+
+          [1,2,3,4,5,6].map(d=>`<span class="cy ${(s.tourDay||1)===d?'on':''}">Day ${d}</span>`).join('')+
+        `</div>
+      </div>`;
     }
     $('app').innerHTML=h;
   }
 
-  /* TAB 2: ASCEND (Animated 30-Rank Staircase to the Radiant Light) */
+  /* TAB 2: ASCEND (Winding Landscape Journey Map) */
   else if(TAB==='journey'){
     const pct=Math.round(s.frontier/604*100);
     const pagesToNext=Math.max(0,juzEnd(rank)-s.frontier);
-    let stairsHtml=`<div class="summit-beacon">
-      <div class="summit-orb">👑</div>
+    let pathHtml=`<div class="summit-crown">
+      <div class="summit-badge">👑</div>
       <div style="font-weight:800;font-size:15px">The Radiant Summit · Khatmah</div>
       <div class="mu">“Read and ascend, for your station will be at the last verse you recite.”</div>
-    </div>`;
+    </div><div class="path-container">`;
 
     for(let j=30;j>=1;j--){
       const fill=Math.round(st.juz[j-1]*100);
       const isClimbed=fill===100;
       const isCurrent=(j===rank && !isClimbed) || (j===30 && s.frontier>=TOTAL);
-      const indent=Math.round(((j-1)/29)*28);
       const cls=isCurrent?'current':(isClimbed?'climbed':'');
-      stairsHtml+=`<div class="stair-step ${cls}" style="margin-left:${indent}px;margin-right:${28-indent}px">
-        <div class="step-badge">${isClimbed?'✓':j}</div>
-        <div style="flex:1">
+      pathHtml+=`<div class="path-node ${cls}">
+        <div class="node-bubble">${isClimbed?'✓':j}</div>
+        <div class="node-info">
           <div class="row">
-            <b style="font-size:13px">Rank ${j} · Juz ${j}</b>
-            ${isCurrent?`<span class="climber-pin">🧍 You are here (${fill}%)</span>`:`<span class="mu">${fill}%</span>`}
+            <b>Rank ${j} · Juz ${j}</b>
+            ${isCurrent?`<span class="pill">Current</span>`:`<span class="mu">${fill}%</span>`}
           </div>
-          <div class="mu" style="font-size:11.5px;margin:2px 0 5px">Surah: ${juzSurahRange(j)} (p.${JUZ_START[j]}–${juzEnd(j)})</div>
-          <div class="bar" style="height:5px"><i style="width:${fill}%"></i></div>
+          <div class="mu">Surah: ${juzSurahRange(j)}</div>
         </div>
       </div>`;
     }
+    pathHtml+=`</div>`;
 
     $('app').innerHTML=`<div class="card">
-      <div class="row"><h2>🏔️ Ascension Staircase</h2><span class="pill">Rank ${rank} of 30</span></div>
-      <div class="row mu" style="margin-bottom:10px">
+      <div class="row"><h2>🏔️ Winding Ascension Path</h2><span class="pill">Rank ${rank} of 30</span></div>
+      <div class="row mu" style="margin-bottom:12px">
         <span>Memorized: <b>${s.frontier} / 604 pages</b> (${pct}%)</span>
         <span>${pagesToNext>0?`${pagesToNext}p to Rank ${Math.min(30,rank+1)}`:'Summit Reached!'}</span>
       </div>
-      <div class="stair-viewport">${stairsHtml}</div>
+      <div class="winding-map">${pathHtml}</div>
     </div>
-
-    <div class="card"><h2>30-Juz Mastery Overview</h2><div class="grid">`+
-      st.juz.map((f,i)=>`<div class="j"><i style="height:${f*100}%"></i><span>${i+1}</span></div>`).join('')+
-    `</div></div>
 
     <div class="card"><div class="row"><h2>Last 28 Days Consistency</h2><span class="mu">🔥 ${st.streak}d streak</span></div><div class="strip">`+
       st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
     `</div></div>`;
   }
 
-  /* TAB 3: TASBIH (Centered Counter + Top-Right ⋮ Options Menu) */
+  /* TAB 3: TASBIH */
   else if(TAB==='tasbih'){
     const count=s.tasbih||0, target=s.tasbihTarget||40;
     const isAyah=s.tasbihMode==='ayah';
@@ -1129,7 +1044,7 @@ async function render(){
           <select onchange="setTasbihPhrase(this.value)">
             ${phrases.map(p=>`<option value="${p}" ${s.tasbihPhrase===p?'selected':''}>${p}</option>`).join('')}
           </select>`:''}
-        <label class="f">Target Count (Tikrar uses 40x or 30x)</label>
+        <label class="f">Target Count</label>
         <div class="cyc">
           ${[5,20,30,33,40,100].map(p=>`<span class="cy ${target===p?'on':''}" onclick="setTasbihTarget(${p})">${p}x</span>`).join('')}
         </div>
@@ -1158,7 +1073,7 @@ async function render(){
     </div>`;
   }
 
-  /* TAB 4: RECITE (Mic & Format Selector + Notes + Share) */
+  /* TAB 4: RECITE */
   else if(TAB==='recite'){
     await initMics();
     const clips=await loadClips();
@@ -1171,7 +1086,7 @@ async function render(){
     $('app').innerHTML=`<div class="card" style="text-align:center">
       <div class="row"><h2>🎙️ Voice Recitation Studio</h2><button class="g sm" onclick="$('audUp').click()">+ Upload Audio</button></div>
       <input type="file" id="audUp" accept="audio/*" style="display:none" onchange="uploadAudioClip(this)">
-      <div class="mu">In the Tikrar method, record yourself reciting the memorized portion 3 times from memory, then listen back while looking at the Mushaf.</div>
+      <div class="mu">Record yourself reciting the memorized portion 3 times from memory, then listen back while checking the Mushaf.</div>
       <button class="rec-btn ${isRecording?'d':''}" onclick="toggleRecord()">${isRecording?'⏹':'●'}</button>
       <div style="font-weight:700;font-size:13px;color:${isRecording?'#b91c1c':'var(--ac)'}">${isRecording?'Recording... Tap to Stop & Save':'Tap to Record'}</div>
 
@@ -1212,7 +1127,7 @@ async function render(){
     </div>`;
   }
 
-  /* TAB 5: LIBRARY (Rich Notes, Editable Lessons/Tables & Offline Media Vault) */
+  /* TAB 5: LIBRARY */
   else if(TAB==='library'){
     const notes=loadNotes();
     const vault=await loadVault();
@@ -1243,13 +1158,13 @@ async function render(){
         </div>
         ${SHOW_COMPOSER?`<div style="margin-top:12px">
           <div class="two">
-            <div><label class="f">Lesson / Note Title</label><input type="text" id="ntTitle" placeholder="e.g., Noon Sakinah & Tanween"></div>
+            <div><label class="f">Lesson / Note Title</label><input type="text" id="ntTitle" placeholder="e.g., Noon Sakinah"></div>
             <div><label class="f">Folder</label>
               <select id="ntCat">${s.folders.map(f=>`<option value="${f}">${f}</option>`).join('')}</select>
             </div>
           </div>
           <label class="f">Optional Video / Photo / Reference Link</label>
-          <input type="text" id="ntLink" placeholder="https://youtube.com/... or image link">
+          <input type="text" id="ntLink" placeholder="https://youtube.com/...">
 
           <label class="f">Rich Text & Table Editor</label>
           <div class="rt-bar">
@@ -1270,10 +1185,10 @@ async function render(){
             <button class="g sm" onclick="execRT('insertUnorderedList')">• List</button>
             <button class="g sm" onclick="insertRTTable()">⊞ Table</button>
             <button class="g sm" onclick="$('rtImgInp').click()">🖼️ Photo</button>
-            <button class="sm" onclick="polishNoteAI()" title="Auto-structure & format">✨ Polish</button>
+            <button class="sm" onclick="polishNoteAI()">✨ Polish</button>
           </div>
           <input type="file" id="rtImgInp" accept="image/*" style="display:none" onchange="attachInlinePhoto(this)">
-          <div id="rtEditor" class="rt-area" contenteditable="true" placeholder="Write your lesson, paste verses, or insert a table..."></div>
+          <div id="rtEditor" class="rt-area" contenteditable="true" placeholder="Write your lesson or paste verses..."></div>
           <button style="width:100%;margin-top:10px" onclick="saveRichNote()">💾 Save Lesson / Note</button>
         </div>`:''}
       </div>`;
@@ -1330,21 +1245,25 @@ async function render(){
             <button class="g sm" onclick="deleteVaultItem(${v.id})">🗑️</button>
           </div>
         </div>`;
-      }).join('')+`</div>`:`<div class="card mu">No offline media files in this folder yet. Tap <b>+ Upload File</b> to save photos, Tajweed videos, or audio for offline study.</div>`;
+      }).join('')+`</div>`:`<div class="card mu">No offline media files in this folder yet. Tap <b>+ Upload File</b> to save files for offline study.</div>`;
     }
     $('app').innerHTML=h;
   }
 
-  /* PROFILE & SETTINGS (Includes Methods Guide, App Guide, Telegram Banner & Plan Settings) */
+  /* PROFILE & SETTINGS (Clean Visual Controls & Advanced Settings Drawer) */
   else if(TAB==='settings'){
     const cols=[['emerald','#1f5f4a'],['blue','#2563eb'],['gold','#a16207'],['plum','#7c3aed']];
+    const modes=[['both','🌱 Both Hifdh & Revision'],['hifdh','📖 Hifdh Only'],['revision','🔄 Revision Only']];
+    const methods=[['tikrar','🕌 Madinah Tikrar Program'],['ottoman','🌙 Ottoman Cycles'],['classic','📖 Classic Juz'],['custom','⚙️ Custom Pace']];
+    const paces=[0.5,1,2,3];
+
     $('app').innerHTML=`
     <div class="tg-banner">
       <div style="font-size:15px;font-weight:800">📢 My Companion Community & Updates</div>
-      <div style="font-size:12.5px;opacity:.92;margin-top:3px">Follow our official Telegram channel for new features, study resources, feature requests, or support.</div>
+      <div style="font-size:12.5px;opacity:.92;margin-top:3px">Follow our official Telegram channel for updates, tips, or support.</div>
       <div>
         <a href="https://t.me/MyCompanionApp" target="_blank">🚀 Updates Channel</a>
-        <a href="https://t.me/MyCompanionApp" target="_blank">💡 Request Feature / Feedback</a>
+        <a href="https://t.me/MyCompanionApp" target="_blank">💡 Request Feature</a>
       </div>
     </div>
 
@@ -1353,80 +1272,52 @@ async function render(){
         <summary>📚 Study Methods & Golden Rules Explained</summary>
         <div style="font-size:13px;line-height:1.55;margin-top:10px">
           <p><b>1. 🕌 The Tikrar (Madinah) Method (0.5, 1, 2, or 3 Pages/Day):</b><br>
-          Designed in Madinah for rock-solid mastery. Every day consists of:<br>
+          Designed for rock-solid mastery. Every day consists of:<br>
           • <b>Yesterday's Repeat (5x):</b> Recite yesterday's portion 5 times from memory.<br>
           • <b>Listening (3x):</b> Listen to a master reciter 3 times while looking at the Mushaf.<br>
-          • <b>Tafsir (1x):</b> Read the meaning of the verses (e.g., <i>Al-Mukhtasar</i>).<br>
-          • <b>Repetition (40x or 30x):</b> Repeat the new portion 40 times (30x on the 3-page plan).<br>
-          • <b>Recording (3x):</b> Record yourself reciting 3 times from memory, then listen back while checking the Mushaf.<br>
+          • <b>Tafsir (1x):</b> Read the meaning of the verses.<br>
+          • <b>Repetition (40x or 30x):</b> Repeat the new portion 40 times (30x on 3 pages).<br>
+          • <b>Recording (3x):</b> Record yourself reciting 3 times from memory.<br>
           • <b>Connectivity (Ar-Rabt):</b> Recite all mastered pages from the past ~25–30 days once from memory.<br>
-          • <b>Review (6-Day Circuit):</b> All older pages that exit Connectivity are divided into 6 days so you finish a full circuit (Tour) every 6 days!</p>
-
-          <p><b>2. 🌙 The Ottoman Method (Customizable Hifdh & Revision):</b><br>
-          • <b>For Hifdh:</b> Memorize 1 or 2 pages daily while revising your recent <b>Sabak Dhor</b> (e.g., last 5 pages).<br>
-          • <b>For Revision:</b> Instead of revising a whole Juz at once, you build strength across 4 progressive cycles: <b>Cycle 1 (last 5 pages)</b> of each memorized Juz → <b>Cycle 2 (last 10 pages)</b> → <b>Cycle 3 (last 15 pages)</b> → <b>Cycle 4 (the Whole Juz)</b>.</p>
-
-          <p><b>3. ⚙️ Custom & Classic Methods:</b><br>
-          Set your exact daily new pages (from 0.5 to 20 pages), your own Sabak Dhor window (e.g., 5 or 10 pages), and your own custom revision cycles.</p>
-
-          <p><b>🌟 Key Preconditions for Hifdh Success:</b><br>
-          1. Sincerity (Ikhlas) for Allah alone and relying upon Him with du'a.<br>
-          2. Stick to a single Mushaf edition (Madinah 15-line Mushaf) so your visual memory locks in page positions.<br>
-          3. In emergencies, pause New Hifdh if needed, but <b>never</b> skip Connectivity and Revision.<br>
-          4. During Revision, keep the Mushaf closed so your memory grows independent.<br>
-          5. Pace your recitation at <i>Al-Hadr</i>: ~1 to 1.5 minutes per full page.</p>
+          • <b>Review (6-Day Circuit):</b> All older pages that exit Connectivity are divided into 6 days so you complete a full circuit every 6 days!</p>
+          <p><b>2. 🌙 Ottoman & Classic Methods:</b><br>
+          Progressive rounds (5p → 10p → 15p → Full Juz) or full Juz daily rotations.</p>
         </div>
       </details>
     </div>
 
-    <div class="card">
-      <details>
-        <summary>💡 How to Use the App & Tips</summary>
-        <div style="font-size:13px;line-height:1.55;margin-top:10px">
-          <p>• <b>Today Tab:</b> Adapts automatically to <i>Hifdh Only</i>, <i>Revision Only</i>, or <i>Both</i>. Tap any task to mark it complete.<br>
-          • <b>Ascend Tab:</b> Climb the 30-Rank illuminated staircase toward the Summit light.<br>
-          • <b>Tasbih Tab:</b> Tap <b>⋮</b> in the top-right corner of the counter to switch between Ayah Repetition and Dhikr, change counter themes, or view/reset lifetime stats.<br>
-          • <b>Recite Tab:</b> Choose your mic & format, record offline, add Tajweed notes, and share audio.<br>
-          • <b>Library Tab:</b> Create folders, write formatted lessons with tables & <b>✨ Polish</b>, export to PDF/Word, and store offline videos/photos in your <b>Vault</b>.</p>
-          <button class="g sm" style="width:100%" onclick="replayIntro()">🎬 Replay 3-Slide Welcome Tour</button>
+    <div class="card"><h2>🎯 Your Goal & Study Method</h2>
+      <label class="f">Goal</label>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${modes.map(m=>`<div class="choice-card ${s.mode===m[0]?'on':''}" onclick="setStMode('${m[0]}')"><b>${m[1]}</b></div>`).join('')}
+      </div>
+
+      <label class="f" style="margin-top:12px">Method</label>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${methods.map(mt=>`<div class="choice-card ${s.method===mt[0]?'on':''}" onclick="setStMethod('${mt[0]}')"><b>${mt[1]}</b></div>`).join('')}
+      </div>
+
+      <label class="f" style="margin-top:12px">Daily New Pace (Pages)</label>
+      <div class="cyc">
+        ${paces.map(p=>`<span class="cy ${(s.newPerDay===p)?'on':''}" onclick="setStPace(${p})">${p===0.5?'½ Page':p+' Page'+(p>1?'s':'')}</span>`).join('')}
+      </div>
+
+      <label class="f" style="margin-top:12px">Pages Memorized (0–604)</label>
+      <input type="number" step="0.5" id="stFr" value="${s.frontier}">
+
+      <details style="margin-top:14px">
+        <summary class="mu" style="color:var(--ac)">⚙️ Advanced Fine-Tuning (Optional)</summary>
+        <div style="margin-top:10px">
+          <div class="two">
+            <div><label class="f">Tikrar Circuit / Tour #</label><input type="number" id="stTourNum" value="${s.tourNum||1}"></div>
+            <div><label class="f">Day in 6-Day Circuit (1–6)</label><input type="number" id="stTourDay" value="${s.tourDay||1}"></div>
+            <div><label class="f">Sabak Dhor Pages</label><input type="number" id="stSb" value="${s.sabakPages}"></div>
+            <div><label class="f">Period #</label><input type="number" id="stPe" value="${s.period}"></div>
+          </div>
         </div>
       </details>
-    </div>
 
-    <div class="card"><h2>📖 Hifdh & Revision Plan Settings</h2>
-      <label class="f">How do you want to use the app?</label>
-      <select id="stMode">
-        <option value="both" ${s.mode==='both'?'selected':''}>Both (New Hifdh + Revision)</option>
-        <option value="hifdh" ${s.mode==='hifdh'?'selected':''}>Hifdh Only (New Memorization & Connection)</option>
-        <option value="revision" ${s.mode==='revision'?'selected':''}>Revision Only (Muraja'ah Only)</option>
-      </select>
-      <label class="f">Study Method</label>
-      <select id="stMethod" onchange="toggleSettingsMethodUI()">
-        <option value="tikrar" ${s.method==='tikrar'?'selected':''}>🕌 Tikrar (Madinah) — 5 Steps + Connectivity + 6-Day Circuit</option>
-        <option value="ottoman" ${s.method==='ottoman'?'selected':''}>🌙 Ottoman Method (5, 10, 15 pages, whole juz)</option>
-        <option value="classic" ${s.method==='classic'?'selected':''}>📖 Classic Full-Juz Method (1 full juz/day)</option>
-        <option value="custom" ${s.method==='custom'?'selected':''}>⚙️ Custom Method (Your own sizes)</option>
-      </select>
-      <div id="customChunkWrap" style="display:${s.method==='custom'?'block':'none'}">
-        <label class="f">Custom Cycle Sizes (comma-separated, 0 = whole juz)</label>
-        <input type="text" id="ch" value="${s.chunks.join(',')}">
-      </div>
-      <div class="two">
-        <div><label class="f">Last Page Memorized (0–604, .5=h1)</label><input type="number" step="0.5" id="fr" value="${s.frontier}"></div>
-        <div><label class="f">New Pages / Day (0.5, 1, 2, 3...)</label><input type="number" step="0.5" id="np" value="${s.newPerDay}"></div>
-      </div>
-      <div id="tikrarSettingsWrap" class="two" style="display:${s.method==='tikrar'?'grid':'none'}">
-        <div><label class="f">Tikrar Tour / Circuit #</label><input type="number" id="tNum" value="${s.tourNum||1}"></div>
-        <div><label class="f">Day in 6-Day Circuit (1–6)</label><input type="number" id="tDay" value="${s.tourDay||1}"></div>
-      </div>
-      <div id="ottomanSettingsWrap" class="two" style="display:${s.method==='tikrar'?'none':'grid'}">
-        <div><label class="f">Recent Revision (Sabak Dhor p.)</label><input type="number" id="sb" value="${s.sabakPages}"></div>
-        <div><label class="f">Juz Revised / Day</label><input type="number" id="rp" value="${s.revPerDay}"></div>
-        <div><label class="f">Period #</label><input type="number" id="pe" value="${s.period}"></div>
-        <div><label class="f">Current Cycle #</label><input type="number" id="cy" value="${s.cycle+1}"></div>
-        <div><label class="f">Next Juz in Cycle</label><input type="number" id="ju" value="${s.juz}"></div>
-      </div>
-      <button style="width:100%;margin-top:12px" onclick="save()">Save Plan Settings</button>
+      <button style="width:100%;margin-top:14px" onclick="saveSettingsSimple()">Save Plan Settings</button>
     </div>
 
     <div class="card"><h2>👤 Profile & Appearance</h2>
@@ -1435,7 +1326,6 @@ async function render(){
         <div>
           <button class="sm" onclick="$('avInp').click()">Upload Photo</button>
           ${s.avatar?`<button class="g sm" style="margin-left:6px" onclick="removeAvatar()">Remove</button>`:''}
-          <div class="mu" style="margin-top:3px">Saved privately on your device</div>
           <input type="file" id="avInp" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
         </div>
       </div>
@@ -1443,8 +1333,8 @@ async function render(){
         <div><label class="f">Your Name</label><input type="text" id="stName" value="${s.name}"></div>
         <div><label class="f">Your Email</label><input type="email" id="stEmail" value="${s.email}"></div>
       </div>
-      <label class="f">Optional Gemini API Key (for online AI Note Polishing)</label>
-      <input type="text" id="stAiKey" placeholder="Leave blank to use built-in Offline Smart Formatter" value="${s.aiKey||''}">
+      <label class="f">Optional Gemini API Key (<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">Get Free Key ↗</a>)</label>
+      <input type="text" id="stAiKey" placeholder="AIza..." value="${s.aiKey||''}">
       <label class="f">App Color Palette</label>
       <div class="swatches">${cols.map(c=>`<div class="swatch ${s.color===c[0]?'on':''}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></div>`).join('')}</div>
       <div class="two" style="margin-top:12px">
@@ -1454,7 +1344,7 @@ async function render(){
     </div>
 
     <div class="card"><h2>⚡ Quick Actions & Backup</h2>
-      <label class="f">Add Extra Memorized Pages (supports 0.5)</label>
+      <label class="f">Add Extra Memorized Pages</label>
       <div class="row"><input type="number" step="0.5" id="ad" value="1" style="width:90px"><button class="sm" onclick="call('addPages',$('ad').value)">Add Pages</button></div>
       <label class="f" style="margin-top:14px">Backup Data (Last backup: ${s.lastBackup||'Never'})</label>
       <div class="two"><button onclick="exportData()">Export Backup</button><button class="g" onclick="$('imp').click()">Import Backup</button></div>
@@ -1464,50 +1354,29 @@ async function render(){
   }
 }
 
-function updateObUI(){
-  const mode=$('obMode')?$('obMode').value:'both';
-  const method=$('obMethod')?$('obMethod').value:'tikrar';
-  const exp=$('obMethodExplain');
-  if(exp){
-    if(method==='tikrar')exp.innerHTML=`<b>🕌 Tikrar (Madinah) Program:</b> Supports <b>0.5 page (h1/h2)</b>, <b>1</b>, <b>2</b>, or <b>3 pages</b> daily. Includes the 5 daily habits (Yesterday 5x, Listen 3x, Tafsir 1x, Repeat 40x/30x, Record 3x), rolling <b>Connectivity</b>, and a <b>6-Day Review Circuit</b> of all older pages.`;
-    else if(method==='ottoman')exp.innerHTML=`<b>🌙 Ottoman Method:</b> Memorize 1–2 pages daily while revising your recent pages (Sabak Dhor), plus rotate through your memorized Juz in <b>4 progressive cycles</b>: last 5 pages → last 10 pages → last 15 pages → whole Juz.`;
-    else if(method==='classic')exp.innerHTML=`<b>📖 Classic Method:</b> Memorize new pages daily while revising 1 full memorized Juz per day in sequential rotation.`;
-    else exp.innerHTML=`<b>⚙️ Custom Method:</b> Set your own daily page pace, recent revision window (e.g., 5 pages), and custom revision chunk sizes.`;
-  }
-  if($('obNewWrap'))$('obNewWrap').style.display=mode==='revision'?'none':'block';
-  if($('obExtraWrap'))$('obExtraWrap').style.display=(method==='ottoman'||method==='custom')?'grid':'none';
-}
-function toggleSettingsMethodUI(){
-  const m=$('stMethod').value;
-  $('customChunkWrap').style.display=m==='custom'?'block':'none';
-  $('tikrarSettingsWrap').style.display=m==='tikrar'?'grid':'none';
-  $('ottomanSettingsWrap').style.display=m==='tikrar'?'none':'grid';
-}
-function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);D.state=s;render()}
+/* Visual Onboarding & Settings Helpers */
+function setObMode(m){const s=loadState();s.mode=m;saveState(s);D.state=s;render()}
+function setObMethod(mt){const s=loadState();s.method=mt;saveState(s);D.state=s;render()}
+function setObPace(p){const s=loadState();s.newPerDay=p;saveState(s);D.state=s;render()}
+
+function setStMode(m){const s=loadState();s.mode=m;saveState(s);D.state=s;render()}
+function setStMethod(mt){const s=loadState();s.method=mt;saveState(s);D.state=s;render()}
+function setStPace(p){const s=loadState();s.newPerDay=p;saveState(s);D.state=s;render()}
+
 function finishOnboarding(){
   call('saveSettings',{
-    name:$('obName').value,email:'',mode:$('obMode').value,method:$('obMethod').value,
-    chunks:$('obChunks')?$('obChunks').value:'5,10,15,0',
-    frontier:$('obFr').value,
-    sabakPages:$('obSb')?$('obSb').value:5,
-    newPerDay:$('obNewPerDay')?$('obNewPerDay').value:1,
-    revPerDay:1,period:1,cycle:1,juz:1,tourDay:1,tourNum:1
+    name:$('obName').value,email:'',
+    frontier:$('obFr').value
   });
 }
-function save(){
+function saveSettingsSimple(){
   call('saveSettings',{
     name:$('stName').value,email:$('stEmail').value,aiKey:$('stAiKey').value,
-    mode:$('stMode').value,method:$('stMethod').value,
-    chunks:$('ch')?$('ch').value:'5,10,15,0',
-    frontier:$('fr').value,
-    sabakPages:$('sb')?$('sb').value:5,
-    newPerDay:$('np').value,
-    revPerDay:$('rp')?$('rp').value:1,
-    period:$('pe')?$('pe').value:1,
-    cycle:$('cy')?$('cy').value:1,
-    juz:$('ju')?$('ju').value:1,
-    tourDay:$('tDay')?$('tDay').value:1,
-    tourNum:$('tNum')?$('tNum').value:1
+    frontier:$('stFr').value,
+    tourNum:$('stTourNum')?$('stTourNum').value:1,
+    tourDay:$('stTourDay')?$('stTourDay').value:1,
+    sabakPages:$('stSb')?$('stSb').value:5,
+    period:$('stPe')?$('stPe').value:1
   });
 }
 
