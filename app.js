@@ -325,10 +325,10 @@ const loadState=()=>{
   syncPst(s);
   return s;
 };
-const saveState=s=>sv('hifdh_state',s);
+const saveState=s=>{s.updatedAt=Date.now();sv('hifdh_state',s);if(typeof scheduleCloudSync==='function')scheduleCloudSync()};
 const loadDays=()=>ld('hifdh_days',{});
 const loadNotes=()=>ld('hifdh_notes',[]);
-const saveNotes=n=>sv('hifdh_notes',n);
+const saveNotes=n=>{sv('hifdh_notes',n);if(typeof scheduleCloudSync==='function')scheduleCloudSync()};
 
 function applyTheme(s){
   document.documentElement.setAttribute('data-theme',s.theme||'light');
@@ -589,6 +589,7 @@ const api={
       day.n.subs=day.n.subs||{};
       day.n.subs[subKey]=force===true?true:!day.n.subs[subKey];
       sv('hifdh_days',days);
+      if(typeof scheduleCloudSync==='function')scheduleCloudSync();
     }
     return api.getData(today);
   },
@@ -902,10 +903,10 @@ function saveRichNote(){
   const list=loadNotes();
   if(EDIT_NOTE_ID){
     const idx=list.findIndex(x=>x.id===EDIT_NOTE_ID);
-    if(idx>-1)list[idx]=Object.assign(list[idx],{title,cat,link,html,date:T()});
+    if(idx>-1)list[idx]=Object.assign(list[idx],{title,cat,link,html,date:T(),updatedAt:Date.now()});
     EDIT_NOTE_ID=null;
   }else{
-    list.unshift({id:Date.now(),date:T(),cat,title,link,html});
+    list.unshift({id:Date.now(),date:T(),updatedAt:Date.now(),cat,title,link,html});
   }
   SHOW_COMPOSER=false;
   saveNotes(list);render();
@@ -919,7 +920,11 @@ async function editNote(id){
   if($('ntLink'))$('ntLink').value=n.link||'';
   if($('rtEditor'))$('rtEditor').innerHTML=sanitizeHtml(n.html||esc(n.body||''));
 }
-function delNote(id){if(!confirm('Delete this note/lesson?'))return;saveNotes(loadNotes().filter(x=>x.id!==id));render()}
+function delNote(id){
+  if(!confirm('Delete this note/lesson?'))return;
+  const del=ld('hifdh_deleted_notes',[]);if(!del.includes(id))del.push(id);sv('hifdh_deleted_notes',del);
+  saveNotes(loadNotes().filter(x=>x.id!==id));render();
+}
 function setLibFilter(f){ensureData();const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
 function setLibSubTab(st){ensureData();const s=loadState();s.libSubTab=st;saveState(s);D.state=s;render()}
 
@@ -1000,7 +1005,7 @@ function importData(inp){
   r.readAsText(f);inp.value='';
 }
 function resetAll(){
-  LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');
+  LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');LS.removeItem('hifdh_deleted_notes');
   ACTIVE_URLS.forEach(entry=>URL.revokeObjectURL(entry.url));
   ACTIVE_URLS.clear();
   DR=null;D=null;SELECTED_JUZ=null;render();
@@ -1314,6 +1319,7 @@ function rSettings(s){
   const cols=[['emerald','#1f5f4a'],['blue','#2563eb'],['gold','#a16207'],['plum','#7c3aed']];
   setHdr(`<div class="row"><h1 class="brand light">Settings</h1>${themeBtn(s)}</div><div class="tagline">Your plan, profile and backup</div>`);
   $('app').innerHTML=`
+    ${typeof accountCardHtml==='function'?accountCardHtml():''}
     ${planForm('settings')}
 
     <div class="card" style="margin-top:14px"><details>
