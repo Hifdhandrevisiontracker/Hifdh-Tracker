@@ -502,3 +502,4 @@ function accountCardHtml(){
   const stLabel=CLOUD_STATE.status==='syncing'?'Syncing…':(CLOUD_STATE.status==='synced'?`Synced ${CLOUD_STATE.lastSync}`:(CLOUD_STATE.status==='error'?'Sync error':'Connected'));
   return `<div class="card">
     <d
+    
