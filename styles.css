@@ -1,7 +1,6 @@
 :root{
   --bg:#eef3f0;--card:#ffffff;--tx:#16201c;--mu:#63736b;--bd:#e3e9e6;--wr:#d99b16;
   --ac:#1f5f4a;--ac2:#e3f1eb;--sh:0 6px 22px rgba(20,60,45,.07);
-  --chk:28px;--ttl:22px;--tsub:16px;--tpad:16px;--tgap:14px;--plp:7px 13px;--plf:13px;
 }
 [data-theme="dark"]{
   --bg:#0d1311;--card:#161f1c;--tx:#ebf1ee;--mu:#8b9d94;--bd:#24332d;
@@ -52,12 +51,6 @@ button.sm{padding:6px 11px;font-size:12px;margin-top:0;border-radius:9px}
 .cy.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 #msg{color:#b91c1c;font-size:12.5px;min-height:16px;margin-bottom:4px;font-weight:600}
 
-/* Visual Card Selectors for Onboarding & Settings */
-.choice-card{border:1.5px solid var(--bd);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer;background:var(--card);transition:all .15s;display:flex;align-items:center;justify-content:space-between}
-.choice-card.on{border-color:var(--ac);background:var(--ac2);box-shadow:0 2px 12px rgba(31,95,74,.1)}
-.choice-card b{font-size:13.5px;display:block}
-.choice-card span{font-size:11.5px;color:var(--mu)}
-
 /* 3-Slide Onboarding Carousel */
 .ob-wrap{text-align:center;padding:12px 6px}
 .ob-art{width:116px;height:116px;border-radius:30px;background:var(--ac2);color:var(--ac);display:flex;align-items:center;justify-content:center;font-size:52px;margin:10px auto 16px;box-shadow:0 10px 28px rgba(0,0,0,.06);animation:float 3s ease-in-out infinite}
@@ -66,19 +59,9 @@ button.sm{padding:6px 11px;font-size:12px;margin-top:0;border-radius:9px}
 .dot{width:8px;height:8px;border-radius:99px;background:var(--bd);transition:all .25s}
 .dot.on{width:24px;background:var(--ac)}
 
-/* Tasks & Compact Tikrar Habit Pills */
-.task-wrap{border:1px solid var(--bd);border-radius:14px;margin-bottom:9px;overflow:hidden;background:var(--card);transition:all .15s}
-.task-wrap.done{background:var(--ac2);border-color:var(--ac)}
-.task{display:flex;gap:12px;align-items:center;padding:13px;cursor:pointer}
-.task input{width:20px;height:20px;accent-color:var(--ac);flex:none}
-.task b{display:block;font-size:14px;margin:2px 0}
-.tag{font-size:10px;color:var(--ac);font-weight:750;text-transform:uppercase;letter-spacing:.5px}
-.tikrar-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
-.tpill{font-size:10.5px;padding:3px 8px;border-radius:7px;border:1px solid var(--bd);background:var(--bg);color:var(--mu);cursor:pointer;font-weight:600}
-.tpill.done{background:var(--ac);color:#fff;border-color:var(--ac)}
-
 /* Winding Landscape Journey Map */
 .winding-map{position:relative;padding:24px 10px 30px;border-radius:18px;background:linear-gradient(180deg, #f4eee1 0%, var(--bg) 60%);border:1px solid var(--bd);overflow:hidden}
+[data-theme="dark"] .winding-map{background:linear-gradient(180deg, #1b2420 0%, var(--bg) 60%)}
 .summit-crown{text-align:center;margin-bottom:18px}
 .summit-badge{width:56px;height:56px;border-radius:50%;margin:0 auto 6px;background:radial-gradient(circle, #fff 10%, #fbbf24 55%, #d97706 100%);box-shadow:0 0 25px rgba(251,191,36,.7);display:flex;align-items:center;justify-content:center;font-size:24px;animation:pulseGlow 2.4s infinite alternate}
 @keyframes pulseGlow{from{transform:scale(.96)}to{transform:scale(1.06)}}
@@ -132,7 +115,7 @@ button.sm{padding:6px 11px;font-size:12px;margin-top:0;border-radius:9px}
 .tg-banner a{color:#fff;text-decoration:none;font-weight:700;display:inline-block;background:rgba(255,255,255,.18);padding:7px 12px;border-radius:9px;font-size:12.5px;margin-top:8px;margin-right:6px}
 details summary{cursor:pointer;font-weight:700;font-size:14px;outline:none}
 
-/* v2 layout classes */
+/* Plan & Task Styles */
 .brand{font-family:Georgia,'Iowan Old Style','Times New Roman',serif;font-weight:800;color:var(--ac);font-size:32px;line-height:1.1;display:flex;align-items:center;gap:10px;margin:0;letter-spacing:-.5px}
 .brand.light{font-weight:400;color:var(--tx);font-size:34px}
 .brand svg{width:26px;height:26px;fill:var(--ac);stroke:var(--ac)}
@@ -181,6 +164,7 @@ details summary{cursor:pointer;font-weight:700;font-size:14px;outline:none}
 #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);background:var(--ac);color:#fff;padding:11px 18px;border-radius:99px;font-size:13.5px;font-weight:650;opacity:0;pointer-events:none;transition:.25s;z-index:80;max-width:88vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+:root{--chk:28px;--ttl:22px;--tsub:16px;--tpad:16px;--tgap:14px;--plp:7px 13px;--plf:13px}
 [data-cards="s"]{--chk:22px;--ttl:18px;--tsub:14px;--tpad:12px;--tgap:12px;--plp:5px 10px;--plf:12px}
 [data-cards="l"]{--chk:34px;--ttl:26px;--tsub:18px;--tpad:20px;--tgap:16px;--plp:8px 15px;--plf:14px}
 [data-size="s"] #app,[data-size="s"] #hdr{zoom:.9}
