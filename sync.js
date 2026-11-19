@@ -1,5 +1,5 @@
 const FIREBASE_CFG={
-  apiKey:"AIzaSyBcQJHJgGLt33yxJFrqLPnITmdI7LgyTSw",
+  apiKey:"AIzaSyBcQJHJgGut33yxJFrqLPnITmdI7LgyTSw",
   authDomain:"my-companion-app-c0f8b.firebaseapp.com",
   projectId:"my-companion-app-c0f8b",
   storageBucket:"my-companion-app-c0f8b.firebasestorage.app",
@@ -501,83 +501,4 @@ function accountCardHtml(){
   }
   const stLabel=CLOUD_STATE.status==='syncing'?'Syncing…':(CLOUD_STATE.status==='synced'?`Synced ${CLOUD_STATE.lastSync}`:(CLOUD_STATE.status==='error'?'Sync error':'Connected'));
   return `<div class="card">
-    <div class="row"><h2 style="margin:0">☁️ Cloud Sync Active</h2><span class="pill">${esc(stLabel)}</span></div>
-    <div class="mu" style="margin:6px 0 10px">Signed in as <b>${esc(u.email||u.name||'Member')}</b>${isAdminUser()?' · <span class="pill">Admin</span>':''}</div>
-    ${CLOUD_STATE.error?`<div style="color:#b91c1c;font-size:12px;font-weight:600;margin-bottom:8px">${esc(CLOUD_STATE.error)}</div>`:''}
-    <div class="two">
-      <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 Sync Now</button>
-      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signOutCloud()">Sign Out</button>
-    </div>
-    <div style="margin-top:10px;text-align:right">
-      <button class="g sm" style="color:#b91c1c;border-color:rgba(185,28,28,.3)" onclick="deleteCloudAccount()">Delete cloud account</button>
-    </div>
-  </div>`;
-}
-
-function circleCardHtml(){
-  if(!CLOUD_STATE.user){
-    return `<div class="card">
-      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Sign in</span></div>
-      <div class="mu" style="margin-top:6px">Sign in under <b>Settings</b> to join a Hifdh circle with a partner or send gentle study nudges.</div>
-    </div>`;
-  }
-  let nudgeBanner='';
-  if(CLOUD_STATE.nudges&&CLOUD_STATE.nudges.length){
-    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box" style="margin-bottom:8px;background:var(--ac2)">
-      <div class="row"><b>🔔 Nudge from ${esc(n.fromName||'Partner')}</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">Dismiss</button></div>
-      <div style="font-size:13px;margin-top:4px">${esc(n.text||'Time for today’s Hifdh session!')}</div>
-    </div>`).join('');
-  }
-  if(!CLOUD_STATE.circle){
-    return `<div class="card">
-      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Optional</span></div>
-      ${nudgeBanner}
-      <div class="mu" style="margin:6px 0 10px">Create a small circle or enter a 6-character code to see each other’s progress and send nudges.</div>
-      <div class="two">
-        <input type="text" id="circleNameInp" placeholder="New circle name">
-        <button class="sm" onclick="createOrJoinCircle('create')">Create Circle</button>
-      </div>
-      <div class="two" style="margin-top:8px">
-        <input type="text" id="circleCodeInp" placeholder="Enter 6-char code" maxlength="6" style="text-transform:uppercase">
-        <button class="g sm" onclick="createOrJoinCircle('join')">Join Circle</button>
-      </div>
-    </div>`;
-  }
-  const members=Object.entries(CLOUD_STATE.circle.members||{}).sort((a,b)=>(b[1].pages||0)-(a[1].pages||0));
-  return `<div class="card">
-    <div class="row">
-      <div><h2 style="margin:0">🤝 ${esc(CLOUD_STATE.circle.name)}</h2><div class="mu">Code: <b>${esc(CLOUD_STATE.circle.id)}</b> · ${members.length} member(s)</div></div>
-      <button class="g sm" onclick="leaveCircleLocal()">Leave</button>
-    </div>
-    ${nudgeBanner}
-    <div style="margin-top:10px">${members.map(([uid,mInfo])=>{
-      const isMe=uid===CLOUD_STATE.user.uid;
-      return `<div class="sr">
-        <div><b>${esc(mInfo.name||'Member')}</b>${isMe?' <span class="pill">You</span>':''}<div class="mu">${mInfo.pages||0}p · ${mInfo.juz||0}/30 Juz · 🔥 ${mInfo.streak||0}d</div></div>
-        ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}','${esc(mInfo.name||'Partner')}')">👋 Nudge</button>`:''}
-      </div>`;
-    }).join('')}</div>
-  </div>`;
-}
-
-function leaderboardCardHtml(s){
-  const optedIn=Boolean(s.leaderboardOptIn);
-  const rows=CLOUD_STATE.leaderboard||[];
-  return `<div class="card">
-    <div class="row"><h2 style="margin:0">🏆 Community Leaderboard</h2><span class="pill">Opt-In</span></div>
-    <div class="mu" style="margin:6px 0 10px">Only students who opt in appear here. Share your memorized pages and streak with fellow learners.</div>
-    <label class="row" style="justify-content:flex-start;gap:10px;margin-bottom:10px;cursor:pointer">
-      <input type="checkbox" ${optedIn?'checked':''} onchange="toggleLeaderboardOptIn(this.checked)">
-      <span style="font-size:13.5px;font-weight:650">Show my name, pages &amp; streak on the leaderboard</span>
-    </label>
-    ${rows.length?rows.map((r,i)=>`<div class="sr">
-      <div><b>#${i+1} ${esc(r.name||'Student')}</b><div class="mu">${r.juz||0}/30 Juz · 🔥 ${r.streak||0}d</div></div>
-      <span class="pill">${r.pages||0} pages</span>
-    </div>`).join(''):'<div class="mu">No leaderboard entries loaded yet. Tap Sync Now after signing in.</div>'}
-  </div>`;
-}
-
-if(LS.getItem('hifdh_has_auth')){
-  ensureFb().catch(()=>{});
-}
-loadCommunityLessons();
+    <d
