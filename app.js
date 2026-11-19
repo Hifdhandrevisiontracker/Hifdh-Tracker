@@ -23,23 +23,28 @@ const SURAH_AT_PAGE=[
 const TOTAL=604;
 const HS=[1,11,22,32,42,51,62,72,82,92,102,112,121,132,142,151,162,173,182,192,201,212,222,231,242,252,262,272,282,292,302,312,322,332,342,352,362,371,382,392,402,413,422,431,442,451,462,472,482,491,502,513,522,531,542,553,562,572,582,591];
 const SURAH_END=[1,49,76,106,127,150,176,186,207,221,235,248,255,261,267,281,293,304,312,321,331,341,349,359,366,376,385,396,404,410,414,417,427,434,440,445,452,458,467,476,482,489,495,498,502,506,510,515,517,520,523,525,528,531,534,537,541,545,548,551,552,554,555,557,559,561,564,566,568,570,571,573,575,577,578,580,581,583,584,585,586,587,589,589,590,591,592,592,594,594,595,596,596,596,597,597,598,599,599,600,600,600,601,601,601,602,602,602,603,603,603,604,604,604];
+
 const DEFAULTS={
   seenIntro:false,onboarded:false,name:'',avatar:'',email:'',
   mode:'both',method:'tikrar',order:'fwd',
   frontier:0,newPerDay:1,revPerDay:1,sabakPages:5,
+  studyDaysPerWeek:6,planCommittedAt:'',
   chunks:[5,10,15,0],cycle:0,juz:1,period:1,
   tourDay:1,tourNum:1,
   theme:'light',color:'emerald',
   tasbihMode:'ayah',tasbihPhrase:'SubḥānAllāh',
   tasbih:0,tasbihTarget:40,tasbihTotal:0,tasbihTheme:'emerald',
   folders:['Tajweed Lessons','Mutashabihat','Tafsir & Reflections'],
-  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m',pst:'',afterLast:'keep',
+  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',
+  uiText:'m',uiCard:'m',uiScale:1,pst:'',afterLast:'keep',
   circleCode:'',leaderboardOptIn:false
 };
 
 const pad=n=>String(n).padStart(2,'0');
 const T=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-let SELECTED_JUZ=null, D=null, DR=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false, RENDER_SEQ=0;
+let SELECTED_JUZ=null, D=null, DR=null, TAB='today', COMM_SUBTAB='circle', OB_SLIDE=0, T_MENU=false;
+let EDIT_NOTE_ID=null, VIEW_NOTE_ID=null, SHOW_COMPOSER=false, LIB_SEARCH='', AI_TEST_MSG=null, RENDER_SEQ=0;
+let COMMIT_RAF=null, COMMIT_START=0, COMMIT_DONE=false;
 let mediaRec=null, recChunks=[], isRecording=false, audioDevices=[], selectedMic='', selectedMime='';
 const ACTIVE_URLS=new Map();
 const $=id=>document.getElementById(id);
@@ -105,6 +110,12 @@ function sanitizeHtml(dirty){
   };
   walk(tpl.content);
   return tpl.innerHTML;
+}
+function htmlToPlain(html){
+  if(!html)return '';
+  const d=document.createElement('div');
+  d.innerHTML=String(html);
+  return (d.textContent||d.innerText||'').replace(/\s+/g,' ').trim();
 }
 
 const juzEnd=j=>j===30?TOTAL:JUZ_START[j+1]-1;
@@ -274,7 +285,7 @@ function strengthCard(s){
       const st=surahState(s,i);
       const p1=SURAH_AT_PAGE[i][0], p2=SURAH_END[i];
       const spans=(p1<a||p2>b)?`<span class="mu">Pages ${p1}–${p2}</span>`:'';
-      return `<div class="sr"><div><b>${esc(SURAH_AT_PAGE[i][1])}</b>${spans}</div><span style="display:flex;gap:6px"><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button>${st!=='none'?`<button class="chip x" aria-label="Remove" onclick="clearSurah(${i})">✕</button>`:''}</span></div>`;
+      return `<div class="sr"><div><b>${esc(SURAH_AT_PAGE[i][1])}</b> ${spans}</div><span style="display:flex;gap:6px"><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button>${st!=='none'?`<button class="chip x" aria-label="Remove" onclick="clearSurah(${i})">✕</button>`:''}</span></div>`;
     }).join('');
     inspector=`<div class="card" id="juzInspector">
       <div class="row">
@@ -302,9 +313,9 @@ function strengthCard(s){
     </div>
   </div>
   <div class="card">
-    <div class="row"><h2 style="margin:0">Juz</h2>${!hasReal?'<span class="pill">Sample data</span>':''}</div>
+    <div class="row"><h2 style="margin:0">30-Juz Map</h2>${!hasReal?'<span class="pill">Sample data</span>':''}</div>
     <div class="juz30-grid">${gridTiles}</div>
-    <div class="mu" style="margin-top:12px">Tap a juz to see its surahs and mark them weak or strong.</div>
+    <div class="mu" style="margin-top:12px">Tap any Juz to view its Surahs and mark them weak or strong.</div>
   </div>${inspector}`;
 }
 
@@ -320,6 +331,12 @@ const loadState=()=>{
   if(!['tikrar','ottoman','simple'].includes(s.method))s.method='simple';
   s.order=validOrder(s.order);
   if(!Array.isArray(s.chunks)||!s.chunks.length)s.chunks=s.method==='simple'?[0]:[5,10,15,0];
+  if(!s.uiScale||isNaN(Number(s.uiScale))){
+    s.uiScale=s.uiText==='s'?0.9:(s.uiText==='l'?1.12:1);
+  }else{
+    s.uiScale=Math.max(0.85,Math.min(1.25,Number(s.uiScale)));
+  }
+  s.studyDaysPerWeek=Math.max(4,Math.min(7,parseInt(s.studyDaysPerWeek,10)||6));
   syncPst(s);
   return s;
 };
@@ -329,26 +346,51 @@ const loadNotes=()=>ld('hifdh_notes',[]);
 const saveNotes=n=>{sv('hifdh_notes',n);if(typeof scheduleCloudSync==='function')scheduleCloudSync()};
 
 function applyTheme(s){
-  document.documentElement.setAttribute('data-theme',s.theme||'light');
-  document.documentElement.setAttribute('data-color',s.color||'emerald');
-  document.documentElement.setAttribute('data-size',s.uiText||'m');
-  document.documentElement.setAttribute('data-cards',s.uiCard||'m');
-  const colors={emerald:'#1f5f4a',blue:'#2563eb',gold:'#a16207',plum:'#7c3aed'};
+  const theme=s.theme==='dark'?'dark':'light';
+  const color=['emerald','blue','gold','plum'].includes(s.color)?s.color:'emerald';
+  const scale=Math.max(0.85,Math.min(1.25,Number(s.uiScale)||1));
+  document.documentElement.setAttribute('data-theme',theme);
+  document.documentElement.setAttribute('data-color',color);
+  document.documentElement.style.setProperty('--ui-scale',scale.toFixed(2));
+  const lightColors={emerald:'#1f5f4a',blue:'#2563eb',gold:'#a16207',plum:'#7c3aed'};
   const mt=$('metaTheme');
-  if(mt)mt.setAttribute('content',colors[s.color]||'#1f5f4a');
+  if(mt)mt.setAttribute('content',theme==='dark'?'#121816':(lightColors[color]||'#1f5f4a'));
 }
-function toggleTheme(){
-  const s=loadState();s.theme=s.theme==='dark'?'light':'dark';
-  saveState(s);applyTheme(s);if(D)D.state=s;render();
+function setThemeMode(th){
+  ensureData();
+  const s=loadState();s.theme=th==='dark'?'dark':'light';
+  saveState(s);applyTheme(s);D.state=s;render();
 }
-function setColor(c){const s=loadState();s.color=c;saveState(s);applyTheme(s);if(D)D.state=s;render()}
+function setColor(c){ensureData();const s=loadState();s.color=c;saveState(s);applyTheme(s);D.state=s;render()}
+function previewUiScale(pct){
+  const scale=Math.max(0.85,Math.min(1.25,(parseInt(pct,10)||100)/100));
+  document.documentElement.style.setProperty('--ui-scale',scale.toFixed(2));
+  const lbl=$('scaleValLbl');if(lbl)lbl.textContent=Math.round(scale*100)+'%';
+}
+function commitUiScale(pct){
+  ensureData();
+  const scale=Math.max(0.85,Math.min(1.25,(parseInt(pct,10)||100)/100));
+  const s=loadState();s.uiScale=scale;
+  s.uiText=scale<0.95?'s':(scale>1.07?'l':'m');
+  saveState(s);applyTheme(s);D.state=s;
+}
 
-const navKey=t=>['tasbih','recite','library'].includes(t)?'tools':t;
+const navKey=t=>{
+  if(['tasbih','recite','library'].includes(t))return 'tools';
+  if(['plan','ai','backup','profile_edit','privacy'].includes(t))return 'settings';
+  return t;
+};
 function setTab(t){
-  TAB=t;T_MENU=false;DR=null;
+  TAB=t;T_MENU=false;DR=null;VIEW_NOTE_ID=null;AI_TEST_MSG=null;
+  if(t==='community'&&typeof loadCommunityLessons==='function')loadCommunityLessons();
   const activeKey=navKey(t);
   NAV.forEach(n=>{const e=$('nav-'+n[0]);if(e)e.classList.toggle('active',n[0]===activeKey)});
   render();window.scrollTo(0,0);
+}
+function setCommSubTab(st){
+  COMM_SUBTAB=st;
+  if(st==='lessons'&&typeof loadCommunityLessons==='function')loadCommunityLessons();
+  render();
 }
 function jumpToTasbih(targetCount){
   ensureData();
@@ -399,6 +441,23 @@ function makePlan(s){
   }
 
   if(s.method==='tikrar'){
+    if(s.mode==='revision'){
+      if(curUnits>=1){
+        const tDay=Math.max(1,Math.min(6,s.tourDay||1));
+        const chunk=Math.max(1,Math.ceil(curUnits/6));
+        const revStart=Math.min(curUnits,(tDay-1)*chunk+1);
+        const revEnd=tDay===6?curUnits:Math.min(curUnits,tDay*chunk);
+        const revPages=pagesInUnits(ord,revStart,revEnd);
+        const before={tourDay:tDay,tourNum:s.tourNum||1};
+        const after=tDay>=6?{tourDay:1,tourNum:(s.tourNum||1)+1}:{tourDay:tDay+1,tourNum:s.tourNum||1};
+        plan.r.push({
+          isTikrar:true,tourNum:s.tourNum||1,tourDay:tDay,
+          uA:revStart,uB:revEnd,a:revPages[0],b:revPages[revPages.length-1],
+          pages:revPages,ord,useHalf,done:false,before,after
+        });
+      }
+      return plan;
+    }
     const connWindowUnits=25*(stepPages>0?stepUnits:2);
     if(curUnits>=stepUnits){
       const connEnd=curUnits;
@@ -429,7 +488,7 @@ function makePlan(s){
     return plan;
   }
 
-  if(s.sabakPages>0 && curUnits>=1 && (doRev || s.mode==='hifdh')){
+  if(s.sabakPages>0 && curUnits>=1 && (s.mode==='both' || s.mode==='hifdh')){
     const sbUnits=Math.round(s.sabakPages*2);
     const blk=6*Math.max(1,Math.round((stepPages>0?stepPages:1)*2));
     const startU=curUnits>sbUnits?1+blk*Math.floor((curUnits-sbUnits)/blk):1;
@@ -500,7 +559,9 @@ const api={
     const juz=[];
     for(let j=1;j<=30;j++){const len=juzEnd(j)-JUZ_START[j]+1;const c=pstCount(s,JUZ_START[j],juzEnd(j));juz.push((c.g+c.w)/len)}
     const remaining=Math.max(0,TOTAL-s.frontier);
-    const eta=(s.mode!=='revision'&&s.newPerDay>0&&remaining>0)?addDays(today,Math.ceil(remaining/s.newPerDay)-1):null;
+    const studyRate=(s.studyDaysPerWeek||6)/7;
+    const calDays=(s.mode!=='revision'&&s.newPerDay>0&&remaining>0)?Math.ceil((remaining/s.newPerDay)/studyRate):0;
+    const eta=calDays>0?addDays(today,calDays-1):null;
     return{state:s,day,stats:{juz,strip,streak,remaining,eta}};
   },
   tick(today,key){
@@ -542,7 +603,7 @@ const api={
           s.tourDay=task.after.tourDay;
           s.tourNum=task.after.tourNum;
           if(task.tourDay===6){
-            showCelebration('🔄',`Tour / Circuit #${task.tourNum} Complete!`,`Māshā’Allāh! You completed your 6-day revision circuit of all old memorization. Starting Tour #${task.after.tourNum}!`);
+            showCelebration('🔄',`Tour / Circuit #${task.tourNum} Complete!`,`Māshā’Allāh! You completed your 6-day revision circuit. Starting Tour #${task.after.tourNum}!`);
           }
         }else{
           const chunks=(Array.isArray(s.chunks)&&s.chunks.length)?s.chunks:[0];
@@ -599,7 +660,7 @@ const api={
     const oldF=Math.ceil(s.frontier||0);
     const pureBefore=isPureSeqPst(s,oldOrder,oldF);
 
-    s.seenIntro=true;s.onboarded=true;
+    s.seenIntro=true;s.onboarded=true;s.planCommittedAt=today;
     if(f.name!==undefined)s.name=String(f.name).trim();
     if(['both','hifdh','revision'].includes(f.mode))s.mode=f.mode;
     if(['tikrar','ottoman','simple'].includes(f.method))s.method=f.method;
@@ -624,6 +685,7 @@ const api={
     const num=(v,def,lo,hi)=>{const n=parseInt(v,10);return isNaN(n)?def:Math.max(lo,Math.min(hi,n))};
     s.revPerDay=num(f.revPerDay,s.revPerDay,1,5);
     s.sabakPages=num(f.sabakPages,s.sabakPages,0,30);
+    s.studyDaysPerWeek=num(f.studyDaysPerWeek,s.studyDaysPerWeek||6,4,7);
     s.cycle=num(f.cycle,s.cycle+1,1,s.chunks.length)-1;
     s.juz=num(f.juz,orderChanged?(s.order==='fwd'?1:30):s.juz,1,30);
     s.period=num(f.period,s.period,1,9999);
@@ -823,7 +885,7 @@ async function deleteVaultItem(id){
 }
 
 function addFolder(){
-  const name=prompt('New Folder / Lesson Category Name:');
+  const name=prompt('New Folder / Topic Name:');
   if(!name||!name.trim())return;
   const s=loadState();
   if(!s.folders.includes(name.trim()))s.folders.push(name.trim());
@@ -836,7 +898,7 @@ function execRT(cmd,val=null){
 function insertRTTable(){
   const area=$('rtEditor');if(!area)return;
   area.focus();
-  const tbl=`<table><tr><th>Rule / Surah</th><th>Details & Examples</th></tr><tr><td>Example 1</td><td>Write notes here...</td></tr><tr><td>Example 2</td><td>Write notes here...</td></tr></table><p></p>`;
+  const tbl=`<table><tr><th>Rule / Surah</th><th>Details &amp; Examples</th></tr><tr><td>Example 1</td><td>Write notes here...</td></tr><tr><td>Example 2</td><td>Write notes here...</td></tr></table><p></p>`;
   document.execCommand('insertHTML',false,tbl);
 }
 function attachInlinePhoto(inp){
@@ -860,58 +922,120 @@ function formatPlainNotes(raw){
     return `<p>${refBold}</p>`;
   }).join('');
 }
+function setAiNoteStatus(ok,txt){
+  const el=$('aiNoteStatus');
+  if(!el)return;
+  el.className='ai-status '+(ok?'ok':'err');
+  el.textContent=txt;
+  el.style.display='block';
+}
 async function polishNoteAI(){
   const area=$('rtEditor');if(!area)return;
   const raw=area.innerText.trim();
-  if(!raw){if($('msg'))$('msg').textContent='Write some notes first before polishing.';return}
+  if(!raw){setAiNoteStatus(false,'Write some notes first before polishing.');return}
   const s=loadState();
-  if(s.aiKey){
+  const key=(s.aiKey||'').trim();
+  if(key){
+    if(!key.startsWith('AIza')){
+      area.innerHTML=formatPlainNotes(raw);
+      setAiNoteStatus(false,'Your saved key does not start with "AIza..." (Google AI Studio keys always start with AIza). Applied clean local formatting instead.');
+      return;
+    }
     try{
-      if($('msg'))$('msg').textContent='✨ Polishing with Gemini AI...';
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(s.aiKey)}`,{
+      setAiNoteStatus(true,'✨ Polishing with Gemini AI...');
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:[{parts:[{text:`Organize and polish these Qur'an/Tajweed study notes into clean HTML using <b>, <ul>, <li>, and <p> tags without markdown code fences:\n\n${raw}`}]}]})
+        body:JSON.stringify({contents:[{parts:[{text:`Organize and polish these Qur'an/Tajweed study notes into clean HTML using <h3>, <b>, <ul>, <li>, and <p> tags without markdown code fences:\n\n${raw}`}]}]})
       });
-      if(!res.ok)throw new Error('HTTP '+res.status);
+      if(!res.ok){
+        let errDetail='HTTP '+res.status;
+        try{const j=await res.json();if(j&&j.error&&j.error.message)errDetail=j.error.message}catch(_){}
+        throw new Error(errDetail);
+      }
       const data=await res.json();
-      const out=data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      const out=data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]?data.candidates[0].content.parts[0].text:'';
       if(out){
         area.innerHTML=sanitizeHtml(out.replace(/```html|```/g,'').trim());
-        if($('msg'))$('msg').textContent='✨ Polished with Gemini!';
-        setTimeout(()=>{if($('msg'))$('msg').textContent=''},2500);
+        setAiNoteStatus(true,'✨ Polished with Gemini AI ✓');
         return;
       }
       throw new Error('Empty response from Gemini');
     }catch(e){
       area.innerHTML=formatPlainNotes(raw);
-      if($('msg'))$('msg').textContent='AI polish unavailable ('+e.message+') — applied clean local formatting.';
-      setTimeout(()=>{if($('msg'))$('msg').textContent=''},3500);
+      setAiNoteStatus(false,'Gemini AI error ('+e.message+') — applied clean local formatting.');
       return;
     }
   }
   area.innerHTML=formatPlainNotes(raw);
-  if($('msg'))$('msg').textContent='✨ Note cleanly structured & formatted!';
-  setTimeout(()=>{if($('msg'))$('msg').textContent=''},2500);
+  setAiNoteStatus(true,'✨ Cleaned & structured offline ✓ (Add an AIza... key under Profile → AI Note Assistant for Gemini AI)');
 }
+
+async function saveAndTestAiKey(runTest){
+  const key=($('aiKeyInp')?$('aiKeyInp').value:'').trim();
+  const s=loadState();
+  s.aiKey=key;
+  saveState(s);
+  ensureData().state=s;
+  if(!runTest){
+    AI_TEST_MSG={ok:true,txt:key?'API key saved locally on this device ✓':'API key cleared (offline formatter active).'};
+    render();
+    return;
+  }
+  if(!key){
+    AI_TEST_MSG={ok:false,txt:'Enter a Gemini API key starting with AIza... first.'};
+    render();
+    return;
+  }
+  if(!key.startsWith('AIza')){
+    AI_TEST_MSG={ok:false,txt:'Invalid format: Gemini API keys from Google AI Studio always start with "AIza..." (not "AQ.").'};
+    render();
+    return;
+  }
+  AI_TEST_MSG={ok:true,txt:'Testing connection to Gemini 2.5 Flash...'};
+  render();
+  try{
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:'Reply with OK'}]}]})
+    });
+    if(!res.ok){
+      let detail='HTTP '+res.status;
+      try{const j=await res.json();if(j&&j.error&&j.error.message)detail=j.error.message}catch(_){}
+      throw new Error(detail);
+    }
+    AI_TEST_MSG={ok:true,txt:'✓ Connected to Gemini AI! Note polishing is ready to use.'};
+  }catch(e){
+    AI_TEST_MSG={ok:false,txt:'Connection failed: '+e.message};
+  }
+  render();
+}
+
 function saveRichNote(){
   const title=$('ntTitle').value.trim()||'Untitled Lesson';
   const cat=$('ntCat').value;
   const link=$('ntLink').value.trim();
   const html=sanitizeHtml($('rtEditor').innerHTML.trim());
   const list=loadNotes();
+  let savedId=EDIT_NOTE_ID;
   if(EDIT_NOTE_ID){
     const idx=list.findIndex(x=>x.id===EDIT_NOTE_ID);
     if(idx>-1)list[idx]=Object.assign(list[idx],{title,cat,link,html,date:T(),updatedAt:Date.now()});
     EDIT_NOTE_ID=null;
   }else{
-    list.unshift({id:Date.now(),date:T(),updatedAt:Date.now(),cat,title,link,html});
+    savedId=Date.now();
+    list.unshift({id:savedId,date:T(),updatedAt:Date.now(),cat,title,link,html});
   }
   SHOW_COMPOSER=false;
-  saveNotes(list);render();
+  VIEW_NOTE_ID=savedId;
+  saveNotes(list);
+  toast('Note saved ✓');
+  render();
 }
+function openNoteReader(id){VIEW_NOTE_ID=id;SHOW_COMPOSER=false;render();window.scrollTo(0,0)}
+function closeNoteReader(){VIEW_NOTE_ID=null;render()}
 async function editNote(id){
   const n=loadNotes().find(x=>x.id===id);if(!n)return;
-  EDIT_NOTE_ID=id;SHOW_COMPOSER=true;
+  EDIT_NOTE_ID=id;VIEW_NOTE_ID=null;SHOW_COMPOSER=true;
   await render();
   if($('ntTitle'))$('ntTitle').value=n.title||'';
   if($('ntCat'))$('ntCat').value=n.cat||'Tajweed Lessons';
@@ -921,10 +1045,48 @@ async function editNote(id){
 function delNote(id){
   if(!confirm('Delete this note/lesson?'))return;
   const del=ld('hifdh_deleted_notes',[]);if(!del.includes(id))del.push(id);sv('hifdh_deleted_notes',del);
-  saveNotes(loadNotes().filter(x=>x.id!==id));render();
+  VIEW_NOTE_ID=null;
+  saveNotes(loadNotes().filter(x=>x.id!==id));
+  toast('Note deleted');
+  render();
 }
 function setLibFilter(f){ensureData();const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
-function setLibSubTab(st){ensureData();const s=loadState();s.libSubTab=st;saveState(s);D.state=s;if(st==='community'&&typeof loadCommunityLessons==='function')loadCommunityLessons();render()}
+function setLibSubTab(st){
+  ensureData();const s=loadState();s.libSubTab=st;VIEW_NOTE_ID=null;SHOW_COMPOSER=false;
+  saveState(s);D.state=s;
+  if(st==='community'&&typeof loadCommunityLessons==='function')loadCommunityLessons();
+  render();
+}
+function renderFilteredNotesHtml(s){
+  const notes=loadNotes();
+  const q=LIB_SEARCH.trim().toLowerCase();
+  const filtered=notes.filter(n=>{
+    if(s.libFilter!=='All'&&n.cat!==s.libFilter)return false;
+    if(!q)return true;
+    const hay=(n.title+' '+(n.cat||'')+' '+htmlToPlain(n.html||n.body||'')).toLowerCase();
+    return hay.includes(q);
+  });
+  if(!filtered.length){
+    return `<div class="card mu">${q?'No notes matched your search.':'No notes in this topic yet. Tap <b>+ New Note</b> above to start writing.'}</div>`;
+  }
+  return filtered.map(n=>{
+    const prev=htmlToPlain(n.html||n.body||'');
+    return `<div class="note-card" onclick="openNoteReader(${n.id})">
+      <span class="pill">${esc(n.cat||'Lesson')}</span>
+      <div class="note-title">${esc(n.title||'Untitled')}</div>
+      <div class="note-preview">${esc(prev||'No text content yet.')}</div>
+      <div class="note-meta">
+        <span>${esc(n.date||'')}</span>
+        <span style="color:var(--ac);font-weight:700">Open ›</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+function onLibSearchInput(val){
+  LIB_SEARCH=val;
+  const box=$('notesListBox');
+  if(box&&D)box.innerHTML=renderFilteredNotesHtml(D.state);
+}
 
 function exportNoteDoc(id,type){
   const n=loadNotes().find(x=>x.id===id);if(!n)return;
@@ -943,8 +1105,7 @@ function exportNoteDoc(id,type){
     const a=document.createElement('a');a.href=url;a.download=`${safeFile}.doc`;a.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }else if(type==='share'){
-    const tmp=document.createElement('div');tmp.innerHTML=safeBody;
-    const txt=`📖 ${n.title} (${n.cat})\n\n${tmp.innerText}${cleanLink?'\n🔗 '+cleanLink:''}`;
+    const txt=`📖 ${n.title} (${n.cat})\n\n${htmlToPlain(safeBody)}${cleanLink?'\n🔗 '+cleanLink:''}`;
     if(navigator.share)navigator.share({title:n.title,text:txt}).catch(()=>{});
     else if(navigator.clipboard){navigator.clipboard.writeText(txt).catch(()=>{});toast('Copied to clipboard!')}
   }
@@ -974,19 +1135,21 @@ function sendEmailSummary(){
 }
 function enableReminder(){
   ensureData();
-  if(!('Notification' in window)){if($('msg'))$('msg').textContent='Notifications not supported on this browser.';return}
+  if(!('Notification' in window)){toast('Notifications not supported on this browser.');return}
   Notification.requestPermission().then(p=>{
     if(p==='granted')new Notification('My Companion',{body:`Assalamu Alaikum ${D.state.name||''}! Daily Hifdh reminder is active.`});
+    else toast('Notification permission was not granted.');
   });
 }
 
 function exportData(){
   const s=loadState();s.lastBackup=T();saveState(s);
-  const blob=new Blob([JSON.stringify({app:'hifdh',v:8,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({app:'hifdh',v:9,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='my-companion-backup-'+T()+'.json';
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast('Backup exported ✓');
   render();
 }
 function importData(inp){
@@ -998,7 +1161,7 @@ function importData(inp){
     if(!confirm('Replace your current data with this backup?'))return;
     saveState(Object.assign({},DEFAULTS,o.state));sv('hifdh_days',o.days);
     if(o.notes)saveNotes(o.notes);
-    DR=null;D=null;SELECTED_JUZ=null;render();
+    DR=null;D=null;SELECTED_JUZ=null;toast('Backup restored ✓');render();
   }catch(e){if($('msg'))$('msg').textContent=e.message}};
   r.readAsText(f);inp.value='';
 }
@@ -1006,22 +1169,31 @@ function resetAll(){
   LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');LS.removeItem('hifdh_deleted_notes');
   ACTIVE_URLS.forEach(entry=>URL.revokeObjectURL(entry.url));
   ACTIVE_URLS.clear();
-  DR=null;D=null;SELECTED_JUZ=null;render();
+  DR=null;D=null;SELECTED_JUZ=null;TAB='today';render();
 }
-function replayIntro(){ensureData();const s=loadState();s.seenIntro=false;OB_SLIDE=0;saveState(s);D.state=s;render()}
 
 const chunkName=n=>n>0?`last ${n} pages`:'whole juz';
 function fmt(d){return d?new Date(d+'T00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'—'}
+function fmtMonthYear(d){return d?new Date(d+'T00:00').toLocaleDateString(undefined,{month:'long',year:'numeric'}):'—'}
+function fmtDuration(days){
+  if(days<=13)return `${days} day${days===1?'':'s'}`;
+  if(days<60)return `~${Math.max(2,Math.round(days/7))} weeks`;
+  const m=Math.round(days/30.4);
+  if(m<18)return `~${m} month${m===1?'':'s'}`;
+  const y=(days/365.25).toFixed(1);
+  return `~${y} years`;
+}
 const initials=name=>(name||'M').trim().split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
 
 const ICO={
   home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   stats:'<path d="M4 20h16M7 20v-7M12 20V7M17 20v-4"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   tools:'<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
+  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   tasbih:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
   mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   lib:'<path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z"/>',
-  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l2 2"/>',
   loop:'<path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/>',
   both:'<path d="M2 5h5a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H2z"/><path d="M13 10a4.5 4.5 0 0 1 8 0M21 16a4.5 4.5 0 0 1-8 0"/><path d="M21 6v4h-4M13 20v-4h4"/>',
   star:'<rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/><rect x="5.5" y="5.5" width="13" height="13" rx="1.5" transform="rotate(45 12 12)"/>',
@@ -1029,21 +1201,30 @@ const ICO={
   mark:'<path d="M6 3h12v18l-6-4-6 4z"/>',
   fwd:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   juzrev:'<path d="M4 7h12M4 12h10M4 17h8M19 6v12M16 15l3 3 3-3"/>',
-  pagerev:'<path d="M19 12H5M11 6l-6 6 6 6"/>'
+  pagerev:'<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  spark:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>',
+  shield:'<path d="M12 3l7 3v6c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6l7-3z"/>',
+  download:'<path d="M12 3v12M7 10l5 5 5-5M5 20h14"/>',
+  edit:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'
 };
-const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[n]}</svg>`;
+const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[n]||''}</svg>`;
 const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const encAttr=t=>encodeURIComponent(t).replace(/'/g,'%27');
-function toast(t){const e=$('toast');if(!e)return;e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),2600)}
-const NAV=[['today','home','Today'],['journey','stats','Stats'],['tools','tools','Tools'],['settings','gear','Settings']];
+function toast(t){const e=$('toast');if(!e)return;e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),2700)}
+
+const NAV=[
+  ['today','home','Today'],
+  ['journey','stats','Stats'],
+  ['community','users','Community'],
+  ['tools','tools','Tools'],
+  ['settings','user','Profile']
+];
 function buildNav(){
   const activeKey=navKey(TAB);
   $('bottomNav').innerHTML=NAV.map(n=>`<button id="nav-${n[0]}" class="${n[0]===activeKey?'active':''}" onclick="setTab('${n[0]}')">${ic(n[1])}<span>${n[2]}</span></button>`).join('');
 }
 function setHdr(h){$('hdr').innerHTML=h}
-const themeBtn=s=>`<button class="g sm" onclick="toggleTheme()" id="themeBtn" title="Switch theme">${s.theme==='dark'?'☀️':'🌙'}</button>`;
 function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);DR=null;D=null;render()}
-function setUi(k,v){ensureData();const s=loadState();s[k]=v;saveState(s);applyTheme(s);D.state=s;render()}
 
 function heroRing(done,total){
   const r=26, circ=2*Math.PI*r;
@@ -1058,18 +1239,28 @@ function heroRing(done,total){
   </div>`;
 }
 
+/* ==================== PLAN BUILDER + ROADMAP + HOLD TO COMMIT ==================== */
 function initDraft(){
   const s=loadState();
-  DR={mode:s.mode,method:s.method,order:validOrder(s.order),pace:s.newPerDay,posType:'page',fr:s.frontier,juzIn:'',
-      rev:s.revPerDay,sabak:s.sabakPages,cycle:s.cycle+1,juz:s.juz,period:s.period,
-      tourDay:s.tourDay||1,tourNum:s.tourNum||1,chunks:s.chunks.join(','),after:s.afterLast||'keep'};
+  DR={
+    mode:s.mode,method:s.method,order:validOrder(s.order),pace:s.newPerDay||1,
+    posType:'page',fr:s.frontier,juzIn:'',
+    rev:s.revPerDay||1,sabak:s.sabakPages,studyDays:s.studyDaysPerWeek||6,
+    cycle:s.cycle+1,juz:s.juz,period:s.period,
+    tourDay:s.tourDay||1,tourNum:s.tourNum||1,
+    chunks:s.chunks.join(','),after:s.afterLast||'keep'
+  };
 }
 function drSet(k,v){
   if(!DR)initDraft();
   DR[k]=v;
+  if(k==='mode'){
+    if(v==='hifdh'&&DR.method==='ottoman'){DR.method='simple';DR.sabak=5;DR.chunks='0'}
+    if(v==='revision'&&DR.fr<=0){DR.fr=20}
+  }
   if(k==='method'){
     if(v==='ottoman'){DR.sabak=0;DR.chunks='5,10,15,0'}
-    else if(v==='simple'){DR.sabak=5;DR.chunks='0'}
+    else if(v==='simple'){DR.sabak=DR.mode==='revision'?0:5;DR.chunks='0'}
   }
   if(k==='order'){
     if(DR.posType==='juz'&&DR.juzIn!=='')DR.fr=juzCountToPages(DR.juzIn,v);
@@ -1089,6 +1280,7 @@ function drPos(v){
     if(v!=='')DR.fr=juzCountToPages(v,DR.order);
   }
   const h=$('posHint');if(h)h.textContent=posHintText();
+  const rm=$('roadmapBox');if(rm)rm.innerHTML=roadmapCardInner(DR);
 }
 function posHintText(){
   const ord=DR?validOrder(DR.order):'fwd';
@@ -1103,29 +1295,155 @@ function posHintText(){
   const nextP=seq[Math.floor(f)];
   return `${f} memorized · Last: Page ${lastP} (Juz ${juzOf(lastP)}) · Next: Page ${nextP} (${surahOf(nextP)})`;
 }
+
+function roadmapCardInner(d){
+  const today=T();
+  const studyDays=Math.max(4,Math.min(7,parseInt(d.studyDays,10)||6));
+  const restDays=7-studyDays;
+  const calFactor=7/studyDays;
+  const items=[];
+
+  if(d.mode==='revision'){
+    const memPages=Math.max(1,Number(d.fr)||0);
+    const estJuz=Math.max(1,Math.ceil(memPages/20));
+    const revPerDay=Math.max(1,parseInt(d.rev,10)||1);
+    let cycleStudyDays=6;
+    if(d.method==='tikrar'){
+      cycleStudyDays=6;
+    }else if(d.method==='ottoman'){
+      cycleStudyDays=Math.max(1,Math.ceil(estJuz/revPerDay))*4;
+    }else{
+      cycleStudyDays=Math.max(1,Math.ceil(estJuz/revPerDay));
+    }
+    const oneCycleCal=Math.max(1,Math.ceil(cycleStudyDays*calFactor));
+    const threeCyclesCal=oneCycleCal*3;
+    const perYear=Math.max(1,Math.round(365/oneCycleCal));
+    items.push({
+      title:d.method==='ottoman'?'Complete 1 Full Ottoman Period':'Complete 1 Full Revision Cycle',
+      badge:fmtDuration(oneCycleCal),
+      sub:`Covers your ${memPages} memorized pages by ${fmt(addDays(today,oneCycleCal))}`
+    });
+    items.push({
+      title:'3 Full Revision Rounds',
+      badge:fmtDuration(threeCyclesCal),
+      sub:`Deep consolidation · Target ${fmtMonthYear(addDays(today,threeCyclesCal))}`
+    });
+    items.push({
+      title:`~${perYear} Full Reviews in 12 Months`,
+      badge:'1 year',
+      sub:`Steady revision ${studyDays} days/week${restDays?` (${restDays} catch-up day${restDays>1?'s':''})`:' every day'}`
+    });
+  }else{
+    const pace=Math.max(0.5,parseFloat(d.pace)||1);
+    const fr=Math.max(0,Math.min(TOTAL,Number(d.fr)||0));
+    const remaining=Math.max(0,TOTAL-fr);
+    if(remaining<=0){
+      items.push({title:'All 604 Pages Memorized!',badge:'Khatmah',sub:'Switch to Revision Only anytime to lock in your memorization.'});
+    }else{
+      const nextJuzTarget=Math.min(TOTAL,(Math.floor(fr/20)+1)*20);
+      const pagesToNextJuz=Math.max(1,nextJuzTarget-fr);
+      const daysNextJuz=Math.max(1,Math.ceil((pagesToNextJuz/pace)*calFactor));
+      const nextJuzNum=Math.min(30,Math.floor(fr/20)+1);
+      items.push({
+        title:`Finish Juz #${nextJuzNum} in your path`,
+        badge:fmtDuration(daysNextJuz),
+        sub:`Target: ${fmt(addDays(today,daysNextJuz))}`
+      });
+      if(remaining>60){
+        const midPages=Math.min(remaining-20,100);
+        const daysMid=Math.max(1,Math.ceil((midPages/pace)*calFactor));
+        const midJuz=Math.min(29,Math.round((fr+midPages)/20));
+        items.push({
+          title:`Reach ${midJuz} Juz memorized`,
+          badge:fmtDuration(daysMid),
+          sub:`+${midPages} pages · Target ${fmtMonthYear(addDays(today,daysMid))}`
+        });
+      }
+      const totalCal=Math.max(1,Math.ceil((remaining/pace)*calFactor));
+      items.push({
+        title:'Complete Full Khatmah (30 Juz)',
+        badge:fmtDuration(totalCal),
+        sub:`Estimated finish: ${fmtMonthYear(addDays(today,totalCal))}`
+      });
+    }
+  }
+
+  const paceNote=d.mode==='revision'
+    ?`${studyDays} days/week${restDays?` · ${restDays} flexible catch-up day${restDays>1?'s':''}`:' · daily consistency'}`
+    :`~${Math.round(parseFloat(d.pace||1)*studyDays*10)/10} pages/week · ${studyDays} days/week${restDays?` (${restDays} rest day${restDays>1?'s':''})`:''}`;
+
+  return `<div class="row"><h2 style="margin:0">Your Roadmap (Insha’Allah)</h2><span class="pill">Projected</span></div>
+    <div class="mu" style="margin-top:4px">${esc(paceNote)}</div>
+    <div class="roadmap">${items.map(it=>`<div class="rm-item">
+      <div class="rm-dot"></div>
+      <div class="rm-head"><b>${esc(it.title)}</b><span class="pill">${esc(it.badge)}</span></div>
+      <div class="mu" style="margin-top:2px">${esc(it.sub)}</div>
+    </div>`).join('')}</div>
+    <div class="rm-quote">“The most beloved deeds to Allah are those that are most consistent, even if small.”</div>`;
+}
+
+function startCommitHold(ctx,e){
+  if(e)e.preventDefault();
+  cancelCommitHold(false);
+  COMMIT_DONE=false;
+  COMMIT_START=performance.now();
+  const btn=$('commitBtn'), fill=$('commitFill'), lbl=$('commitLabel');
+  if(!btn||!fill)return;
+  btn.classList.add('holding');
+  if(lbl)lbl.textContent='Holding… Committing to Plan';
+  if(navigator.vibrate)navigator.vibrate(18);
+  const DURATION=1100;
+  const step=now=>{
+    const pct=Math.min(100,((now-COMMIT_START)/DURATION)*100);
+    fill.style.width=pct.toFixed(1)+'%';
+    if(pct>=100){
+      COMMIT_DONE=true;
+      COMMIT_RAF=null;
+      btn.classList.add('committed');
+      if(lbl)lbl.textContent='Committed ✓';
+      if(navigator.vibrate)navigator.vibrate([45,30,65]);
+      setTimeout(()=>savePlan(ctx),180);
+      return;
+    }
+    COMMIT_RAF=requestAnimationFrame(step);
+  };
+  COMMIT_RAF=requestAnimationFrame(step);
+}
+function cancelCommitHold(showHint){
+  if(COMMIT_RAF){cancelAnimationFrame(COMMIT_RAF);COMMIT_RAF=null}
+  if(COMMIT_DONE)return;
+  const btn=$('commitBtn'), fill=$('commitFill'), lbl=$('commitLabel');
+  if(btn)btn.classList.remove('holding','committed');
+  if(fill)fill.style.width='0%';
+  if(lbl)lbl.textContent='Hold to Commit to Plan';
+  if(showHint && COMMIT_START && (performance.now()-COMMIT_START)<450){
+    toast('Press and hold for 1 second to lock in your plan');
+  }
+  COMMIT_START=0;
+}
+
 function planForm(ctx){
   if(!DR)initDraft();
   const d=DR;
-  const modes=[['both','Both Hifdh & Revision','both'],['hifdh','Hifdh Only','lib'],['revision','Revision Only','loop']];
-  const methods=[['tikrar','Madinah Tikrar','Frequent repetition','star'],['ottoman','Ottoman Cycles','Structured rounds','loop'],['simple','Simple Daily','Steady pace','cal']];
+  const isRevOnly=d.mode==='revision';
+  const isHifdhOnly=d.mode==='hifdh';
+
+  const methods=isRevOnly
+    ?[['simple','Steady Juz','Fixed Juz/day','cal'],['ottoman','Ottoman Cycles','4 structured rounds','loop'],['tikrar','6-Day Circuit','Split all in 6 days','star']]
+    :(isHifdhOnly
+      ?[['tikrar','Madinah Tikrar','40× repeat + Ar-Rabt','star'],['simple','Steady Daily','Daily page + recent','cal']]
+      :[['tikrar','Madinah Tikrar','40× + 6-day tour','star'],['ottoman','Ottoman Cycles','Structured rounds','loop'],['simple','Simple Daily','Steady pace','cal']]);
+
   const orders=[
     ['fwd','Forward','Juz 1 → 30','fwd'],
     ['juz_rev','Juz Reverse','Juz 30 → 1','juzrev'],
     ['page_rev','Page Reverse','Page 604 → 1','pagerev']
   ];
-  const desc={
-    tikrar:'Madinah Tikrar: 40× repetition of the new page, recent connection, and a 6-day review circuit.',
-    ottoman:'Ottoman Cycles: revise each Juz in 4 easy steps (last 5 pages → 10 → 15 → full Juz), one juz per day.',
-    simple:'Simple Daily: set your own daily pages, a few recent pages, and a steady juz rotation.'
-  };
-  const orderDesc={
-    fwd:'Standard order: start at Page 1 (Al-Fatihah) and advance forward to Page 604.',
-    juz_rev:'Start at Juz 30 (Pages 582–604), then Juz 29 (562–581), moving forward inside each Juz.',
-    page_rev:'Strictly backwards from Page 604 (An-Nas) down to Page 1 (Al-Fatihah).'
-  };
   const paces=[0.5,1,2,3];
   const paceNum=parseFloat(d.pace);
   const showPaces=paces.includes(paceNum)?paces:[...paces,paceNum];
+  const juzLabel=d.order==='fwd'?'Juz fully memorized from Juz 1 (0–30)':'Juz fully memorized from Juz 30 (0–30)';
+
   const adv=d.method==='tikrar'
    ?`<div class="two">
       <div><label class="f">Review tour #</label><input type="number" value="${esc(d.tourNum)}" oninput="drIn('tourNum',this.value)"></div>
@@ -1136,63 +1454,105 @@ function planForm(ctx){
       <div><label class="f">Current cycle #</label><input type="number" value="${esc(d.cycle)}" oninput="drIn('cycle',this.value)"></div>
       <div><label class="f">Period #</label><input type="number" value="${esc(d.period)}" oninput="drIn('period',this.value)"></div>
       <div><label class="f">Juz revised per day</label><input type="number" value="${esc(d.rev)}" oninput="drIn('rev',this.value)"></div>
-      <div><label class="f">Recent pages to revise daily</label><input type="number" value="${esc(d.sabak)}" oninput="drIn('sabak',this.value)"></div>
+      ${!isRevOnly?`<div><label class="f">Recent pages daily</label><input type="number" value="${esc(d.sabak)}" oninput="drIn('sabak',this.value)"></div>`:''}
      </div>
      <label class="f">Cycle sizes (pages per juz, 0 = whole juz)</label>
      <input type="text" value="${esc(d.chunks)}" oninput="drIn('chunks',this.value)">
-     <div class="mu" style="margin-top:4px">Example: <b>5,10,15,0</b> = last 5, last 10, last 15 pages, then the whole juz.</div>
-     <div class="mu" style="margin-top:10px">Recent pages is the minimum. The recent window keeps its start page for 6 days and grows by up to 5 pages, then steps forward.</div>
+     <div class="mu" style="margin-top:4px">Example: <b>5,10,15,0</b> = last 5, 10, 15 pages, then whole juz.</div>
      <label class="f">After the last cycle</label>
      <div class="seg"><span class="${d.after!=='restart'?'on':''}" onclick="drSet('after','keep')">Keep whole juz</span><span class="${d.after==='restart'?'on':''}" onclick="drSet('after','restart')">Restart cycles</span></div>`;
-  const juzLabel=d.order==='fwd'?'Juz fully memorized from Juz 1 (0–30)':'Juz fully memorized from Juz 30 (0–30)';
+
   return `
     ${ctx==='onboard'?`<div class="card"><label class="f" style="margin-top:0">Your name</label><input type="text" id="obName" placeholder="e.g. Ahmad" value="${esc(loadState().name)}"></div>`:''}
-    <div class="sec" style="margin-top:${ctx==='onboard'?'18':'4'}px">Your Goal</div>
-    ${modes.map(m=>`<div class="goal ${d.mode===m[0]?'on':''}" onclick="drSet('mode','${m[0]}')">${ic(m[2])}<b>${m[1]}</b><span class="tk">✓</span></div>`).join('')}
-    <div class="sec">Method</div>
-    <div class="mgrid">${methods.map(m=>`<div class="mtile ${d.method===m[0]?'on':''}" onclick="drSet('method','${m[0]}')">${ic(m[3])}<b>${m[1]}</b><span>${m[2]}</span></div>`).join('')}</div>
-    <div class="mu mdesc">${desc[d.method]}</div>
-    <div class="sec">Memorization Order</div>
+
+    <div class="sec" style="margin-top:4px">1. Choose Your Focus</div>
+    <div class="seg3">
+      <span class="${d.mode==='both'?'on':''}" onclick="drSet('mode','both')">Both</span>
+      <span class="${d.mode==='hifdh'?'on':''}" onclick="drSet('mode','hifdh')">Hifdh Only</span>
+      <span class="${d.mode==='revision'?'on':''}" onclick="drSet('mode','revision')">Revision Only</span>
+    </div>
+
+    <div class="sec">2. ${isRevOnly?'Revision Style':'Study Method'}</div>
+    <div class="mgrid" style="grid-template-columns:repeat(${methods.length},1fr)">
+      ${methods.map(m=>`<div class="mtile ${d.method===m[0]?'on':''}" onclick="drSet('method','${m[0]}')">${ic(m[3])}<b>${m[1]}</b><span>${m[2]}</span></div>`).join('')}
+    </div>
+
+    <div class="sec">3. Memorization Order</div>
     <div class="mgrid">${orders.map(o=>`<div class="mtile ${d.order===o[0]?'on':''}" onclick="drSet('order','${o[0]}')">${ic(o[3])}<b>${o[1]}</b><span>${o[2]}</span></div>`).join('')}</div>
-    <div class="mu mdesc">${orderDesc[d.order]}</div>
-    <div class="sec">Where are you now?</div>
+
+    <div class="sec">4. ${isRevOnly?'How much have you memorized?':'Where are you now?'}</div>
     <div class="card">
       <div class="seg"><span class="${d.posType==='page'?'on':''}" onclick="drPosType('page')">Pages done</span><span class="${d.posType==='juz'?'on':''}" onclick="drPosType('juz')">Juz done</span></div>
       ${d.posType==='page'
-        ?`<label class="f" style="margin-top:0">Pages memorized so far in this order (0–604)</label><input type="number" step="0.5" value="${d.fr}" oninput="drPos(this.value)">`
-        :`<label class="f" style="margin-top:0">${juzLabel}</label><input type="number" placeholder="e.g. 1" value="${esc(d.juzIn)}" oninput="drPos(this.value)">`}
+        ?`<label class="f" style="margin-top:0">Pages memorized so far (0–604)</label><input type="number" step="0.5" value="${d.fr}" oninput="drPos(this.value)">`
+        :`<label class="f" style="margin-top:0">${juzLabel}</label><input type="number" placeholder="e.g. 5" value="${esc(d.juzIn)}" oninput="drPos(this.value)">`}
       <div class="mu" id="posHint" style="margin-top:6px">${posHintText()}</div>
     </div>
-    <div class="sec">Your Daily Pace</div>
-    <div class="card"><div class="mu" style="margin-bottom:10px">New pages to memorize each day</div>
-      <div class="pace">${showPaces.map(p=>`<span class="${p===paceNum?'on':''}" onclick="drSet('pace',${p})">${p===0.5?'½ Page':p+(p===1?' Page':' Pages')}</span>`).join('')}</div>
+
+    <div class="sec">5. Daily Pace &amp; Weekly Consistency</div>
+    <div class="card">
+      ${!isRevOnly?`<div class="mu" style="margin-bottom:8px">New pages to memorize each study day</div>
+        <div class="pace" style="margin-bottom:14px">${showPaces.map(p=>`<span class="${p===paceNum?'on':''}" onclick="drSet('pace',${p})">${p===0.5?'½ Page':p+(p===1?' Page':' Pages')}</span>`).join('')}</div>`:''}
+
+      ${isRevOnly && d.method!=='tikrar'?`<div class="mu" style="margin-bottom:8px">Juz revised each study day</div>
+        <div class="pace" style="margin-bottom:14px">${[1,2,3,4,5].map(r=>`<span class="${parseInt(d.rev,10)===r?'on':''}" onclick="drSet('rev',${r})">${r} Juz</span>`).join('')}</div>`:''}
+
+      ${isHifdhOnly && d.method==='simple'?`<div class="mu" style="margin-bottom:8px">Recent pages to connect daily</div>
+        <div class="pace" style="margin-bottom:14px">${[0,3,5,10].map(sb=>`<span class="${parseInt(d.sabak,10)===sb?'on':''}" onclick="drSet('sabak',${sb})">${sb===0?'None':sb+' Pages'}</span>`).join('')}</div>`:''}
+
+      <div class="mu" style="margin-bottom:8px">Study days per week (allows realistic rest/catch-up days)</div>
+      <div class="pace">
+        ${[[5,'5 days / wk'],[6,'6 days / wk'],[7,'Every day']].map(x=>`<span class="${parseInt(d.studyDays,10)===x[0]?'on':''}" onclick="drSet('studyDays',${x[0]})">${x[1]}</span>`).join('')}
+      </div>
     </div>
+
+    <div class="card" id="roadmapBox">${roadmapCardInner(d)}</div>
+
     <details class="card adv"><summary>⚙️ Advanced fine-tuning (optional)</summary><div style="margin-top:10px">${adv}</div></details>
-    <button class="bigbtn" onclick="savePlan('${ctx}')">${ctx==='onboard'?'Start My Journey 🚀':'Save Plan'}</button>`;
+
+    <div class="commit-wrap">
+      <button type="button" id="commitBtn" class="commit-btn"
+        onpointerdown="startCommitHold('${ctx}',event)"
+        onpointerup="cancelCommitHold(true)"
+        onpointerleave="cancelCommitHold(false)"
+        onpointercancel="cancelCommitHold(false)">
+        <div class="commit-fill" id="commitFill"></div>
+        <span class="commit-label" id="commitLabel">${ctx==='onboard'?'Hold to Commit &amp; Begin':'Hold to Commit to Plan'}</span>
+      </button>
+      <div class="mu" style="margin-top:6px">Press &amp; hold for 1 second to lock in your daily routine</div>
+    </div>`;
 }
+
 function savePlan(ctx){
   if(!DR)initDraft();
   const d=DR;
   const f={
     name:ctx==='onboard'&&$('obName')?$('obName').value:undefined,
     mode:d.mode,method:d.method,order:d.order,newPerDay:d.pace,frontier:d.fr,
-    revPerDay:d.rev,sabakPages:d.sabak,cycle:d.cycle,juz:d.juz,period:d.period,
+    revPerDay:d.rev,sabakPages:d.sabak,studyDaysPerWeek:d.studyDays,
+    cycle:d.cycle,juz:d.juz,period:d.period,
     tourDay:d.tourDay,tourNum:d.tourNum,chunks:d.chunks,afterLast:d.after
   };
   if($('msg'))$('msg').textContent='';
   const r=api.savePlan(T(),f);
   if(r&&r.error){if($('msg'))$('msg').textContent=r.error;window.scrollTo(0,0);return}
   D=r;DR=null;
-  if(ctx==='onboard'){TAB='today';window.scrollTo(0,0)}
-  toast(r.kept?'Saved ✓ Today’s ticked tasks stay; the new plan applies from tomorrow.':'Plan saved ✓');
+  TAB='today';
+  window.scrollTo(0,0);
+  toast(r.kept?'Plan committed ✓ Applies from tomorrow (today’s ticked tasks kept).':'Bismillāh! Plan committed ✓');
   buildNav();render();
 }
-function saveProfile(){
+
+function saveProfileBasic(){
   const s=loadState();
-  s.name=$('stName').value.trim();s.email=$('stEmail').value.trim();s.aiKey=$('stAiKey').value.trim();
-  saveState(s);DR=null;D=null;toast('Profile saved ✓');render();
+  s.name=$('stName').value.trim();
+  s.email=$('stEmail').value.trim();
+  saveState(s);DR=null;D=null;
+  toast('Profile updated ✓');
+  setTab('settings');
 }
 
+/* ==================== TAB RENDERERS ==================== */
 function rToday(s,st,day){
   const ord=validOrder(day.ord||s.order);
   const activePage=day.n?(day.n.pages?day.n.pages[0]:day.n.a):(day.r[0]?(day.r[0].pages?day.r[0].pages[0]:day.r[0].a):nextSeqPage(s));
@@ -1257,9 +1617,12 @@ function rToday(s,st,day){
   const isFull=totalCount>0 && doneCount===totalCount;
   const kicker=day.n
     ?`New ${rngUnits(day.n.uA,day.n.uB,day.n.useHalf,day.n.ord||ord)}`
-    :`${memCount(s)} / ${TOTAL} pages · ${completedJuzCount(s)} / 30 Juz`;
+    :(s.mode==='revision'?`Revision · ${completedJuzCount(s)} / 30 Juz`:`${memCount(s)} / ${TOTAL} pages · ${completedJuzCount(s)} / 30 Juz`);
 
-  setHdr(`<div class="row"><h1 class="brand light">My Companion</h1><div class="row" style="gap:8px"><span class="mu">🔥 ${st.streak}d</span>${themeBtn(s)}</div></div>`);
+  setHdr(`<div class="row">
+    <h1 class="brand">My Companion</h1>
+    <div class="streak-pill">🔥 ${st.streak}d streak</div>
+  </div>`);
 
   let h=`<div class="hero-em">
     <div style="min-width:0">
@@ -1270,16 +1633,13 @@ function rToday(s,st,day){
     ${heroRing(doneCount,totalCount)}
   </div>
 
-  <div class="tools-grid3">
-    <div class="tool-tile" onclick="setTab('tasbih')"><div class="tool-ico">${ic('tasbih')}</div><b>Tasbih</b></div>
-    <div class="tool-tile" onclick="setTab('recite')"><div class="tool-ico">${ic('mic')}</div><b>Recite</b></div>
-    <div class="tool-tile" onclick="setTab('library')"><div class="tool-ico">${ic('lib')}</div><b>Library</b></div>
-  </div>
-
   <div class="sec-lbl">Today’s plan</div>`;
 
   if(!tasks.length){
-    h+=`<div class="card mu">Nothing planned yet. Open <b>Settings</b> to set your plan.</div>`;
+    h+=`<div class="card">
+      <div class="mu" style="margin-bottom:10px">No daily tasks scheduled yet for your current mode.</div>
+      <button class="sm" onclick="setTab('plan')">Open Plan Builder →</button>
+    </div>`;
   }else{
     h+=tasks.map(t=>`<div class="tcard ${t.done?'done':''}" onclick="call('tick','${t.key}')">
       <div style="flex:1;min-width:0">
@@ -1292,91 +1652,299 @@ function rToday(s,st,day){
   }
 
   if(day.u.length){
-    h+=`<div class="row" style="margin:2px 4px 12px"><span style="font-weight:650;color:var(--ac)">${isFull?'✅ All done today, māshā’Allāh!':''}</span><button class="g sm" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button></div>`;
-  }
-
-  if(typeof circleCardHtml==='function'){
-    h+=`<div class="sec-lbl">Study Circle</div>${circleCardHtml()}`;
+    h+=`<div class="row" style="margin:4px 4px 12px">
+      <span style="font-weight:700;color:var(--ac);font-size:.86rem">${isFull?'✅ All done today, māshā’Allāh!':''}</span>
+      <button class="g sm" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button>
+    </div>`;
   }
 
   $('app').innerHTML=h;
 }
 
-function rTools(){
-  $('app').innerHTML=`<div class="card">
-    <h2>Study Tools</h2>
-    <div class="mu" style="margin-bottom:12px">Quick access to repetition counting, voice practice, and your lessons & offline media.</div>
-    <div class="goal" onclick="setTab('tasbih')">${ic('tasbih')}<div style="flex:1"><b>Tasbih & Repetition</b><div class="mu">Count ayah repetitions or dhikr</div></div><span class="mu">→</span></div>
-    <div class="goal" onclick="setTab('recite')">${ic('mic')}<div style="flex:1"><b>Recite Studio</b><div class="mu">Record recitations and review notes offline</div></div><span class="mu">→</span></div>
-    <div class="goal" onclick="setTab('library')">${ic('lib')}<div style="flex:1"><b>Library &amp; Community</b><div class="mu">Notes, community lessons, vault &amp; leaderboard</div></div><span class="mu">→</span></div>
-  </div>`;
+function rCommunity(s){
+  setHdr(`<h1 class="brand">Community</h1><div class="tagline">Learn &amp; memorize together</div>`);
+  let body='';
+  if(COMM_SUBTAB==='circle'){
+    body=(typeof circleCardHtml==='function')?circleCardHtml():'<div class="card mu">Loading Study Circle...</div>';
+  }else if(COMM_SUBTAB==='board'){
+    body=(typeof leaderboardCardHtml==='function')?leaderboardCardHtml(s):'<div class="card mu">Loading Consistency Board...</div>';
+  }else{
+    body=(typeof communityLessonsHtml==='function')?communityLessonsHtml(s):'<div class="card mu">Loading Community Lessons...</div>';
+  }
+  $('app').innerHTML=`<div class="seg3">
+    <span class="${COMM_SUBTAB==='circle'?'on':''}" onclick="setCommSubTab('circle')">Study Circle</span>
+    <span class="${COMM_SUBTAB==='board'?'on':''}" onclick="setCommSubTab('board')">Consistency</span>
+    <span class="${COMM_SUBTAB==='lessons'?'on':''}" onclick="setCommSubTab('lessons')">Lessons</span>
+  </div>${body}`;
+}
+
+function rTools(s){
+  const notesCount=loadNotes().length;
+  const commCount=(typeof CLOUD_STATE!=='undefined'&&CLOUD_STATE.communityLessons)?CLOUD_STATE.communityLessons.length:0;
+  setHdr(`<h1 class="brand">Tools</h1><div class="tagline">Daily companions for study &amp; practice</div>`);
+  $('app').innerHTML=`<div class="sec" style="margin-top:4px">Daily Utilities</div>
+    <div class="tool-card" onclick="setTab('tasbih')">
+      <div class="tool-card-ico">${ic('tasbih')}</div>
+      <div class="tool-card-body">
+        <b>Tasbih &amp; Repetition</b>
+        <div class="mu">Count ayah repetitions or daily dhikr</div>
+        <div style="margin-top:6px"><span class="pill">Target ${s.tasbihTarget||40}x</span></div>
+      </div>
+      <span class="chev">›</span>
+    </div>
+    <div class="tool-card" onclick="setTab('recite')">
+      <div class="tool-card-ico">${ic('mic')}</div>
+      <div class="tool-card-body">
+        <b>Recite Studio</b>
+        <div class="mu">Record recitations &amp; review offline</div>
+        <div style="margin-top:6px"><span class="pill">Voice notes</span></div>
+      </div>
+      <span class="chev">›</span>
+    </div>
+    <div class="tool-card" onclick="setTab('library')">
+      <div class="tool-card-ico">${ic('lib')}</div>
+      <div class="tool-card-body">
+        <b>Study Library &amp; Vault</b>
+        <div class="mu">Rich notes, community lessons &amp; offline media</div>
+        <div style="margin-top:6px"><span class="pill">${notesCount} notes · ${commCount} lessons</span></div>
+      </div>
+      <span class="chev">›</span>
+    </div>`;
 }
 
 function rSettings(s){
   const cols=[['emerald','#1f5f4a'],['blue','#2563eb'],['gold','#a16207'],['plum','#7c3aed']];
-  setHdr(`<div class="row"><h1 class="brand light">Settings</h1>${themeBtn(s)}</div><div class="tagline">Your plan, profile and backup</div>`);
+  const u=(typeof CLOUD_STATE!=='undefined'&&CLOUD_STATE.user)?CLOUD_STATE.user:null;
+  const adminHere=(typeof isAdminUser==='function'&&isAdminUser());
+  const modeLabel={both:'Both Hifdh & Revision',hifdh:'Hifdh Only',revision:'Revision Only'}[s.mode]||'Both';
+  const methodLabel={tikrar:'Madinah Tikrar',ottoman:'Ottoman Cycles',simple:'Simple Daily'}[s.method]||'Simple Daily';
+  const scalePct=Math.round((Number(s.uiScale)||1)*100);
+  const aiStatus=s.aiKey?(s.aiKey.startsWith('AIza')?'Gemini key set ✓':'Needs AIza... key'):'Offline formatter';
+  const syncLabel=u?(CLOUD_STATE.status==='synced'?`✓ Synced ${CLOUD_STATE.lastSync}`:(CLOUD_STATE.status==='syncing'?'Syncing…':'✓ Cloud Connected')):'Offline Mode';
+
+  setHdr(`<div class="row">
+    <h1 class="brand">Profile</h1>
+    <button class="back-btn" onclick="setTab('profile_edit')" title="Edit profile">${ic('edit')}</button>
+  </div>`);
+
   $('app').innerHTML=`
-    ${typeof accountCardHtml==='function'?accountCardHtml():''}
-    ${typeof leaderboardCardHtml==='function'?leaderboardCardHtml(s):''}
-    ${planForm('settings')}
-
-    <div class="card" style="margin-top:14px"><details>
-      <summary>📚 Study methods explained</summary>
-      <div style="font-size:13.5px;line-height:1.6;margin-top:10px">
-        <p><b>🕌 Madinah Tikrar.</b> Each day: recite yesterday’s portion 5×, listen 3×, read the tafsir, repeat the new portion 40× (30× on 3 pages), and record yourself 3×. Then recite the last ~25 days from memory (connection) and revise older pages in a 6-day circuit.</p>
-        <p><b>🌙 Ottoman Cycles.</b> Each day revise the last pages of one juz, moving juz by juz up to where you are. Cycle 1 = last 5 pages of each juz, cycle 2 = last 10, cycle 3 = last 15, cycle 4 = the whole juz. Then a new period starts.</p>
-        <p><b>✨ Simple Daily.</b> Your daily new pages, a few recent pages, and a steady juz rotation. Change the sizes in Advanced fine-tuning.</p>
-        <p><b>↕️ Direction Support.</b> All three methods work in Forward (Juz 1 → 30), Juz Reverse (Juz 30 → 1, forward inside each Juz), or Page Reverse (Page 604 → 1).</p>
-        <p class="mu" style="border-top:1px solid var(--bd);padding-top:10px;margin-top:10px">Method credit: The Tikrar preset is inspired by the memorization, connectivity, and 6-day review circuit structure from <a href="https://www.tikrar.net" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-weight:700">Tikrar.net ↗</a>. My Companion is an independent study tracker and is not officially affiliated with or endorsed by Tikrar.</p>
-      </div>
-    </details></div>
-
-    <div class="card"><h2>🔍 Display size</h2>
-      <label class="f" style="margin-top:0">Text size</label>
-      <div class="pace">${[['s','Small'],['m','Medium'],['l','Large']].map(x=>`<span class="${(s.uiText||'m')===x[0]?'on':''}" onclick="setUi('uiText','${x[0]}')">${x[1]}</span>`).join('')}</div>
-      <label class="f">Task card &amp; tick box size</label>
-      <div class="pace">${[['s','Small'],['m','Medium'],['l','Large']].map(x=>`<span class="${(s.uiCard||'m')===x[0]?'on':''}" onclick="setUi('uiCard','${x[0]}')">${x[1]}</span>`).join('')}</div>
-    </div>
-
-    <div class="card"><h2>👤 Profile & Appearance</h2>
-      <div class="row" style="justify-content:flex-start;gap:14px;margin-bottom:10px">
-        <div class="avatar avatar-lg">${s.avatar?`<img src="${s.avatar}" alt="">`:initials(s.name)}</div>
-        <div>
-          <button class="sm" onclick="$('avInp').click()">Upload photo</button>
-          ${s.avatar?`<button class="g sm" style="margin-left:6px" onclick="removeAvatar()">Remove</button>`:''}
-          <input type="file" id="avInp" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+    <div class="profile-hero" onclick="setTab('profile_edit')" style="cursor:pointer">
+      <div class="avatar avatar-lg">${s.avatar?`<img src="${s.avatar}" alt="">`:initials(s.name||(u?u.email:'M'))}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:1.05rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name||(u&&u.name)||'My Companion Student')}</div>
+        <div class="mu" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((u&&u.email)||s.email||'Tap to add name & email')}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <span class="pill">${esc(syncLabel)}</span>
+          ${adminHere?'<span class="pill">Admin</span>':''}
         </div>
       </div>
+      <span class="chev">›</span>
+    </div>
+
+    ${!u && typeof accountCardHtml==='function'?accountCardHtml():''}
+
+    <div class="sec">Study Plan</div>
+    <div class="list-card">
+      <div class="list-row" onclick="setTab('plan')">
+        <div class="list-ico">${ic('lib')}</div>
+        <div class="list-body">
+          <div class="list-title">My Plan &amp; Roadmap</div>
+          <div class="list-sub">${esc(modeLabel)} · ${esc(methodLabel)} · ${s.studyDaysPerWeek||6}d/wk</div>
+        </div>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+    <div class="sec">Appearance</div>
+    <div class="list-card">
+      <div class="list-row static">
+        <div class="list-body">
+          <div class="list-title">Theme</div>
+          <div class="list-sub">Balanced light &amp; high-contrast dark mode</div>
+        </div>
+        <div class="switch-pill">
+          <span class="${s.theme!=='dark'?'on':''}" onclick="setThemeMode('light')">Light</span>
+          <span class="${s.theme==='dark'?'on':''}" onclick="setThemeMode('dark')">Dark</span>
+        </div>
+      </div>
+      <div class="list-row static">
+        <div class="list-body"><div class="list-title">App Color</div></div>
+        <div class="swatches">${cols.map(c=>`<div class="swatch ${s.color===c[0]?'on':''}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></div>`).join('')}</div>
+      </div>
+      <div class="list-row static" style="display:block">
+        <div class="row">
+          <div class="list-title">Display Size</div>
+          <span class="pill" id="scaleValLbl">${scalePct}%</span>
+        </div>
+        <div class="slider-row">
+          <span style="font-size:.78rem;font-weight:700;color:var(--mu)">A</span>
+          <input type="range" class="size-slider" min="85" max="125" step="1" value="${scalePct}" oninput="previewUiScale(this.value)" onchange="commitUiScale(this.value)">
+          <span style="font-size:1.15rem;font-weight:700;color:var(--mu)">A</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">Account &amp; Privacy</div>
+    <div class="list-card">
+      ${u?`<div class="list-row" onclick="runCloudSync('manual')">
+        <div class="list-ico">${ic('loop')}</div>
+        <div class="list-body">
+          <div class="list-title">Sync Now</div>
+          <div class="list-sub">${CLOUD_STATE.status==='synced'?'Last synced '+esc(CLOUD_STATE.lastSync):'Tap to sync progress & circles'}</div>
+        </div>
+        <span class="chev">›</span>
+      </div>`:''}
+      <div class="list-row" onclick="setTab('backup')">
+        <div class="list-ico">${ic('download')}</div>
+        <div class="list-body">
+          <div class="list-title">Backup, Reminders &amp; Data</div>
+          <div class="list-sub">Export JSON · Last backup: ${esc(s.lastBackup||'never')}</div>
+        </div>
+        <span class="chev">›</span>
+      </div>
+      <div class="list-row" onclick="setTab('ai')">
+        <div class="list-ico">${ic('spark')}</div>
+        <div class="list-body">
+          <div class="list-title">AI Note Assistant</div>
+          <div class="list-sub">${esc(aiStatus)}</div>
+        </div>
+        <span class="chev">›</span>
+      </div>
+      <div class="list-row" onclick="setTab('privacy')">
+        <div class="list-ico">${ic('shield')}</div>
+        <div class="list-body">
+          <div class="list-title">Privacy &amp; Account Deletion</div>
+          <div class="list-sub">Data policy, deletion guide &amp; community support</div>
+        </div>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+    ${u?`<button class="signout-card" onclick="signOutCloud()">Sign Out</button>`:''}`;
+}
+
+function rPlanPage(){
+  setHdr(`<div class="sub-hdr">
+    <button class="back-btn" onclick="setTab('settings')">←</button>
+    <div><h1 class="brand" style="font-size:1.45rem">Build Your Plan</h1><div class="tagline">Adjust your goal, pace &amp; roadmap</div></div>
+  </div>`);
+  $('app').innerHTML=planForm('settings')+`
+    <div class="card" style="margin-top:14px"><details>
+      <summary>📚 Study methods explained</summary>
+      <div style="font-size:.84rem;line-height:1.6;margin-top:10px">
+        <p><b>🕌 Madinah Tikrar.</b> Recite yesterday’s portion 5×, listen 3×, read tafsir, repeat 40×, and record 3×. Then recite recent pages (Ar-Rabt) and review older pages in a 6-day circuit.</p>
+        <p><b>🌙 Ottoman Cycles.</b> Revise one Juz per day in 4 progressive cycles (last 5 → 10 → 15 pages → whole Juz), then start a new period.</p>
+        <p><b>✨ Simple Daily.</b> Steady daily memorization, optional recent pages, and steady Juz revision.</p>
+        <p class="mu" style="border-top:1px solid var(--bd);padding-top:8px;margin-top:8px">Tikrar preset inspired by <a href="https://www.tikrar.net" target="_blank" rel="noopener noreferrer">Tikrar.net ↗</a>. My Companion is an independent study tracker.</p>
+      </div>
+    </details></div>`;
+}
+
+function rProfileEdit(s){
+  setHdr(`<div class="sub-hdr">
+    <button class="back-btn" onclick="setTab('settings')">←</button>
+    <div><h1 class="brand" style="font-size:1.45rem">Edit Profile</h1><div class="tagline">Name, photo &amp; contact email</div></div>
+  </div>`);
+  $('app').innerHTML=`<div class="card">
+    <div class="row" style="justify-content:flex-start;gap:14px;margin-bottom:14px">
+      <div class="avatar avatar-lg">${s.avatar?`<img src="${s.avatar}" alt="">`:initials(s.name)}</div>
+      <div>
+        <button class="sm" onclick="$('avInp').click()">Upload photo</button>
+        ${s.avatar?`<button class="g sm" style="margin-left:6px" onclick="removeAvatar()">Remove</button>`:''}
+        <input type="file" id="avInp" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+      </div>
+    </div>
+    <label class="f">Your name</label>
+    <input type="text" id="stName" placeholder="e.g., Ahmad" value="${esc(s.name)}">
+    <label class="f">Your email (for progress summaries)</label>
+    <input type="email" id="stEmail" placeholder="name@example.com" value="${esc(s.email)}">
+    <button class="bigbtn" onclick="saveProfileBasic()">Save Profile</button>
+  </div>`;
+}
+
+function rAiPage(s){
+  const curKey=(s.aiKey||'').trim();
+  const badPrefix=curKey && !curKey.startsWith('AIza');
+  setHdr(`<div class="sub-hdr">
+    <button class="back-btn" onclick="setTab('settings')">←</button>
+    <div><h1 class="brand" style="font-size:1.45rem">AI Note Assistant</h1><div class="tagline">Optional Gemini key for polishing notes</div></div>
+  </div>`);
+  $('app').innerHTML=`<div class="card">
+    <h2>Gemini API Key</h2>
+    <div class="mu" style="margin:6px 0 10px">Used only when you tap <b>✨ Polish</b> inside the Note Editor. Your key stays strictly on this phone and is never uploaded to the cloud.</div>
+    <label class="f">Google AI Studio API Key (<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Get a free AIza key ↗</a>)</label>
+    <input type="text" id="aiKeyInp" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIzaSy..." value="${esc(curKey)}">
+    ${badPrefix?`<div class="ai-status err">Your current key starts with "${esc(curKey.slice(0,4))}" instead of "AIza". Create a standard API key in Google AI Studio (aistudio.google.com/app/apikey) starting with AIza...</div>`:''}
+    ${AI_TEST_MSG?`<div class="ai-status ${AI_TEST_MSG.ok?'ok':'err'}">${esc(AI_TEST_MSG.txt)}</div>`:''}
+    <div class="two" style="margin-top:12px">
+      <button onclick="saveAndTestAiKey(true)">Test &amp; Save Key</button>
+      <button class="g" onclick="saveAndTestAiKey(false)">Save Only</button>
+    </div>
+    <div class="mu" style="margin-top:12px">Without an API key, the <b>✨ Polish</b> button still cleanly formats your headings, bullet lists, and Ayah references offline.</div>
+  </div>`;
+}
+
+function rBackupPage(s){
+  setHdr(`<div class="sub-hdr">
+    <button class="back-btn" onclick="setTab('settings')">←</button>
+    <div><h1 class="brand" style="font-size:1.45rem">Backup &amp; Data</h1><div class="tagline">Export, reminders &amp; quick actions</div></div>
+  </div>`);
+  $('app').innerHTML=`<div class="card">
+    <h2>Backup &amp; Restore</h2>
+    <div class="mu" style="margin:6px 0 10px">Last backup: <b>${esc(s.lastBackup||'never')}</b>. Exports your plan, memorized map, streak, and notes as JSON.</div>
+    <div class="two">
+      <button onclick="exportData()">Export Backup</button>
+      <button class="g" onclick="$('imp').click()">Import Backup</button>
+    </div>
+    <input type="file" id="imp" accept=".json,application/json" style="display:none" onchange="importData(this)">
+  </div>
+  <div class="card">
+    <h2>Quick Actions &amp; Reminders</h2>
+    <label class="f" style="margin-top:8px">Add extra memorized pages</label>
+    <div class="row" style="gap:8px">
+      <input type="number" step="0.5" id="ad" value="1" style="width:110px">
+      <button class="sm" style="flex:1" onclick="call('addPages',$('ad').value);toast('Pages added ✓')">Add Pages</button>
+    </div>
+    <div class="two" style="margin-top:12px">
+      <button class="g sm" onclick="enableReminder()">🔔 Daily Alert</button>
+      <button class="g sm" onclick="sendEmailSummary()">✉️ Email Summary</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2 style="color:var(--danger)">Danger Zone</h2>
+    <div class="mu" style="margin:6px 0 10px">Clears all local progress, notes, and plan settings on this device.</div>
+    <button class="d" style="width:100%" onclick="if(confirm('Delete ALL local data on this device?')){resetAll()}">Reset Everything on Device</button>
+  </div>`;
+}
+
+function rPrivacyPage(){
+  const u=(typeof CLOUD_STATE!=='undefined'&&CLOUD_STATE.user)?CLOUD_STATE.user:null;
+  setHdr(`<div class="sub-hdr">
+    <button class="back-btn" onclick="setTab('settings')">←</button>
+    <div><h1 class="brand" style="font-size:1.45rem">Privacy &amp; Deletion</h1><div class="tagline">Your data stays under your control</div></div>
+  </div>`);
+  $('app').innerHTML=`<div class="card">
+    <h2>Account &amp; Data Deletion</h2>
+    <div class="mu" style="margin:6px 0 12px">Audio recordings, Media Vault files, inline photos, and your AI key never leave your phone. Cloud sync is optional and can be permanently erased anytime.</div>
+    <a href="./delete-account.html" target="_blank" rel="noopener noreferrer" style="display:block">
+      <button class="g" style="width:100%">📄 Open Full Deletion Policy Page ↗</button>
+    </a>
+    ${u?`<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bd)">
+      <div class="mu" style="margin-bottom:8px">Signed in as <b>${esc(u.email||u.name||'Member')}</b> · UID: <code>${esc(u.uid.slice(0,10))}…</code></div>
       <div class="two">
-        <div><label class="f">Your name</label><input type="text" id="stName" value="${esc(s.name)}"></div>
-        <div><label class="f">Your email</label><input type="email" id="stEmail" value="${esc(s.email)}"></div>
+        <button class="g sm" onclick="copyTextSafe('${esc(u.uid)}','User UID copied ✓')">Copy User UID</button>
+        <button class="d sm" onclick="deleteCloudAccount()">Delete Cloud Account</button>
       </div>
-      <label class="f">Optional Gemini API key (<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--ac)">get a free key ↗</a>)</label>
-      <input type="text" id="stAiKey" placeholder="AIza..." value="${esc(s.aiKey||'')}">
-      <label class="f">App colour</label>
-      <div class="swatches">${cols.map(c=>`<div class="swatch ${s.color===c[0]?'on':''}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></div>`).join('')}</div>
-      <button style="width:100%;margin-top:14px" onclick="saveProfile()">Save profile</button>
-      <div class="two" style="margin-top:10px">
-        <button class="g sm" onclick="enableReminder()">🔔 Daily alert</button>
-        <button class="g sm" onclick="sendEmailSummary()">✉️ Email summary</button>
-      </div>
+    </div>`:''}
+  </div>
+  <div class="tg-banner">
+    <div style="font-size:.98rem;font-weight:800">📢 My Companion Community &amp; Support</div>
+    <div style="font-size:.82rem;opacity:.92;margin-top:4px">Follow our official Telegram channel for updates, guides, or feature requests.</div>
+    <div>
+      <a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">🚀 Updates Channel</a>
+      <a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">💡 Support &amp; Feedback</a>
     </div>
-
-    <div class="card"><h2>⚡ Quick actions & backup</h2>
-      <label class="f">Add extra memorized pages</label>
-      <div class="row"><input type="number" step="0.5" id="ad" value="1" style="width:90px"><button class="sm" onclick="call('addPages',$('ad').value)">Add pages</button></div>
-      <label class="f" style="margin-top:14px">Backup data (last backup: ${s.lastBackup||'never'})</label>
-      <div class="two"><button onclick="exportData()">Export backup</button><button class="g" onclick="$('imp').click()">Import backup</button></div>
-      <input type="file" id="imp" accept=".json,application/json" style="display:none" onchange="importData(this)">
-      <div class="mu" style="margin-top:6px">The backup holds your plan, progress and notes. Recordings and vault files stay on this phone.</div>
-      <button class="d" style="width:100%;margin-top:16px" onclick="if(confirm('Delete ALL your data?')){resetAll()}">Reset everything</button>
-    </div>
-
-    <div class="tg-banner">
-      <div style="font-size:15px;font-weight:800">📢 My Companion Community & Updates</div>
-      <div style="font-size:12.5px;opacity:.92;margin-top:3px">Follow our official Telegram channel for updates, tips, or support.</div>
-      <div><a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">🚀 Updates channel</a><a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">💡 Request feature</a></div>
-    </div>`;
+  </div>`;
 }
 
 async function render(){
@@ -1394,14 +1962,14 @@ async function render(){
     ];
     const cur=slides[OB_SLIDE];
     $('app').innerHTML=`<div class="card ob-wrap">
-      <div class="row"><span class="pill">Welcome Tour ${OB_SLIDE+1}/3</span><button class="g sm" onclick="skipIntro()">Skip ↗</button></div>
+      <div class="row"><span class="pill">Welcome ${OB_SLIDE+1}/3</span><button class="g sm" onclick="skipIntro()">Skip ↗</button></div>
       <div class="ob-art">${cur.ico}</div>
-      <h2 style="font-size:19px;margin-bottom:8px">${esc(cur.title)}</h2>
-      <div class="mu" style="max-width:360px;margin:0 auto;font-size:13.5px">${esc(cur.desc)}</div>
+      <h2 style="font-size:1.2rem;margin-bottom:8px">${esc(cur.title)}</h2>
+      <div class="mu" style="max-width:360px;margin:0 auto">${esc(cur.desc)}</div>
       <div class="dots">${slides.map((_,i)=>`<div class="dot ${i===OB_SLIDE?'on':''}"></div>`).join('')}</div>
       <div class="row" style="margin-top:10px">
         ${OB_SLIDE>0?`<button class="g" style="flex:1" onclick="OB_SLIDE--;render()">Back</button>`:'<div style="flex:1"></div>'}
-        <button style="flex:2" onclick="${OB_SLIDE<2?'OB_SLIDE++;render()':'skipIntro()'}">${OB_SLIDE<2?'Next →':'Set Up My Companion'}</button>
+        <button style="flex:2" onclick="${OB_SLIDE<2?'OB_SLIDE++;render()':'skipIntro()'}">${OB_SLIDE<2?'Next →':'Set Up My Plan'}</button>
       </div>
     </div>`;
     return;
@@ -1409,20 +1977,24 @@ async function render(){
 
   if(!s.onboarded){
     $('bottomNav').style.display='none';
-    setHdr(`<div class="row"><h1 class="brand">My Companion ${ic('mark')}</h1>${themeBtn(s)}</div><div class="tagline">A gentle path to memorization.</div>`);
+    setHdr(`<h1 class="brand">My Companion ${ic('mark')}</h1><div class="tagline">A gentle, steady path to memorization.</div>`);
     $('app').innerHTML=planForm('onboard');
     return;
   }
 
   $('bottomNav').style.display='flex';
-  if(TAB!=='today'&&TAB!=='settings'){
-    const T2={journey:['Stats','Memory strength & progress'],tools:['Tools','Tasbih, Recite & Library'],tasbih:['Tasbih','Count your repetitions'],recite:['Recite','Record and review your recitation'],library:['Library','Notes, community lessons & media']}[TAB]||['My Companion',''];
-    setHdr(`<div class="row"><h1 class="brand light">${T2[0]}</h1>${themeBtn(s)}</div><div class="tagline">${T2[1]}</div>`);
-  }
 
   if(TAB==='today'){rToday(s,st,day)}
-  else if(TAB==='tools'){rTools()}
+  else if(TAB==='community'){rCommunity(s)}
+  else if(TAB==='tools'){rTools(s)}
+  else if(TAB==='settings'){rSettings(s)}
+  else if(TAB==='plan'){rPlanPage()}
+  else if(TAB==='profile_edit'){rProfileEdit(s)}
+  else if(TAB==='ai'){rAiPage(s)}
+  else if(TAB==='backup'){rBackupPage(s)}
+  else if(TAB==='privacy'){rPrivacyPage()}
   else if(TAB==='journey'){
+    setHdr(`<h1 class="brand">Stats</h1><div class="tagline">Memory strength &amp; 28-day consistency</div>`);
     const mem=memCount(s), pct=Math.round(mem/604*100), juzDone=completedJuzCount(s);
     const activeJuz=juzOf(nextSeqPage(s));
     const isFwd=validOrder(s.order)==='fwd';
@@ -1432,7 +2004,7 @@ async function render(){
 
     let pathHtml=`<div class="summit-crown">
       <div class="summit-badge">👑</div>
-      <div style="font-weight:800;font-size:15px">The Radiant Summit · Khatmah</div>
+      <div style="font-weight:800;font-size:.96rem">The Radiant Summit · Khatmah</div>
       <div class="mu">“Read and ascend, for your station will be at the last verse you recite.”</div>
     </div><div class="path-container">`;
 
@@ -1456,7 +2028,7 @@ async function render(){
     pathHtml+=`</div>`;
 
     $('app').innerHTML=strengthCard(s)+`
-    <div class="card"><div class="row"><h2 style="margin:0">Last 28 Days Consistency</h2><span class="mu">🔥 ${st.streak}d streak</span></div><div class="strip">`+
+    <div class="card"><div class="row"><h2 style="margin:0">Last 28 Days Consistency</h2><span class="pill">🔥 ${st.streak}d streak</span></div><div class="strip">`+
       st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
     `</div></div>
     <details class="card">
@@ -1469,19 +2041,22 @@ async function render(){
     </details>`;
   }
   else if(TAB==='tasbih'){
+    setHdr(`<div class="sub-hdr">
+      <button class="back-btn" onclick="setTab('tools')">←</button>
+      <div><h1 class="brand" style="font-size:1.45rem">Tasbih</h1><div class="tagline">Count ayah repetitions &amp; dhikr</div></div>
+    </div>`);
     const count=s.tasbih||0, target=s.tasbihTarget||40;
     const isAyah=s.tasbihMode==='ayah';
     const phrases=['SubḥānAllāh','Alḥamdulillāh','Allāhu Akbar','Astaghfirullāh','Lā ilāha illā Allāh'];
     const themes=[['emerald','Emerald'],['midnight','Midnight'],['sand','Warm Sand'],['gold','Royal Gold'],['ocean','Deep Ocean']];
 
-    $('app').innerHTML=`<div class="row" style="margin-bottom:8px"><button class="g sm" onclick="setTab('tools')">← Tools</button></div>
-    <div class="tasbih-stage t-theme-${s.tasbihTheme||'emerald'}">
+    $('app').innerHTML=`<div class="tasbih-stage t-theme-${s.tasbihTheme||'emerald'}">
       <div class="row">
         <div>
-          <span class="pill">${isAyah?'📖 Ayah Repetition Mode':'📿 Dhikr / Tasbih Mode'}</span>
-          <div style="font-weight:750;font-size:15px;margin-top:4px">${isAyah?'Repeating Current Portion':esc(s.tasbihPhrase)}</div>
+          <span class="pill" style="background:rgba(255,255,255,.18);color:#fff">${isAyah?'📖 Ayah Repetition':'📿 Dhikr / Tasbih'}</span>
+          <div style="font-weight:750;font-size:.98rem;margin-top:5px">${isAyah?'Repeating Current Portion':esc(s.tasbihPhrase)}</div>
         </div>
-        <button class="g sm" style="font-size:16px;padding:5px 11px;background:rgba(255,255,255,.15);color:inherit" onclick="T_MENU=!T_MENU;render()">⋮</button>
+        <button class="g sm" style="font-size:1rem;padding:6px 11px;background:rgba(255,255,255,.16);color:#fff;border-color:transparent" onclick="T_MENU=!T_MENU;render()">⋮</button>
       </div>
 
       ${T_MENU?`<div class="pop-menu">
@@ -1514,16 +2089,20 @@ async function render(){
           <span class="tasbih-num">${count}</span>
           <span class="tasbih-sub">${count>=target?'🎉 Target Reached!':'Target: '+target}</span>
         </button>
-        <div class="mu" style="color:inherit;opacity:.75">Tap anywhere in the circle to count</div>
+        <div style="font-size:.8rem;opacity:.8">Tap anywhere in the circle to count</div>
       </div>
 
       <div class="row">
-        <button class="g sm" style="background:rgba(255,255,255,.14);color:inherit" onclick="resetTasbih()">↺ Reset Current</button>
-        <span style="font-size:12px;opacity:.8">Target: ${target}</span>
+        <button class="g sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:transparent" onclick="resetTasbih()">↺ Reset Current</button>
+        <span style="font-size:.8rem;opacity:.85">Target: ${target}</span>
       </div>
     </div>`;
   }
   else if(TAB==='recite'){
+    setHdr(`<div class="sub-hdr">
+      <button class="back-btn" onclick="setTab('tools')">←</button>
+      <div><h1 class="brand" style="font-size:1.45rem">Recite Studio</h1><div class="tagline">Record &amp; review your recitation offline</div></div>
+    </div>`);
     await initMics();
     const clips=await loadClips();
     if(seq!==RENDER_SEQ)return;
@@ -1533,16 +2112,15 @@ async function render(){
       ['audio/mp4','MP4 / AAC (iOS & Mobile)'],
       ['audio/wav','WAV Audio']
     ];
-    $('app').innerHTML=`<div class="row" style="margin-bottom:8px"><button class="g sm" onclick="setTab('tools')">← Tools</button></div>
-    <div class="card" style="text-align:center">
-      <div class="row"><h2>🎙️ Voice Recitation Studio</h2><button class="g sm" onclick="$('audUp').click()">+ Upload Audio</button></div>
+    $('app').innerHTML=`<div class="card" style="text-align:center">
+      <div class="row"><h2>🎙️ Voice Recorder</h2><button class="g sm" onclick="$('audUp').click()">+ Upload Audio</button></div>
       <input type="file" id="audUp" accept="audio/*" style="display:none" onchange="uploadAudioClip(this)">
-      <div class="mu">Record yourself reciting the memorized portion 3 times from memory, then listen back while checking the Mushaf.</div>
+      <div class="mu" style="margin-top:4px">Recite your memorized portion from memory, then listen back while checking the Mushaf.</div>
       <button class="rec-btn ${isRecording?'d':''}" onclick="toggleRecord()">${isRecording?'⏹':'●'}</button>
-      <div style="font-weight:700;font-size:13px;color:${isRecording?'#b91c1c':'var(--ac)'}">${isRecording?'Recording... Tap to Stop & Save':'Tap to Record'}</div>
+      <div style="font-weight:700;font-size:.84rem;color:${isRecording?'var(--danger)':'var(--ac)'}">${isRecording?'Recording... Tap to Stop & Save':'Tap to Record'}</div>
 
       <details style="margin-top:12px;text-align:left">
-        <summary style="font-size:12.5px;color:var(--mu)">⚙️ Microphone & Format Options</summary>
+        <summary style="font-size:.8rem;color:var(--mu)">⚙️ Microphone &amp; Format Options</summary>
         <div class="two" style="margin-top:8px">
           <div>
             <label class="f">Microphone Input</label>
@@ -1562,11 +2140,11 @@ async function render(){
     </div>
 
     <div class="card"><h2>Saved Recitations (${clips.length})</h2>
-      ${clips.length?clips.map(c=>{
+      <div style="margin-top:10px">${clips.length?clips.map(c=>{
         const url=getObjUrl('clip-'+c.id,c.blob);
         return `<div class="media-box" style="margin-bottom:10px">
           <div class="row"><b>${esc(c.label)}</b><span class="mu">${esc(c.date)}</span></div>
-          ${c.note?`<div style="font-size:12.5px;background:var(--ac2);color:var(--ac);padding:6px 9px;border-radius:8px;margin-top:6px">📌 ${esc(c.note)}</div>`:''}
+          ${c.note?`<div style="font-size:.8rem;background:var(--ac2);color:var(--ac);padding:6px 9px;border-radius:8px;margin-top:6px">📌 ${esc(c.note)}</div>`:''}
           <audio controls src="${url}" style="width:100%;height:36px;margin-top:8px"></audio>
           <div class="row" style="margin-top:8px;justify-content:flex-end;gap:6px">
             <button class="g sm" onclick="editClipNote(${c.id})">✏️ Note</button>
@@ -1574,7 +2152,7 @@ async function render(){
             <button class="g sm" onclick="deleteClip(${c.id})">🗑️</button>
           </div>
         </div>`;
-      }).join(''):'<div class="mu">No recordings yet. Tap record above or upload an existing recitation.</div>'}
+      }).join(''):'<div class="mu">No recordings yet. Tap record above or upload an audio clip.</div>'}</div>
     </div>`;
   }
   else if(TAB==='library'){
@@ -1582,134 +2160,123 @@ async function render(){
     const vault=await loadVault();
     if(seq!==RENDER_SEQ)return;
     const allFolders=['All',...s.folders];
-    const filteredNotes=s.libFilter==='All'?notes:notes.filter(n=>n.cat===s.libFilter);
     const filteredVault=s.libFilter==='All'?vault:vault.filter(v=>v.folder===s.libFilter);
     const totalVaultMB=(vault.reduce((a,b)=>a+(b.size||0),0)/(1024*1024)).toFixed(1);
     const commList=(typeof CLOUD_STATE!=='undefined'&&CLOUD_STATE.communityLessons)?CLOUD_STATE.communityLessons:[];
     const adminHere=typeof isAdminUser==='function'&&isAdminUser();
 
-    let h=`<div class="row" style="margin-bottom:8px"><button class="g sm" onclick="setTab('tools')">← Tools</button></div>
-    <div class="card">
-      <div class="row">
-        <h2>📂 Study Library</h2>
-        <div class="row" style="gap:5px;flex-wrap:wrap">
-          <button class="${s.libSubTab==='notes'?'':'g'} sm" onclick="setLibSubTab('notes')">📝 My Notes (${notes.length})</button>
-          <button class="${s.libSubTab==='community'?'':'g'} sm" onclick="setLibSubTab('community')">🌐 Community (${commList.length})</button>
-          <button class="${s.libSubTab==='vault'?'':'g'} sm" onclick="setLibSubTab('vault')">🎞️ Vault (${vault.length})</button>
-        </div>
+    let topAction='';
+    if(s.libSubTab==='notes'&&!VIEW_NOTE_ID){
+      topAction=`<button class="sm" onclick="SHOW_COMPOSER=!SHOW_COMPOSER;EDIT_NOTE_ID=null;render()">${SHOW_COMPOSER?'Close':'+ New Note'}</button>`;
+    }else if(s.libSubTab==='community'&&adminHere){
+      topAction=`<button class="sm" onclick="openCommunityComposer()">+ New Lesson</button>`;
+    }else if(s.libSubTab==='vault'){
+      topAction=`<button class="sm" onclick="$('vaultInp').click()">+ Upload</button>`;
+    }
+
+    setHdr(`<div class="row">
+      <div class="sub-hdr" style="margin:0">
+        <button class="back-btn" onclick="${VIEW_NOTE_ID?'closeNoteReader()':"setTab('tools')"}">←</button>
+        <div><h1 class="brand" style="font-size:1.45rem">Library</h1><div class="tagline">Notes, community lessons &amp; media</div></div>
       </div>
-      ${s.libSubTab!=='community'?`<div class="cyc" style="margin-top:8px">
-        ${allFolders.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" onclick="setLibFilter(decodeURIComponent('${encAttr(c)}'))">${esc(c)}</span>`).join('')}
-        <span class="cy" onclick="addFolder()">+ Folder</span>
-      </div>`:''}
+      ${topAction}
+    </div>`);
+
+    let h=`<div class="seg3">
+      <span class="${s.libSubTab==='notes'?'on':''}" onclick="setLibSubTab('notes')">My Notes (${notes.length})</span>
+      <span class="${s.libSubTab==='community'?'on':''}" onclick="setLibSubTab('community')">Community (${commList.length})</span>
+      <span class="${s.libSubTab==='vault'?'on':''}" onclick="setLibSubTab('vault')">Vault (${vault.length})</span>
     </div>`;
 
     if(s.libSubTab==='notes'){
-      h+=`<div class="card">
-        <div class="row">
-          <b>${EDIT_NOTE_ID?'✏️ Editing Lesson / Note':'✨ Create Lesson or Rich Note'}</b>
-          <button class="sm" onclick="SHOW_COMPOSER=!SHOW_COMPOSER;EDIT_NOTE_ID=null;render()">${SHOW_COMPOSER?'Close':'+ New Note'}</button>
-        </div>
-        ${SHOW_COMPOSER?`<div style="margin-top:12px">
-          <div class="two">
-            <div><label class="f">Lesson / Note Title</label><input type="text" id="ntTitle" placeholder="e.g., Noon Sakinah"></div>
-            <div><label class="f">Folder</label>
-              <select id="ntCat">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
-            </div>
-          </div>
-          <label class="f">Optional Video / Photo / Reference Link</label>
-          <input type="text" id="ntLink" placeholder="https://youtube.com/...">
-
-          <label class="f">Rich Text & Table Editor</label>
-          <div class="rt-bar">
-            <select onchange="execRT('fontName',this.value)">
-              <option value="system-ui">Sans</option>
-              <option value="Georgia,serif">Serif</option>
-              <option value="'Amiri','Traditional Arabic',serif">Arabic / Quranic</option>
-            </select>
-            <select onchange="execRT('fontSize',this.value)">
-              <option value="2">Small</option>
-              <option value="3" selected>Normal</option>
-              <option value="4">Large</option>
-              <option value="5">Heading</option>
-            </select>
-            <button class="g sm" onclick="execRT('bold')"><b>B</b></button>
-            <button class="g sm" onclick="execRT('italic')"><i>I</i></button>
-            <button class="g sm" onclick="execRT('underline')"><u>U</u></button>
-            <button class="g sm" onclick="execRT('insertUnorderedList')">• List</button>
-            <button class="g sm" onclick="insertRTTable()">⊞ Table</button>
-            <button class="g sm" onclick="$('rtImgInp').click()">🖼️ Photo</button>
-            <button class="sm" onclick="polishNoteAI()">✨ Polish</button>
-          </div>
-          <input type="file" id="rtImgInp" accept="image/*" style="display:none" onchange="attachInlinePhoto(this)">
-          <div id="rtEditor" class="rt-area" contenteditable="true" placeholder="Write your lesson or paste verses..."></div>
-          <button style="width:100%;margin-top:10px" onclick="saveRichNote()">💾 Save Lesson / Note</button>
-        </div>`:''}
-      </div>`;
-
-      h+=filteredNotes.length?filteredNotes.map(n=>{
+      if(VIEW_NOTE_ID){
+        const n=notes.find(x=>x.id===VIEW_NOTE_ID);
+        if(!n){VIEW_NOTE_ID=null;render();return}
         const yt=ytEmbedUrl(n.link);
         const safeLink=safeExternalUrl(n.link);
         const isImg=safeLink && /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(safeLink);
-        return `<div class="card">
+        h+=`<div class="card">
           <div class="row"><span class="pill">${esc(n.cat||'Lesson')}</span><span class="mu">${esc(n.date)}</span></div>
-          <h2 style="margin:6px 0">${esc(n.title)}</h2>
-          ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
-          ${isImg?`<img src="${esc(safeLink)}" style="max-width:100%;border-radius:10px;margin:6px 0">`:''}
-          ${safeLink&&!yt&&!isImg?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:12.5px;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
-          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||esc(n.body||''))}</div>
-          <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);flex-wrap:wrap;gap:6px">
-            <div class="row" style="gap:5px">
-              <button class="g sm" onclick="editNote(${n.id})">✏️ Edit</button>
-              <button class="g sm" onclick="delNote(${n.id})">🗑️</button>
+          <h2 style="font-family:var(--serif);font-size:1.35rem;margin:8px 0">${esc(n.title)}</h2>
+          ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:8px 0" allowfullscreen></iframe>`:''}
+          ${isImg?`<img src="${esc(safeLink)}" style="max-width:100%;border-radius:10px;margin:8px 0">`:''}
+          ${safeLink&&!yt&&!isImg?`<div style="margin:6px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="font-size:.84rem;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
+          <div class="note-reader" style="font-size:.9rem;line-height:1.65;margin-top:10px;overflow-x:auto">${sanitizeHtml(n.html||esc(n.body||''))}</div>
+          <div class="row" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--bd);flex-wrap:wrap;gap:6px">
+            <div class="row" style="gap:6px">
+              <button class="sm" onclick="editNote(${n.id})">✏️ Edit</button>
+              <button class="g sm" style="color:var(--danger)" onclick="delNote(${n.id})">🗑️ Delete</button>
             </div>
-            <div class="row" style="gap:5px">
+            <div class="row" style="gap:6px">
               <button class="g sm" onclick="exportNoteDoc(${n.id},'pdf')">📄 PDF</button>
               <button class="g sm" onclick="exportNoteDoc(${n.id},'doc')">📝 Word</button>
-              <button class="g sm" onclick="exportNoteDoc(${n.id},'share')">📤 Share/Drive</button>
+              <button class="g sm" onclick="exportNoteDoc(${n.id},'share')">📤 Share</button>
             </div>
           </div>
         </div>`;
-      }).join(''):`<div class="card mu">No lessons or notes in this folder yet. Tap <b>+ New Note</b> above to create one!</div>`;
-    }else if(s.libSubTab==='community'){
-      if(adminHere){
-        h+=`<div class="card">
-          <b>📢 Publish Community Lesson (Admin)</b>
-          <div class="two" style="margin-top:8px">
-            <div><label class="f">Lesson Title</label><input type="text" id="commTitle" placeholder="e.g., Juz 30 Muraja’ah Tips"></div>
-            <div><label class="f">Topic</label>
-              <select id="commCat">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+      }else{
+        if(SHOW_COMPOSER){
+          h+=`<div class="card">
+            <h2 style="margin-bottom:6px">${EDIT_NOTE_ID?'✏️ Edit Note':'✨ New Study Note'}</h2>
+            <div class="two">
+              <div><label class="f">Title</label><input type="text" id="ntTitle" placeholder="e.g., Noon Sakinah"></div>
+              <div><label class="f">Topic</label>
+                <select id="ntCat">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+              </div>
             </div>
-          </div>
-          <label class="f">Optional Video / Reference Link</label>
-          <input type="text" id="commLink" placeholder="https://youtube.com/...">
-          <label class="f">Lesson Content</label>
-          <div id="commEditor" class="rt-area" contenteditable="true" placeholder="Write a public lesson for all users..."></div>
-          <button style="width:100%;margin-top:10px" onclick="publishCommunityLesson()">🚀 Publish to Community</button>
-        </div>`;
+            <label class="f">Optional Video / Reference Link</label>
+            <input type="text" id="ntLink" placeholder="https://youtube.com/...">
+
+            <label class="f">Rich Text &amp; Table Editor</label>
+            <div class="rt-bar">
+              <select onchange="execRT('fontName',this.value)">
+                <option value="system-ui">Sans</option>
+                <option value="Georgia,serif">Serif</option>
+                <option value="'Amiri','Traditional Arabic',serif">Arabic</option>
+              </select>
+              <select onchange="execRT('fontSize',this.value)">
+                <option value="2">Small</option>
+                <option value="3" selected>Normal</option>
+                <option value="4">Large</option>
+                <option value="5">Heading</option>
+              </select>
+              <button class="g sm" onclick="execRT('bold')"><b>B</b></button>
+              <button class="g sm" onclick="execRT('italic')"><i>I</i></button>
+              <button class="g sm" onclick="execRT('underline')"><u>U</u></button>
+              <button class="g sm" onclick="execRT('insertUnorderedList')">• List</button>
+              <button class="g sm" onclick="insertRTTable()">⊞ Table</button>
+              <button class="g sm" onclick="$('rtImgInp').click()">🖼️ Photo</button>
+              <button class="sm" onclick="polishNoteAI()">✨ Polish</button>
+            </div>
+            <input type="file" id="rtImgInp" accept="image/*" style="display:none" onchange="attachInlinePhoto(this)">
+            <div id="rtEditor" class="rt-area" contenteditable="true" placeholder="Write your lesson or paste verses..."></div>
+            <div id="aiNoteStatus" class="ai-status" style="display:none"></div>
+            <button class="bigbtn" onclick="saveRichNote()">💾 Save Note</button>
+          </div>`;
+        }
+        h+=`<div class="search-wrap">
+          <span class="search-ico">🔍</span>
+          <input type="text" placeholder="Search notes &amp; topics..." value="${esc(LIB_SEARCH)}" oninput="onLibSearchInput(this.value)">
+        </div>
+        <div class="chips-scroll">
+          ${allFolders.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" onclick="setLibFilter(decodeURIComponent('${encAttr(c)}'))">${esc(c)}</span>`).join('')}
+          <span class="cy" onclick="addFolder()">+ Topic</span>
+        </div>
+        <div id="notesListBox">${renderFilteredNotesHtml(s)}</div>`;
       }
-      h+=commList.length?commList.map(n=>{
-        const yt=ytEmbedUrl(n.link);
-        const safeLink=safeExternalUrl(n.link);
-        return `<div class="card">
-          <div class="row"><span class="pill">${esc(n.cat||'Community Lesson')}</span><span class="mu">${esc(n.date||'')}</span></div>
-          <h2 style="margin:6px 0">${esc(n.title)}</h2>
-          ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
-          ${safeLink&&!yt?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:12.5px;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
-          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||'')}</div>
-          ${adminHere?`<div style="margin-top:10px;text-align:right"><button class="g sm" onclick="deleteCommunityLesson('${esc(n.docId||n.id)}')">🗑️ Delete Lesson</button></div>`:''}
-        </div>`;
-      }).join(''):`<div class="card mu">No community lessons published yet.</div>`;
+    }else if(s.libSubTab==='community'){
+      h+=(typeof communityLessonsHtml==='function')?communityLessonsHtml(s):'<div class="card mu">Loading Community Lessons...</div>';
     }else{
-      h+=`<div class="card">
+      h+=`<div class="chips-scroll">
+        ${allFolders.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" onclick="setLibFilter(decodeURIComponent('${encAttr(c)}'))">${esc(c)}</span>`).join('')}
+        <span class="cy" onclick="addFolder()">+ Topic</span>
+      </div>
+      <div class="card">
         <div class="row">
-          <div><b>🎞️ Offline Media Vault</b><div class="mu">Store photos, videos & audio offline (${totalVaultMB} MB used)</div></div>
-          <button class="sm" onclick="$('vaultInp').click()">+ Upload File</button>
+          <div><b>🎞️ Offline Media Vault</b><div class="mu">Photos, videos &amp; audio stored locally (${totalVaultMB} MB used)</div></div>
         </div>
-        <div style="margin-top:8px">
-          <label class="f">Save Uploaded File Into Folder:</label>
-          <select id="vaultFolderSel">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
-        </div>
+        <label class="f">Save uploaded file into topic</label>
+        <select id="vaultFolderSel">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
         <input type="file" id="vaultInp" accept="image/*,video/*,audio/*" style="display:none" onchange="uploadVaultMedia(this)">
       </div>`;
 
@@ -1722,18 +2289,17 @@ async function render(){
         else mediaEl=`<audio controls src="${url}" style="width:100%"></audio>`;
         return `<div class="media-box">
           <span class="pill">${esc(v.folder||'Media')}</span>
-          <div style="font-weight:700;font-size:13px;margin:4px 0">${esc(v.title)}</div>
+          <div style="font-weight:700;font-size:.82rem;margin:4px 0">${esc(v.title)}</div>
           ${mediaEl}
           <div class="row" style="margin-top:6px">
             <span class="mu">${((v.size||0)/(1024*1024)).toFixed(1)} MB</span>
             <button class="g sm" onclick="deleteVaultItem(${v.id})">🗑️</button>
           </div>
         </div>`;
-      }).join('')+`</div>`:`<div class="card mu">No offline media files in this folder yet. Tap <b>+ Upload File</b> to save files for offline study.</div>`;
+      }).join('')+`</div>`:`<div class="card mu">No offline media in this topic yet. Tap <b>+ Upload</b> above to save files for offline study.</div>`;
     }
     $('app').innerHTML=h;
   }
-  else if(TAB==='settings'){rSettings(s)}
 }
 
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){DR=null;D=null;render()}});
