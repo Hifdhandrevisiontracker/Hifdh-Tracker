@@ -11,6 +11,8 @@ const ADMIN_UID='bIv6XebWtLh6qXMKEIBppcSCsUZ2';
 const FB_VER='11.6.0';
 let fbMods=null, fbApp=null, fbAuth=null, fbDb=null, unsubAuth=null, syncTimer=null, isSyncing=false;
 let AUTH_FORM={email:'',pass:'',showPass:false};
+let SHOW_COMM_COMPOSER=false, COMMUNITY_EDIT_ID=null;
+
 const CLOUD_STATE={
   user:null,status:'offline',lastSync:'',busy:false,error:'',
   circleCode:'',circle:null,nudges:[],communityLessons:[],leaderboard:[],socialMsg:''
@@ -38,6 +40,47 @@ function genCircleCode(){
   let out='';
   for(let i=0;i<6;i++)out+=chars[Math.floor(Math.random()*chars.length)];
   return out;
+}
+
+function copyTextSafe(txt,label='Copied ✓'){
+  if(!txt)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>toast(label)).catch(()=>toast(txt));
+  }else{
+    toast(txt);
+  }
+}
+
+function shareCircleCode(){
+  const c=CLOUD_STATE.circle;
+  if(!c||!c.id)return;
+  const msg=`Join my Study Circle "${c.name}" on My Companion! Circle code: ${c.id}\nhttps://hifdhandrevisiontracker.github.io/Hifdh-Tracker/`;
+  if(navigator.share){
+    navigator.share({title:c.name,text:msg}).catch(()=>copyTextSafe(c.id,'Circle code copied: '+c.id));
+  }else{
+    copyTextSafe(c.id,'Circle code copied: '+c.id);
+  }
+}
+
+function calcActivityMetrics(daysObj){
+  const days=daysObj||loadDays();
+  const today=T();
+  let activeDays30=0;
+  for(let i=0;i<30;i++){
+    const d=days[addDays(today,-i)];
+    if(d&&anyDone(d))activeDays30++;
+  }
+  const todayObj=days[today];
+  const doneToday=Boolean(todayObj&&allDone(todayObj));
+  const startedToday=Boolean(todayObj&&anyDone(todayObj));
+  let streak=0;
+  let offset=doneToday?0:1;
+  while(offset<400){
+    const d=days[addDays(today,-offset)];
+    if(d&&allDone(d)){streak++;offset++}
+    else break;
+  }
+  return{activeDays30,streak,doneToday,startedToday};
 }
 
 async function ensureFb(){
@@ -118,7 +161,11 @@ function mergeStates(localS,cloudS){
   const base=Object.assign({},DEFAULTS,cloudS||{},localS||{});
   const useLocalPlan=(localS.updatedAt||0)>=(cloudS.updatedAt||0);
   const planSrc=useLocalPlan?localS:cloudS;
-  ['mode','method','order','newPerDay','revPerDay','sabakPages','chunks','afterLast','theme','color','uiText','uiCard','leaderboardOptIn','circleCode'].forEach(k=>{
+  [
+    'mode','method','order','newPerDay','revPerDay','sabakPages','chunks','afterLast',
+    'theme','color','uiText','uiCard','uiScale','studyDaysPerWeek','planCommittedAt',
+    'leaderboardOptIn','circleCode'
+  ].forEach(k=>{
     if(planSrc&&planSrc[k]!==undefined)base[k]=planSrc[k];
   });
   if(!base.circleCode)base.circleCode=localS.circleCode||cloudS.circleCode||'';
@@ -142,8 +189,8 @@ function askFirstSyncChoice(){
         <div style="font-size:18px;font-weight:800;color:var(--ac);margin-bottom:6px">Cloud Backup Found</div>
         <div class="mu" style="margin-bottom:14px">Both this phone and your cloud account have Hifdh progress. How would you like to sync?</div>
         <button style="width:100%" onclick="window._syncChoice('merge')">✨ Merge Both (Recommended)</button>
-        <button class="g" style="width:100%" onclick="window._syncChoice('local')">📱 Keep This Phone’s Data</button>
-        <button class="g" style="width:100%" onclick="window._syncChoice('cloud')">☁️ Use Cloud Copy</button>
+        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('local')">📱 Keep This Phone’s Data</button>
+        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('cloud')">☁️ Use Cloud Copy</button>
       </div>
     </div>`;
     window._syncChoice=choice=>{
@@ -154,25 +201,29 @@ function askFirstSyncChoice(){
   });
 }
 
-function memberSummary(s,user){
-  const stats=(D&&D.stats)?D.stats:api.getData(T()).stats;
+function memberSummary(s,user,daysObj){
+  const act=calcActivityMetrics(daysObj);
   return{
     name:(s.name||user.displayName||user.name||(user.email||'').split('@')[0]||'Student').slice(0,32),
     pages:Math.round((memCount(s)||0)*10)/10,
     juz:completedJuzCount(s),
-    streak:stats.streak||0,
+    streak:act.streak,
+    activeDays30:act.activeDays30,
+    doneToday:act.doneToday,
+    startedToday:act.startedToday,
+    todayDate:T(),
     updatedAt:Date.now()
   };
 }
 
-async function syncCircleAndNudges(db,m,user,s){
+async function syncCircleAndNudges(db,m,user,s,daysObj){
   const code=(s.circleCode||'').trim().toUpperCase();
   if(code){
     const cRef=m.doc(db,'circles',code);
     const cSnap=await m.getDoc(cRef);
     if(cSnap.exists()){
       const cData=cSnap.data()||{};
-      const sum=memberSummary(s,user);
+      const sum=memberSummary(s,user,daysObj);
       await m.updateDoc(cRef,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
       const membersObj=Object.assign({},cData.members||{},{[user.uid]:sum});
       LS.setItem('hifdh_circle_code',code);
@@ -193,20 +244,35 @@ async function syncCircleAndNudges(db,m,user,s){
   setCloudUi({nudges:items.slice(0,15)});
 }
 
-async function syncLeaderboard(db,m,user,s){
+async function syncLeaderboard(db,m,user,s,daysObj){
   const lbRef=m.doc(db,'leaderboard',user.uid);
   if(s.leaderboardOptIn){
-    const sum=memberSummary(s,user);
-    await m.setDoc(lbRef,{uid:user.uid,name:sum.name,pages:sum.pages,juz:sum.juz,streak:sum.streak,updatedAt:Date.now()});
+    const act=calcActivityMetrics(daysObj);
+    const name=(s.name||user.displayName||user.name||(user.email||'').split('@')[0]||'Student').slice(0,32);
+    // Consistency-only: no memorized page or Juz totals published
+    await m.setDoc(lbRef,{
+      uid:user.uid,
+      name,
+      activeDays30:act.activeDays30,
+      streak:act.streak,
+      doneToday:act.doneToday,
+      todayDate:T(),
+      updatedAt:Date.now()
+    });
   }else{
     await m.deleteDoc(lbRef).catch(()=>{});
   }
-  const q=m.query(m.collection(db,'leaderboard'),m.orderBy('pages','desc'),m.limit(20));
+  const q=m.query(m.collection(db,'leaderboard'),m.limit(50));
   const snap=await m.getDocs(q).catch(()=>null);
   if(snap){
     const rows=[];
     snap.forEach(d=>rows.push(d.data()));
-    setCloudUi({leaderboard:rows});
+    rows.sort((a,b)=>
+      (Number(b.activeDays30)||0)-(Number(a.activeDays30)||0) ||
+      (Number(b.streak)||0)-(Number(a.streak)||0) ||
+      (Number(b.updatedAt)||0)-(Number(a.updatedAt)||0)
+    );
+    setCloudUi({leaderboard:rows.slice(0,25)});
   }
 }
 
@@ -225,9 +291,9 @@ async function createOrJoinCircle(action){
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
-    if(!user){toast('Sign in under Settings first');return}
+    if(!user){toast('Sign in under Profile first');return}
     const s=loadState();
-    const sum=memberSummary(s,user);
+    const sum=memberSummary(s,user,loadDays());
     if(action==='create'){
       const title=($('circleNameInp')?$('circleNameInp').value.trim():'')||'Hifdh Circle';
       const code=genCircleCode();
@@ -260,6 +326,7 @@ async function createOrJoinCircle(action){
 }
 
 function leaveCircleLocal(){
+  if(!confirm('Leave this study circle? You can rejoin anytime with the code.'))return;
   const s=loadState();s.circleCode='';saveState(s);
   LS.removeItem('hifdh_circle_code');
   setCloudUi({circleCode:'',circle:null,socialMsg:''},true);
@@ -275,7 +342,7 @@ async function sendNudge(toUid,toName){
     const fromName=(s.name||user.displayName||(user.email||'').split('@')[0]||'Partner').slice(0,30);
     await m.addDoc(m.collection(db,'nudges'),{
       fromUid:user.uid,fromName,toUid,
-      text:'Assalamu Alaikum! Time for today’s Hifdh & Muraja’ah session.',
+      text:'Assalamu Alaikum! Gentle reminder for today’s Qur’an session.',
       createdAt:Date.now()
     });
     toast('Nudge sent to '+toName+' ✓');
@@ -290,6 +357,30 @@ async function dismissNudge(nudgeId){
   }catch(e){}
 }
 
+function openCommunityComposer(docId=null){
+  if(!isAdminUser()){toast('Sign in with your Admin account to publish lessons');return}
+  COMMUNITY_EDIT_ID=docId?String(docId):null;
+  SHOW_COMM_COMPOSER=true;
+  if(typeof render==='function')render();
+  if(docId){
+    const existing=(CLOUD_STATE.communityLessons||[]).find(x=>String(x.docId||x.id)===String(docId));
+    if(existing){
+      setTimeout(()=>{
+        if($('commTitle'))$('commTitle').value=existing.title||'';
+        if($('commCat'))$('commCat').value=existing.cat||'Tajweed Lessons';
+        if($('commLink'))$('commLink').value=existing.link||'';
+        if($('commEditor'))$('commEditor').innerHTML=sanitizeHtml(existing.html||'');
+      },20);
+    }
+  }
+}
+
+function closeCommunityComposer(){
+  SHOW_COMM_COMPOSER=false;
+  COMMUNITY_EDIT_ID=null;
+  if(typeof render==='function')render();
+}
+
 async function publishCommunityLesson(){
   if(!isAdminUser()){toast('Only the app admin can publish community lessons');return}
   const title=($('commTitle')?$('commTitle').value.trim():'');
@@ -300,14 +391,19 @@ async function publishCommunityLesson(){
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
-    const id=Date.now();
+    const isEdit=Boolean(COMMUNITY_EDIT_ID);
+    const id=isEdit?COMMUNITY_EDIT_ID:String(Date.now());
     const docData={
-      id,date:T(),cat,title,link,
+      id:isEdit?(Number(id)||id):Number(id),
+      date:T(),cat,title,link,
       html:stripInlineImages(sanitizeHtml(rawHtml)),
-      authorUid:user.uid,updatedAt:Date.now()
+      authorUid:user.uid,
+      updatedAt:Date.now()
     };
-    await m.setDoc(m.doc(db,'community_lessons',String(id)),docData);
-    toast('Published to Community Lessons ✓');
+    await m.setDoc(m.doc(db,'community_lessons',id),docData,{merge:true});
+    SHOW_COMM_COMPOSER=false;
+    COMMUNITY_EDIT_ID=null;
+    toast(isEdit?'Community lesson updated ✓':'Published to Community Lessons ✓');
     await loadCommunityLessons();
     if(typeof render==='function')render();
   }catch(e){toast('Publish error: '+(e.message||e.code))}
@@ -319,7 +415,7 @@ async function deleteCommunityLesson(docId){
   try{
     const {db,m}=await ensureFb();
     await m.deleteDoc(m.doc(db,'community_lessons',String(docId)));
-    setCloudUi({communityLessons:CLOUD_STATE.communityLessons.filter(x=>String(x.docId)!==String(docId))},true);
+    setCloudUi({communityLessons:CLOUD_STATE.communityLessons.filter(x=>String(x.docId||x.id)!==String(docId))},true);
     toast('Community lesson removed ✓');
   }catch(e){toast('Delete error: '+(e.message||e.code))}
 }
@@ -332,11 +428,11 @@ async function toggleLeaderboardOptIn(checked){
   if(LS.getItem('hifdh_has_auth')){
     try{
       const {auth,db,m}=await ensureFb();
-      if(auth.currentUser)await syncLeaderboard(db,m,auth.currentUser,s);
+      if(auth.currentUser)await syncLeaderboard(db,m,auth.currentUser,s,loadDays());
     }catch(e){}
   }
-  toast(s.leaderboardOptIn?'Opted in to leaderboard ✓':'Removed from leaderboard');
-  render();
+  toast(s.leaderboardOptIn?'Joined Consistency Leaderboard ✓':'Removed from leaderboard');
+  if(typeof render==='function')render();
 }
 
 async function runCloudSync(trigger='auto'){
@@ -434,8 +530,8 @@ async function runCloudSync(trigger='auto'){
     DR=null;
     D=api.getData(T());
 
-    await syncCircleAndNudges(db,m,user,finalState).catch(()=>{});
-    await syncLeaderboard(db,m,user,finalState).catch(()=>{});
+    await syncCircleAndNudges(db,m,user,finalState,finalDays).catch(()=>{});
+    await syncLeaderboard(db,m,user,finalState,finalDays).catch(()=>{});
     await loadCommunityLessons().catch(()=>{});
 
     const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
@@ -526,9 +622,9 @@ function accountCardHtml(){
   const u=CLOUD_STATE.user;
   if(!u){
     return `<div class="card">
-      <div class="row"><h2 style="margin:0">☁️ Cloud Sync & Account</h2><span class="pill">Optional</span></div>
-      <div class="mu" style="margin:6px 0 10px">Sign in to back up progress and sync across devices. Audio, video &amp; inline photos stay private on your phone.</div>
-      ${CLOUD_STATE.error?`<div style="color:#b91c1c;font-size:12px;font-weight:600;margin-bottom:8px">${esc(CLOUD_STATE.error)}</div>`:''}
+      <div class="row"><h2 style="margin:0">☁️ Cloud Sync &amp; Account</h2><span class="pill">Optional</span></div>
+      <div class="mu" style="margin:6px 0 10px">Sign in to back up progress, join a Study Circle, and sync across devices. Audio, video &amp; inline photos stay private on your phone.</div>
+      ${CLOUD_STATE.error?`<div class="ai-status err" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
       <button style="width:100%" ${CLOUD_STATE.busy?'disabled':''} onclick="signInGoogle()">Continue with Google</button>
       <div class="mu" style="text-align:center;margin:10px 0 6px">— or use Email &amp; Password —</div>
       <input type="email" id="authEmail" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Email address" value="${esc(AUTH_FORM.email)}" oninput="AUTH_FORM.email=this.value">
@@ -546,13 +642,10 @@ function accountCardHtml(){
   return `<div class="card">
     <div class="row"><h2 style="margin:0">☁️ Cloud Sync Active</h2><span class="pill">${esc(stLabel)}</span></div>
     <div class="mu" style="margin:6px 0 10px">Signed in as <b>${esc(u.email||u.name||'Member')}</b>${isAdminUser()?' · <span class="pill">Admin</span>':''}</div>
-    ${CLOUD_STATE.error?`<div style="color:#b91c1c;font-size:12px;font-weight:600;margin-bottom:8px">${esc(CLOUD_STATE.error)}</div>`:''}
+    ${CLOUD_STATE.error?`<div class="ai-status err" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
     <div class="two">
       <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 Sync Now</button>
-      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signOutCloud()">Sign Out</button>
-    </div>
-    <div style="margin-top:10px;text-align:right">
-      <button class="g sm" style="color:#b91c1c;border-color:rgba(185,28,28,.3)" onclick="deleteCloudAccount()">Delete cloud account</button>
+      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="copyTextSafe('${esc(u.uid)}','User UID copied ✓')">Copy UID</button>
     </div>
   </div>`;
 }
@@ -560,64 +653,157 @@ function accountCardHtml(){
 function circleCardHtml(){
   if(!CLOUD_STATE.user){
     return `<div class="card">
-      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Sign in</span></div>
-      <div class="mu" style="margin-top:6px">Sign in under <b>Settings</b> to join a Hifdh circle with a partner or send gentle study nudges.</div>
+      <div class="row"><h2 style="margin:0">🤝 Study Circle</h2><span class="pill">Sign in</span></div>
+      <div class="mu" style="margin-top:6px">Sign in under <b>Profile</b> to create or join a private Study Circle, track progress together, and send gentle nudges.</div>
+      <button class="g sm" style="margin-top:10px" onclick="setTab('settings')">Go to Profile →</button>
     </div>`;
   }
   let nudgeBanner='';
   if(CLOUD_STATE.nudges&&CLOUD_STATE.nudges.length){
-    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box" style="margin-bottom:8px;background:var(--ac2)">
-      <div class="row"><b>🔔 Nudge from ${esc(n.fromName||'Partner')}</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">Dismiss</button></div>
-      <div style="font-size:13px;margin-top:4px">${esc(n.text||'Time for today’s Hifdh session!')}</div>
+    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box" style="margin-bottom:10px;background:var(--ac2);border-color:var(--ac)">
+      <div class="row"><b>🔔 ${esc(n.fromName||'Partner')} nudged you</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">Dismiss</button></div>
+      <div style="font-size:.84rem;margin-top:4px">${esc(n.text||'Time for today’s Qur’an session!')}</div>
     </div>`).join('');
   }
   if(!CLOUD_STATE.circle){
-    return `<div class="card">
-      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Optional</span></div>
-      ${nudgeBanner}
-      <div class="mu" style="margin:6px 0 10px">Create a small circle or enter a 6-character code to see each other’s progress and send nudges.</div>
-      <div class="two">
-        <input type="text" id="circleNameInp" placeholder="New circle name">
-        <button class="sm" onclick="createOrJoinCircle('create')">Create Circle</button>
+    return `${nudgeBanner}<div class="card">
+      <div class="row"><h2 style="margin:0">🤝 Study Circle</h2><span class="pill">Private Group</span></div>
+      <div class="mu" style="margin:6px 0 12px">Start a circle with friends or enter a 6-character code to see each other’s daily consistency, Juz progress, and send gentle nudges.</div>
+      <label class="f" style="margin-top:0">Create a new circle</label>
+      <div class="row" style="gap:8px">
+        <input type="text" id="circleNameInp" placeholder="e.g., Hifdh Leaders" style="flex:1">
+        <button class="sm" onclick="createOrJoinCircle('create')">Create</button>
       </div>
-      <div class="two" style="margin-top:8px">
-        <input type="text" id="circleCodeInp" placeholder="Enter 6-char code" maxlength="6" style="text-transform:uppercase">
-        <button class="g sm" onclick="createOrJoinCircle('join')">Join Circle</button>
+      <label class="f">Or join with an invite code</label>
+      <div class="row" style="gap:8px">
+        <input type="text" id="circleCodeInp" placeholder="6-CHAR CODE" maxlength="6" style="flex:1;text-transform:uppercase;letter-spacing:.08em">
+        <button class="g sm" onclick="createOrJoinCircle('join')">Join</button>
       </div>
     </div>`;
   }
-  const members=Object.entries(CLOUD_STATE.circle.members||{}).sort((a,b)=>(b[1].pages||0)-(a[1].pages||0));
-  return `<div class="card">
+  const todayStr=T();
+  const members=Object.entries(CLOUD_STATE.circle.members||{}).sort((a,b)=>
+    (Number(b[1].activeDays30)||0)-(Number(a[1].activeDays30)||0) ||
+    (Number(b[1].streak)||0)-(Number(a[1].streak)||0) ||
+    (Number(b[1].pages)||0)-(Number(a[1].pages)||0)
+  );
+  return `${nudgeBanner}<div class="card">
     <div class="row">
-      <div><h2 style="margin:0">🤝 ${esc(CLOUD_STATE.circle.name)}</h2><div class="mu">Code: <b>${esc(CLOUD_STATE.circle.id)}</b> · ${members.length} member(s)</div></div>
-      <button class="g sm" onclick="leaveCircleLocal()">Leave</button>
+      <div>
+        <h2 style="margin:0">${esc(CLOUD_STATE.circle.name)}</h2>
+        <div class="mu">${members.length} member${members.length===1?'':'s'} · Code: <b>${esc(CLOUD_STATE.circle.id)}</b></div>
+      </div>
+      <button class="g sm" onclick="shareCircleCode()">📤 Share</button>
     </div>
-    ${nudgeBanner}
-    <div style="margin-top:10px">${members.map(([uid,mInfo])=>{
+    <div style="margin-top:12px">${members.map(([uid,mInfo])=>{
       const isMe=uid===CLOUD_STATE.user.uid;
+      const doneToday=mInfo.doneToday && (!mInfo.todayDate || mInfo.todayDate===todayStr);
+      const startedToday=mInfo.startedToday && (!mInfo.todayDate || mInfo.todayDate===todayStr);
+      const todayBadge=doneToday?'Done today ✓':(startedToday?'In progress':'Not yet today');
+      const daysTxt=mInfo.activeDays30!=null?`${mInfo.activeDays30}/30d active`:`🔥 ${mInfo.streak||0}d streak`;
+      const avText=(typeof initials==='function')?initials(mInfo.name||'M'):'M';
       return `<div class="sr">
-        <div><b>${esc(mInfo.name||'Member')}</b>${isMe?' <span class="pill">You</span>':''}<div class="mu">${mInfo.pages||0}p · ${mInfo.juz||0}/30 Juz · 🔥 ${mInfo.streak||0}d</div></div>
+        <div class="row" style="justify-content:flex-start;gap:10px;min-width:0;flex:1">
+          <div class="member-av">${esc(avText)}</div>
+          <div style="min-width:0">
+            <div><b>${esc(mInfo.name||'Member')}</b>${isMe?' <span class="pill">You</span>':''}</div>
+            <div class="mu">${esc(todayBadge)} · 🔥 ${mInfo.streak||0}d · ${esc(daysTxt)}</div>
+            <div class="mu">Juz ${mInfo.juz||0}/30 · ${mInfo.pages||0} pages</div>
+          </div>
+        </div>
         ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}',decodeURIComponent('${encAttr(mInfo.name||'Partner')}'))">👋 Nudge</button>`:''}
       </div>`;
     }).join('')}</div>
+    <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)">
+      <button class="g sm" onclick="runCloudSync('manual')">🔄 Refresh</button>
+      <button class="g sm" style="color:var(--danger)" onclick="leaveCircleLocal()">Leave Circle</button>
+    </div>
   </div>`;
 }
 
 function leaderboardCardHtml(s){
   const optedIn=Boolean(s.leaderboardOptIn);
   const rows=CLOUD_STATE.leaderboard||[];
+  const todayStr=T();
+  const signedIn=Boolean(CLOUD_STATE.user);
   return `<div class="card">
-    <div class="row"><h2 style="margin:0">🏆 Community Leaderboard</h2><span class="pill">Opt-In</span></div>
-    <div class="mu" style="margin:6px 0 10px">Only students who opt in appear here. Share your memorized pages and streak with fellow learners.</div>
-    <label class="row" style="justify-content:flex-start;gap:10px;margin-bottom:10px;cursor:pointer">
+    <div class="row"><h2 style="margin:0">🔥 Consistency Board</h2><span class="pill">Activity Only</span></div>
+    <div class="mu" style="margin:6px 0 10px">Ranked purely by daily steadiness and streaks—memorized page totals are never shown here.</div>
+    <label class="row" style="justify-content:flex-start;gap:10px;margin-bottom:12px;cursor:pointer">
       <input type="checkbox" ${optedIn?'checked':''} onchange="toggleLeaderboardOptIn(this.checked)">
-      <span style="font-size:13.5px;font-weight:650">Show my name, pages &amp; streak on the leaderboard</span>
+      <span style="font-size:.86rem;font-weight:650">Show my consistency &amp; streak on the board</span>
     </label>
-    ${rows.length?rows.map((r,i)=>`<div class="sr">
-      <div><b>#${i+1} ${esc(r.name||'Student')}</b><div class="mu">${r.juz||0}/30 Juz · 🔥 ${r.streak||0}d</div></div>
-      <span class="pill">${r.pages||0} pages</span>
-    </div>`).join(''):'<div class="mu">No leaderboard entries loaded yet. Tap Sync Now after signing in.</div>'}
+    ${!signedIn?'<div class="mu">Sign in under <b>Profile</b> to join and view the consistency board.</div>':(
+      rows.length?rows.map((r,i)=>{
+        const isMe=CLOUD_STATE.user&&r.uid===CLOUD_STATE.user.uid;
+        const rkCls=i===0?'rank-1':(i===1?'rank-2':(i===2?'rank-3':''));
+        const doneToday=r.doneToday && (!r.todayDate || r.todayDate===todayStr);
+        const daysActive=Number(r.activeDays30)||0;
+        return `<div class="sr">
+          <div class="row" style="justify-content:flex-start;gap:10px;min-width:0">
+            <div class="rank-badge ${rkCls}">${i+1}</div>
+            <div style="min-width:0">
+              <div><b>${esc(r.name||'Student')}</b>${isMe?' <span class="pill">You</span>':''}</div>
+              <div class="mu">${daysActive}/30 days active${doneToday?' · Done today ✓':''}</div>
+            </div>
+          </div>
+          <span class="pill">🔥 ${Number(r.streak)||0}d</span>
+        </div>`;
+      }).join(''):'<div class="mu">No entries yet. Opt in above and tap Refresh to appear first!</div>'
+    )}
+    ${signedIn?`<div style="margin-top:10px;text-align:right"><button class="g sm" onclick="runCloudSync('manual')">🔄 Refresh</button></div>`:''}
   </div>`;
+}
+
+function communityLessonsHtml(s){
+  const list=CLOUD_STATE.communityLessons||[];
+  const adminHere=isAdminUser();
+  let h='';
+  if(adminHere){
+    h+=`<div class="card">
+      <div class="row">
+        <div>
+          <b>📢 Community Lessons (Admin)</b>
+          <div class="mu">Published lessons appear for all My Companion users.</div>
+        </div>
+        <button class="sm" onclick="${SHOW_COMM_COMPOSER?'closeCommunityComposer()':'openCommunityComposer()'}">${SHOW_COMM_COMPOSER?'Close':'+ New Lesson'}</button>
+      </div>
+      ${SHOW_COMM_COMPOSER?`<div style="margin-top:12px">
+        <div class="two">
+          <div><label class="f">Lesson Title</label><input type="text" id="commTitle" placeholder="e.g., Juz 30 Muraja’ah Tips"></div>
+          <div><label class="f">Topic</label>
+            <select id="commCat">${(s.folders||['Tajweed Lessons','Mutashabihat','Tafsir & Reflections']).map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+          </div>
+        </div>
+        <label class="f">Optional Video / Reference Link</label>
+        <input type="text" id="commLink" placeholder="https://youtube.com/...">
+        <label class="f">Lesson Content</label>
+        <div id="commEditor" class="rt-area" style="border-radius:12px" contenteditable="true" placeholder="Write a public lesson for all users..."></div>
+        <button class="bigbtn" onclick="publishCommunityLesson()">${COMMUNITY_EDIT_ID?'💾 Update Lesson':'🚀 Publish to Community'}</button>
+      </div>`:''}
+    </div>`;
+  }
+  if(!list.length){
+    h+=`<div class="card mu">No community lessons published yet.${adminHere?' Tap <b>+ New Lesson</b> above to publish your first one!':''}</div>`;
+    return h;
+  }
+  h+=list.map(n=>{
+    const docKey=String(n.docId||n.id);
+    const yt=ytEmbedUrl(n.link);
+    const safeLink=safeExternalUrl(n.link);
+    return `<div class="card">
+      <div class="row"><span class="pill">${esc(n.cat||'Community Lesson')}</span><span class="mu">${esc(n.date||'')}</span></div>
+      <h2 style="margin:6px 0">${esc(n.title)}</h2>
+      ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
+      ${safeLink&&!yt?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:.82rem;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
+      <div class="note-reader" style="font-size:.88rem;line-height:1.55;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||'')}</div>
+      ${adminHere?`<div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);justify-content:flex-end;gap:6px">
+        <button class="g sm" onclick="openCommunityComposer('${esc(docKey)}')">✏️ Edit</button>
+        <button class="g sm" style="color:var(--danger)" onclick="deleteCommunityLesson('${esc(docKey)}')">🗑️ Delete</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+  return h;
 }
 
 if(LS.getItem('hifdh_has_auth')){
