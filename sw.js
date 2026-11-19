@@ -1,4 +1,4 @@
-const C='companion-v8-4';
+const C='companion-v8-5';
 const F=['./','./index.html','./styles.css','./app.js','./sync.js','./delete-account.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 const SKIP_HOSTS=['firestore.googleapis.com','firebaseio.com','identitytoolkit.googleapis.com','securetoken.googleapis.com','firebaseinstallations.googleapis.com','googleapis.com','gstatic.com'];
 
