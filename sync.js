@@ -10,6 +10,7 @@ const FIREBASE_CFG={
 const ADMIN_UID='bIv6XebWtLh6qXMKEIBppcSCsUZ2';
 const FB_VER='11.6.0';
 let fbMods=null, fbApp=null, fbAuth=null, fbDb=null, unsubAuth=null, syncTimer=null, isSyncing=false;
+let AUTH_FORM={email:'',pass:'',showPass:false};
 const CLOUD_STATE={
   user:null,status:'offline',lastSync:'',busy:false,error:'',
   circleCode:'',circle:null,nudges:[],communityLessons:[],leaderboard:[],socialMsg:''
@@ -25,6 +26,18 @@ function setCloudUi(patch,forceRender=false){
     if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable))return;
   }
   render();
+}
+
+function toggleShowPass(){
+  AUTH_FORM.showPass=!AUTH_FORM.showPass;
+  if(typeof render==='function')render();
+}
+
+function genCircleCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out='';
+  for(let i=0;i<6;i++)out+=chars[Math.floor(Math.random()*chars.length)];
+  return out;
 }
 
 async function ensureFb(){
@@ -43,6 +56,7 @@ async function ensureFb(){
     unsubAuth=fbMods.onAuthStateChanged(fbAuth,async user=>{
       if(user){
         LS.setItem('hifdh_has_auth','1');
+        AUTH_FORM={email:'',pass:'',showPass:false};
         setCloudUi({user:{uid:user.uid,email:user.email||'',name:user.displayName||''},busy:false,error:''},true);
         await runCloudSync('auto');
       }else{
@@ -216,7 +230,7 @@ async function createOrJoinCircle(action){
     const sum=memberSummary(s,user);
     if(action==='create'){
       const title=($('circleNameInp')?$('circleNameInp').value.trim():'')||'Hifdh Circle';
-      const code=Math.random().toString(36).substring(2,8).toUpperCase();
+      const code=genCircleCode();
       await m.setDoc(m.doc(db,'circles',code),{
         name:title.slice(0,40),code,createdBy:user.uid,createdAt:Date.now(),updatedAt:Date.now(),
         members:{[user.uid]:sum}
@@ -237,7 +251,12 @@ async function createOrJoinCircle(action){
       setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj},socialMsg:'Joined '+code+'!'},true);
       toast('Joined circle '+code+' ✓');
     }
-  }catch(e){toast('Circle error: '+(e.message||e.code))}
+  }catch(e){
+    const msg=(e&&(e.code==='permission-denied'||/insufficient permissions/i.test(e.message||'')))
+      ?'Publish the updated Firestore Rules in Firebase Console first.'
+      :(e.message||e.code||'Unknown error');
+    toast('Circle error: '+msg);
+  }
 }
 
 function leaveCircleLocal(){
@@ -408,7 +427,6 @@ async function runCloudSync(trigger='auto'){
     }
     mergedNotes.sort((a,b)=>(b.updatedAt||b.id||0)-(a.updatedAt||a.id||0));
 
-    // Write directly via sv() so syncing does NOT re-trigger scheduleCloudSync()
     sv('hifdh_state',finalState);
     sv('hifdh_days',finalDays);
     sv('hifdh_notes',mergedNotes);
@@ -438,8 +456,10 @@ function scheduleCloudSync(){
 }
 
 async function signInEmail(isSignup){
-  const email=($('authEmail')?$('authEmail').value:'').trim();
-  const pass=($('authPass')?$('authPass').value:'');
+  const email=(($('authEmail')?$('authEmail').value:AUTH_FORM.email)||'').trim();
+  const pass=(($('authPass')?$('authPass').value:AUTH_FORM.pass)||'');
+  AUTH_FORM.email=email;
+  AUTH_FORM.pass=pass;
   if(!email||pass.length<6){setCloudUi({error:'Enter a valid email and a password (6+ characters).'},true);return}
   try{
     setCloudUi({busy:true,error:''},true);
@@ -473,6 +493,7 @@ async function signOutCloud(){
     const {auth,m}=await ensureFb();
     await m.signOut(auth);
     LS.removeItem('hifdh_has_auth');
+    AUTH_FORM={email:'',pass:'',showPass:false};
     setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
     toast('Signed out (local data kept)');
   }catch(e){setCloudUi({error:e.message},true)}
@@ -493,6 +514,7 @@ async function deleteCloudAccount(){
     LS.removeItem('hifdh_has_auth');
     LS.removeItem('hifdh_circle_code');
     await m.deleteUser(user);
+    AUTH_FORM={email:'',pass:'',showPass:false};
     setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
     toast('Account & cloud data deleted ✓');
   }catch(e){
@@ -509,11 +531,12 @@ function accountCardHtml(){
       ${CLOUD_STATE.error?`<div style="color:#b91c1c;font-size:12px;font-weight:600;margin-bottom:8px">${esc(CLOUD_STATE.error)}</div>`:''}
       <button style="width:100%" ${CLOUD_STATE.busy?'disabled':''} onclick="signInGoogle()">Continue with Google</button>
       <div class="mu" style="text-align:center;margin:10px 0 6px">— or use Email &amp; Password —</div>
-      <div class="two">
-        <input type="email" id="authEmail" placeholder="Email address">
-        <input type="password" id="authPass" placeholder="Password (6+ chars)">
+      <input type="email" id="authEmail" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Email address" value="${esc(AUTH_FORM.email)}" oninput="AUTH_FORM.email=this.value">
+      <div class="row" style="gap:6px;margin-top:8px">
+        <input type="${AUTH_FORM.showPass?'text':'password'}" id="authPass" inputmode="text" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Password (6+ chars, letters &amp; numbers)" value="${esc(AUTH_FORM.pass)}" oninput="AUTH_FORM.pass=this.value" style="flex:1">
+        <button type="button" class="g sm" onclick="toggleShowPass()" title="Show or hide password">${AUTH_FORM.showPass?'🙈':'👁️'}</button>
       </div>
-      <div class="two" style="margin-top:4px">
+      <div class="two" style="margin-top:8px">
         <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(false)">Sign In</button>
         <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(true)">Create Account</button>
       </div>
