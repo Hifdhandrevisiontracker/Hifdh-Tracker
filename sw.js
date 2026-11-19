@@ -1,4 +1,4 @@
-const C='companion-v8';
+const C='companion-v8-1';
 const F=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 const SKIP_HOSTS=['firestore.googleapis.com','firebaseio.com','identitytoolkit.googleapis.com','securetoken.googleapis.com','firebaseinstallations.googleapis.com','googleapis.com','gstatic.com'];
 
@@ -18,11 +18,13 @@ self.addEventListener('fetch',e=>{
   const url=new URL(r.url);
   if(url.origin!==self.location.origin)return;
   if(SKIP_HOSTS.some(h=>url.hostname===h||url.hostname.endsWith('.'+h)))return;
-  e.respondWith(caches.match(r).then(hit=>{
-    const net=fetch(r).then(res=>{
-      if(res.ok){const cp=res.clone();caches.open(C).then(c=>c.put(r,cp))}
+  e.respondWith(
+    fetch(r).then(res=>{
+      if(res.ok){
+        const cp=res.clone();
+        caches.open(C).then(c=>c.put(r,cp));
+      }
       return res;
-    }).catch(()=>hit);
-    return hit||net;
-  }));
+    }).catch(()=>caches.match(r).then(hit=>hit||(r.mode==='navigate'?caches.match('./index.html'):undefined)))
+  );
 });
