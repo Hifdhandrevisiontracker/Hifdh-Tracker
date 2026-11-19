@@ -9,18 +9,22 @@ const FIREBASE_CFG={
 
 const ADMIN_UID='bIv6XebWtLh6qXMKEIBppcSCsUZ2';
 const FB_VER='11.6.0';
-let fbMods=null, fbApp=null, fbAuth=null, fbDb=null, authReady=false, unsubAuth=null, syncTimer=null;
+let fbMods=null, fbApp=null, fbAuth=null, fbDb=null, unsubAuth=null, syncTimer=null, isSyncing=false;
 const CLOUD_STATE={
   user:null,status:'offline',lastSync:'',busy:false,error:'',
-  circleCode:LS.getItem('hifdh_circle_code')||'',
-  circle:null,nudges:[],communityLessons:[],leaderboard:[],socialMsg:''
+  circleCode:'',circle:null,nudges:[],communityLessons:[],leaderboard:[],socialMsg:''
 };
 
 const isAdminUser=()=>Boolean(CLOUD_STATE.user&&CLOUD_STATE.user.uid===ADMIN_UID);
 
-function setCloudUi(patch){
+function setCloudUi(patch,forceRender=false){
   Object.assign(CLOUD_STATE,patch);
-  if(typeof render==='function')render();
+  if(typeof render!=='function')return;
+  if(!forceRender){
+    const ae=document.activeElement;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable))return;
+  }
+  render();
 }
 
 async function ensureFb(){
@@ -37,14 +41,13 @@ async function ensureFb(){
   fbDb=fbMods.getFirestore(fbApp);
   if(!unsubAuth){
     unsubAuth=fbMods.onAuthStateChanged(fbAuth,async user=>{
-      authReady=true;
       if(user){
         LS.setItem('hifdh_has_auth','1');
-        setCloudUi({user:{uid:user.uid,email:user.email||'',name:user.displayName||''},error:''});
+        setCloudUi({user:{uid:user.uid,email:user.email||'',name:user.displayName||''},busy:false,error:''},true);
         await runCloudSync('auto');
       }else{
         LS.removeItem('hifdh_has_auth');
-        setCloudUi({user:null,status:'offline',lastSync:'',busy:false,circle:null,nudges:[],leaderboard:[]});
+        setCloudUi({user:null,status:'offline',lastSync:'',busy:false,circleCode:'',circle:null,nudges:[],leaderboard:[]});
       }
     });
   }
@@ -101,9 +104,10 @@ function mergeStates(localS,cloudS){
   const base=Object.assign({},DEFAULTS,cloudS||{},localS||{});
   const useLocalPlan=(localS.updatedAt||0)>=(cloudS.updatedAt||0);
   const planSrc=useLocalPlan?localS:cloudS;
-  ['mode','method','order','newPerDay','revPerDay','sabakPages','chunks','afterLast','theme','color','uiText','uiCard','leaderboardOptIn'].forEach(k=>{
+  ['mode','method','order','newPerDay','revPerDay','sabakPages','chunks','afterLast','theme','color','uiText','uiCard','leaderboardOptIn','circleCode'].forEach(k=>{
     if(planSrc&&planSrc[k]!==undefined)base[k]=planSrc[k];
   });
+  if(!base.circleCode)base.circleCode=localS.circleCode||cloudS.circleCode||'';
   base.onboarded=Boolean(localS.onboarded||cloudS.onboarded);
   base.seenIntro=Boolean(localS.seenIntro||cloudS.seenIntro);
   base.frontier=Math.max(Number(localS.frontier)||0,Number(cloudS.frontier)||0);
@@ -139,7 +143,7 @@ function askFirstSyncChoice(){
 function memberSummary(s,user){
   const stats=(D&&D.stats)?D.stats:api.getData(T()).stats;
   return{
-    name:(s.name||user.name||(user.email||'').split('@')[0]||'Student').slice(0,32),
+    name:(s.name||user.displayName||user.name||(user.email||'').split('@')[0]||'Student').slice(0,32),
     pages:Math.round((memCount(s)||0)*10)/10,
     juz:completedJuzCount(s),
     streak:stats.streak||0,
@@ -148,7 +152,7 @@ function memberSummary(s,user){
 }
 
 async function syncCircleAndNudges(db,m,user,s){
-  const code=(CLOUD_STATE.circleCode||s.circleCode||'').trim().toUpperCase();
+  const code=(s.circleCode||'').trim().toUpperCase();
   if(code){
     const cRef=m.doc(db,'circles',code);
     const cSnap=await m.getDoc(cRef);
@@ -157,11 +161,15 @@ async function syncCircleAndNudges(db,m,user,s){
       const sum=memberSummary(s,user);
       await m.updateDoc(cRef,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
       const membersObj=Object.assign({},cData.members||{},{[user.uid]:sum});
+      LS.setItem('hifdh_circle_code',code);
       setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj}});
     }else{
       LS.removeItem('hifdh_circle_code');
       setCloudUi({circleCode:'',circle:null});
     }
+  }else{
+    LS.removeItem('hifdh_circle_code');
+    setCloudUi({circleCode:'',circle:null});
   }
   const q=m.query(m.collection(db,'nudges'),m.where('toUid','==',user.uid));
   const nSnap=await m.getDocs(q);
@@ -214,7 +222,7 @@ async function createOrJoinCircle(action){
         members:{[user.uid]:sum}
       });
       s.circleCode=code;saveState(s);LS.setItem('hifdh_circle_code',code);
-      setCloudUi({circleCode:code,circle:{id:code,name:title,members:{[user.uid]:sum}},socialMsg:'Circle created! Share code '+code});
+      setCloudUi({circleCode:code,circle:{id:code,name:title,members:{[user.uid]:sum}},socialMsg:'Circle created! Share code '+code},true);
       toast('Circle '+code+' created ✓');
     }else{
       const code=($('circleCodeInp')?$('circleCodeInp').value.trim().toUpperCase():'');
@@ -226,7 +234,7 @@ async function createOrJoinCircle(action){
       await m.updateDoc(cRef,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
       s.circleCode=code;saveState(s);LS.setItem('hifdh_circle_code',code);
       const membersObj=Object.assign({},cData.members||{},{[user.uid]:sum});
-      setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj},socialMsg:'Joined '+code+'!'});
+      setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj},socialMsg:'Joined '+code+'!'},true);
       toast('Joined circle '+code+' ✓');
     }
   }catch(e){toast('Circle error: '+(e.message||e.code))}
@@ -235,7 +243,7 @@ async function createOrJoinCircle(action){
 function leaveCircleLocal(){
   const s=loadState();s.circleCode='';saveState(s);
   LS.removeItem('hifdh_circle_code');
-  setCloudUi({circleCode:'',circle:null,socialMsg:''});
+  setCloudUi({circleCode:'',circle:null,socialMsg:''},true);
   toast('Left circle');
 }
 
@@ -245,7 +253,7 @@ async function sendNudge(toUid,toName){
     const user=auth.currentUser;
     if(!user||!toUid||toUid===user.uid)return;
     const s=loadState();
-    const fromName=(s.name||user.name||(user.email||'').split('@')[0]||'Partner').slice(0,30);
+    const fromName=(s.name||user.displayName||(user.email||'').split('@')[0]||'Partner').slice(0,30);
     await m.addDoc(m.collection(db,'nudges'),{
       fromUid:user.uid,fromName,toUid,
       text:'Assalamu Alaikum! Time for today’s Hifdh & Muraja’ah session.',
@@ -259,7 +267,7 @@ async function dismissNudge(nudgeId){
   try{
     const {db,m}=await ensureFb();
     await m.deleteDoc(m.doc(db,'nudges',nudgeId));
-    setCloudUi({nudges:CLOUD_STATE.nudges.filter(x=>x.id!==nudgeId)});
+    setCloudUi({nudges:CLOUD_STATE.nudges.filter(x=>x.id!==nudgeId)},true);
   }catch(e){}
 }
 
@@ -282,6 +290,7 @@ async function publishCommunityLesson(){
     await m.setDoc(m.doc(db,'community_lessons',String(id)),docData);
     toast('Published to Community Lessons ✓');
     await loadCommunityLessons();
+    if(typeof render==='function')render();
   }catch(e){toast('Publish error: '+(e.message||e.code))}
 }
 
@@ -291,7 +300,7 @@ async function deleteCommunityLesson(docId){
   try{
     const {db,m}=await ensureFb();
     await m.deleteDoc(m.doc(db,'community_lessons',String(docId)));
-    setCloudUi({communityLessons:CLOUD_STATE.communityLessons.filter(x=>String(x.docId)!==String(docId))});
+    setCloudUi({communityLessons:CLOUD_STATE.communityLessons.filter(x=>String(x.docId)!==String(docId))},true);
     toast('Community lesson removed ✓');
   }catch(e){toast('Delete error: '+(e.message||e.code))}
 }
@@ -312,12 +321,13 @@ async function toggleLeaderboardOptIn(checked){
 }
 
 async function runCloudSync(trigger='auto'){
-  if(CLOUD_STATE.busy)return;
+  if(isSyncing)return;
+  isSyncing=true;
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
     if(!user)return;
-    setCloudUi({busy:true,status:'syncing',error:''});
+    setCloudUi({busy:true,status:'syncing',error:''},trigger==='manual');
 
     const userRef=m.doc(db,'users',user.uid);
     const snap=await m.getDoc(userRef);
@@ -359,56 +369,65 @@ async function runCloudSync(trigger='auto'){
     cNotesSnap.forEach(d=>cloudNotesMap.set(String(d.id),d.data()));
     const deletedIds=new Set(ld('hifdh_deleted_notes',[]));
 
-    for(const delId of deletedIds){
-      if(cloudNotesMap.has(String(delId))){
-        await m.deleteDoc(m.doc(db,'users',user.uid,'notes',String(delId)));
-        cloudNotesMap.delete(String(delId));
+    if(mode!=='cloud'){
+      for(const delId of deletedIds){
+        if(cloudNotesMap.has(String(delId))){
+          await m.deleteDoc(m.doc(db,'users',user.uid,'notes',String(delId)));
+          cloudNotesMap.delete(String(delId));
+        }
       }
     }
     sv('hifdh_deleted_notes',[]);
 
-    const localNotesMap=new Map(localNotes.map(n=>[String(n.id),n]));
-    const mergedNotes=[];
-
-    for(const [id,ln] of localNotesMap){
-      const cn=cloudNotesMap.get(id);
-      const lUpd=ln.updatedAt||ln.id||0;
-      const cUpd=cn?(cn.updatedAt||cn.id||0):0;
-      if(!cn || mode==='local' || (mode==='merge'&&lUpd>=cUpd)){
-        const cleanDoc={
-          id:ln.id,date:ln.date||T(),cat:ln.cat||'Lesson',title:ln.title||'Untitled',
-          link:ln.link||'',html:stripInlineImages(ln.html||esc(ln.body||'')),updatedAt:lUpd||Date.now()
-        };
-        await m.setDoc(m.doc(db,'users',user.uid,'notes',id),cleanDoc);
-        mergedNotes.push(ln);
-      }else{
-        mergedNotes.push(cn);
+    let mergedNotes=[];
+    if(mode==='cloud'){
+      mergedNotes=Array.from(cloudNotesMap.values());
+    }else{
+      const localNotesMap=new Map(localNotes.map(n=>[String(n.id),n]));
+      for(const [id,ln] of localNotesMap){
+        const cn=cloudNotesMap.get(id);
+        const lUpd=ln.updatedAt||ln.id||0;
+        const cUpd=cn?(cn.updatedAt||cn.id||0):0;
+        if(!cn || mode==='local' || (mode==='merge'&&lUpd>=cUpd)){
+          const cleanDoc={
+            id:ln.id,date:ln.date||T(),cat:ln.cat||'Lesson',title:ln.title||'Untitled',
+            link:ln.link||'',html:stripInlineImages(ln.html||esc(ln.body||'')),updatedAt:lUpd||Date.now()
+          };
+          await m.setDoc(m.doc(db,'users',user.uid,'notes',id),cleanDoc);
+          mergedNotes.push(ln);
+        }else{
+          mergedNotes.push(cn);
+        }
+        cloudNotesMap.delete(id);
       }
-      cloudNotesMap.delete(id);
-    }
-
-    if(mode!=='local'){
-      for(const [id,cn] of cloudNotesMap){
-        if(!deletedIds.has(Number(id))&&!deletedIds.has(id))mergedNotes.push(cn);
+      if(mode!=='local'){
+        for(const [id,cn] of cloudNotesMap){
+          if(!deletedIds.has(Number(id))&&!deletedIds.has(id))mergedNotes.push(cn);
+        }
       }
     }
     mergedNotes.sort((a,b)=>(b.updatedAt||b.id||0)-(a.updatedAt||a.id||0));
 
-    saveState(finalState);
+    // Write directly via sv() so syncing does NOT re-trigger scheduleCloudSync()
+    sv('hifdh_state',finalState);
     sv('hifdh_days',finalDays);
-    saveNotes(mergedNotes);
+    sv('hifdh_notes',mergedNotes);
     LS.setItem(firstKey,'1');
-    D=null;DR=null;
-    await syncCircleAndNudges(db,m,user,finalState);
-    await syncLeaderboard(db,m,user,finalState);
-    await loadCommunityLessons();
+    DR=null;
+    D=api.getData(T());
+
+    await syncCircleAndNudges(db,m,user,finalState).catch(()=>{});
+    await syncLeaderboard(db,m,user,finalState).catch(()=>{});
+    await loadCommunityLessons().catch(()=>{});
+
     const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    setCloudUi({busy:false,status:'synced',lastSync:nowTime,error:''});
+    setCloudUi({busy:false,status:'synced',lastSync:nowTime,error:''},trigger==='manual');
     if(trigger==='manual')toast('Synced with cloud ✓');
-    render();
   }catch(e){
-    setCloudUi({busy:false,status:'error',error:e.message||'Sync failed'});
+    setCloudUi({busy:false,status:'error',error:e.message||'Sync failed'},trigger==='manual');
     if(trigger==='manual')toast('Sync error: '+(e.message||'offline'));
+  }finally{
+    isSyncing=false;
   }
 }
 
@@ -421,9 +440,9 @@ function scheduleCloudSync(){
 async function signInEmail(isSignup){
   const email=($('authEmail')?$('authEmail').value:'').trim();
   const pass=($('authPass')?$('authPass').value:'');
-  if(!email||pass.length<6){setCloudUi({error:'Enter a valid email and a password (6+ characters).'});return}
+  if(!email||pass.length<6){setCloudUi({error:'Enter a valid email and a password (6+ characters).'},true);return}
   try{
-    setCloudUi({busy:true,error:''});
+    setCloudUi({busy:true,error:''},true);
     const {auth,m}=await ensureFb();
     if(isSignup){
       await m.createUserWithEmailAndPassword(auth,email,pass);
@@ -433,19 +452,19 @@ async function signInEmail(isSignup){
       toast('Signed in ✓');
     }
   }catch(e){
-    setCloudUi({busy:false,error:e.message.replace('Firebase: ','')});
+    setCloudUi({busy:false,error:e.message.replace('Firebase: ','')},true);
   }
 }
 
 async function signInGoogle(){
   try{
-    setCloudUi({busy:true,error:''});
+    setCloudUi({busy:true,error:''},true);
     const {auth,m}=await ensureFb();
     const provider=new m.GoogleAuthProvider();
     await m.signInWithPopup(auth,provider);
     toast('Signed in with Google ✓');
   }catch(e){
-    setCloudUi({busy:false,error:'Google sign-in unavailable here ('+e.code+'). Use Email & Password below.'});
+    setCloudUi({busy:false,error:'Google sign-in unavailable here ('+e.code+'). Use Email & Password below.'},true);
   }
 }
 
@@ -454,15 +473,15 @@ async function signOutCloud(){
     const {auth,m}=await ensureFb();
     await m.signOut(auth);
     LS.removeItem('hifdh_has_auth');
-    setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:''});
+    setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
     toast('Signed out (local data kept)');
-  }catch(e){setCloudUi({error:e.message})}
+  }catch(e){setCloudUi({error:e.message},true)}
 }
 
 async function deleteCloudAccount(){
   if(!confirm('Permanently delete your cloud account and all synced progress & notes? Local files on this phone will stay unless you also reset the app.'))return;
   try{
-    setCloudUi({busy:true,error:''});
+    setCloudUi({busy:true,error:''},true);
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
     if(!user)return;
@@ -472,11 +491,12 @@ async function deleteCloudAccount(){
     await m.deleteDoc(m.doc(db,'users',user.uid));
     LS.removeItem('hifdh_first_sync_'+user.uid);
     LS.removeItem('hifdh_has_auth');
+    LS.removeItem('hifdh_circle_code');
     await m.deleteUser(user);
-    setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:''});
+    setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
     toast('Account & cloud data deleted ✓');
   }catch(e){
-    setCloudUi({busy:false,error:e.code==='auth/requires-recent-login'?'For security, sign out and sign back in once, then tap Delete Account again.':e.message});
+    setCloudUi({busy:false,error:e.code==='auth/requires-recent-login'?'For security, sign out and sign back in once, then tap Delete Account again.':e.message},true);
   }
 }
 
@@ -501,5 +521,84 @@ function accountCardHtml(){
   }
   const stLabel=CLOUD_STATE.status==='syncing'?'Syncing…':(CLOUD_STATE.status==='synced'?`Synced ${CLOUD_STATE.lastSync}`:(CLOUD_STATE.status==='error'?'Sync error':'Connected'));
   return `<div class="card">
-    <d
-    
+    <div class="row"><h2 style="margin:0">☁️ Cloud Sync Active</h2><span class="pill">${esc(stLabel)}</span></div>
+    <div class="mu" style="margin:6px 0 10px">Signed in as <b>${esc(u.email||u.name||'Member')}</b>${isAdminUser()?' · <span class="pill">Admin</span>':''}</div>
+    ${CLOUD_STATE.error?`<div style="color:#b91c1c;font-size:12px;font-weight:600;margin-bottom:8px">${esc(CLOUD_STATE.error)}</div>`:''}
+    <div class="two">
+      <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 Sync Now</button>
+      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signOutCloud()">Sign Out</button>
+    </div>
+    <div style="margin-top:10px;text-align:right">
+      <button class="g sm" style="color:#b91c1c;border-color:rgba(185,28,28,.3)" onclick="deleteCloudAccount()">Delete cloud account</button>
+    </div>
+  </div>`;
+}
+
+function circleCardHtml(){
+  if(!CLOUD_STATE.user){
+    return `<div class="card">
+      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Sign in</span></div>
+      <div class="mu" style="margin-top:6px">Sign in under <b>Settings</b> to join a Hifdh circle with a partner or send gentle study nudges.</div>
+    </div>`;
+  }
+  let nudgeBanner='';
+  if(CLOUD_STATE.nudges&&CLOUD_STATE.nudges.length){
+    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box" style="margin-bottom:8px;background:var(--ac2)">
+      <div class="row"><b>🔔 Nudge from ${esc(n.fromName||'Partner')}</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">Dismiss</button></div>
+      <div style="font-size:13px;margin-top:4px">${esc(n.text||'Time for today’s Hifdh session!')}</div>
+    </div>`).join('');
+  }
+  if(!CLOUD_STATE.circle){
+    return `<div class="card">
+      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Optional</span></div>
+      ${nudgeBanner}
+      <div class="mu" style="margin:6px 0 10px">Create a small circle or enter a 6-character code to see each other’s progress and send nudges.</div>
+      <div class="two">
+        <input type="text" id="circleNameInp" placeholder="New circle name">
+        <button class="sm" onclick="createOrJoinCircle('create')">Create Circle</button>
+      </div>
+      <div class="two" style="margin-top:8px">
+        <input type="text" id="circleCodeInp" placeholder="Enter 6-char code" maxlength="6" style="text-transform:uppercase">
+        <button class="g sm" onclick="createOrJoinCircle('join')">Join Circle</button>
+      </div>
+    </div>`;
+  }
+  const members=Object.entries(CLOUD_STATE.circle.members||{}).sort((a,b)=>(b[1].pages||0)-(a[1].pages||0));
+  return `<div class="card">
+    <div class="row">
+      <div><h2 style="margin:0">🤝 ${esc(CLOUD_STATE.circle.name)}</h2><div class="mu">Code: <b>${esc(CLOUD_STATE.circle.id)}</b> · ${members.length} member(s)</div></div>
+      <button class="g sm" onclick="leaveCircleLocal()">Leave</button>
+    </div>
+    ${nudgeBanner}
+    <div style="margin-top:10px">${members.map(([uid,mInfo])=>{
+      const isMe=uid===CLOUD_STATE.user.uid;
+      return `<div class="sr">
+        <div><b>${esc(mInfo.name||'Member')}</b>${isMe?' <span class="pill">You</span>':''}<div class="mu">${mInfo.pages||0}p · ${mInfo.juz||0}/30 Juz · 🔥 ${mInfo.streak||0}d</div></div>
+        ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}',decodeURIComponent('${encAttr(mInfo.name||'Partner')}'))">👋 Nudge</button>`:''}
+      </div>`;
+    }).join('')}</div>
+  </div>`;
+}
+
+function leaderboardCardHtml(s){
+  const optedIn=Boolean(s.leaderboardOptIn);
+  const rows=CLOUD_STATE.leaderboard||[];
+  return `<div class="card">
+    <div class="row"><h2 style="margin:0">🏆 Community Leaderboard</h2><span class="pill">Opt-In</span></div>
+    <div class="mu" style="margin:6px 0 10px">Only students who opt in appear here. Share your memorized pages and streak with fellow learners.</div>
+    <label class="row" style="justify-content:flex-start;gap:10px;margin-bottom:10px;cursor:pointer">
+      <input type="checkbox" ${optedIn?'checked':''} onchange="toggleLeaderboardOptIn(this.checked)">
+      <span style="font-size:13.5px;font-weight:650">Show my name, pages &amp; streak on the leaderboard</span>
+    </label>
+    ${rows.length?rows.map((r,i)=>`<div class="sr">
+      <div><b>#${i+1} ${esc(r.name||'Student')}</b><div class="mu">${r.juz||0}/30 Juz · 🔥 ${r.streak||0}d</div></div>
+      <span class="pill">${r.pages||0} pages</span>
+    </div>`).join(''):'<div class="mu">No leaderboard entries loaded yet. Tap Sync Now after signing in.</div>'}
+  </div>`;
+}
+
+if(LS.getItem('hifdh_has_auth')){
+  ensureFb().catch(()=>{});
+}
+loadCommunityLessons();
+if(typeof render==='function')render();
