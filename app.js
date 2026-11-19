@@ -25,7 +25,7 @@ const HS=[1,11,22,32,42,51,62,72,82,92,102,112,121,132,142,151,162,173,182,192,2
 const SURAH_END=[1,49,76,106,127,150,176,186,207,221,235,248,255,261,267,281,293,304,312,321,331,341,349,359,366,376,385,396,404,410,414,417,427,434,440,445,452,458,467,476,482,489,495,498,502,506,510,515,517,520,523,525,528,531,534,537,541,545,548,551,552,554,555,557,559,561,564,566,568,570,571,573,575,577,578,580,581,583,584,585,586,587,589,589,590,591,592,592,594,594,595,596,596,596,597,597,598,599,599,600,600,600,601,601,601,602,602,602,603,603,603,604,604,604];
 const DEFAULTS={
   seenIntro:false,onboarded:false,name:'',avatar:'',email:'',
-  mode:'both',method:'tikrar',
+  mode:'both',method:'tikrar',order:'fwd',
   frontier:0,newPerDay:1,revPerDay:1,sabakPages:5,
   chunks:[5,10,15,0],cycle:0,juz:1,period:1,
   tourDay:1,tourNum:1,
@@ -111,24 +111,127 @@ function juzOf(p){const pg=Math.max(1,Math.ceil(p));for(let j=30;j>=1;j--)if(pg>
 function surahIdxOf(p){const pg=Math.max(1,Math.ceil(p));let idx=0;for(let i=0;i<SURAH_AT_PAGE.length;i++){if(pg>=SURAH_AT_PAGE[i][0])idx=i;else break}return idx}
 const surahOf=p=>SURAH_AT_PAGE[surahIdxOf(p)][1];
 
+/* ---------- Direction & Sequence Mapping (Forward / Juz Reverse / Page Reverse) ---------- */
+const SEQ=(()=>{
+  const fwd=[], page_rev=[], juz_rev=[];
+  for(let p=1;p<=TOTAL;p++)fwd.push(p);
+  for(let p=TOTAL;p>=1;p--)page_rev.push(p);
+  for(let j=30;j>=1;j--)for(let p=JUZ_START[j];p<=juzEnd(j);p++)juz_rev.push(p);
+  return{fwd,juz_rev,page_rev};
+})();
+const validOrder=o=>['fwd','juz_rev','page_rev'].includes(o)?o:'fwd';
+const seqOf=ord=>SEQ[validOrder(ord)];
+const hLbl=(ord,u)=>ord==='page_rev'?(u%2===1?'h2':'h1'):(u%2===1?'h1':'h2');
+function pageAtUnit(ord,u){
+  const seq=seqOf(ord);
+  const idx=Math.max(0,Math.min(TOTAL-1,Math.ceil(u/2)-1));
+  return seq[idx];
+}
+function pagesInUnits(ord,u1,u2){
+  const seq=seqOf(ord);
+  const s1=Math.max(1,Math.ceil(u1/2)), s2=Math.min(TOTAL,Math.ceil(u2/2));
+  const out=[];
+  for(let k=s1;k<=s2;k++)out.push(seq[k-1]);
+  return out;
+}
+function rangeArr(a,b){
+  const out=[], lo=Math.max(1,Math.min(a,b)), hi=Math.min(TOTAL,Math.max(a,b));
+  for(let p=lo;p<=hi;p++)out.push(p);
+  return out;
+}
+function fmtPageList(pages){
+  if(!pages||!pages.length)return '';
+  if(pages.length===1)return 'Page '+pages[0];
+  const runs=[];
+  let start=pages[0], prev=pages[0], dir=0;
+  for(let i=1;i<pages.length;i++){
+    const cur=pages[i], step=cur-prev;
+    if((step===1||step===-1)&&(dir===0||dir===step)){dir=step;prev=cur}
+    else{runs.push({start,end:prev,dir});start=cur;prev=cur;dir=0}
+  }
+  runs.push({start,end:prev,dir});
+  return 'Pages '+runs.map(r=>r.start===r.end?String(r.start):(r.dir===-1?`${r.start}→${r.end}`:`${r.start}–${r.end}`)).join(', ');
+}
+function rngUnits(u1,u2,useHalf,ord='fwd'){
+  const o=validOrder(ord);
+  if(!useHalf)return fmtPageList(pagesInUnits(o,u1,u2));
+  const p1=pageAtUnit(o,u1), p2=pageAtUnit(o,u2);
+  if(u1===u2)return `Page ${p1} ${hLbl(o,u1)}`;
+  if(u1%2===1 && u2===u1+1)return `Page ${p1} (${hLbl(o,u1)}–${hLbl(o,u2)})`;
+  if(u1%2===1 && u2%2===0)return fmtPageList(pagesInUnits(o,u1,u2));
+  return `Pages ${p1} ${hLbl(o,u1)} → ${p2} ${hLbl(o,u2)}`;
+}
+function juzCountToPages(j,ord){
+  const n=Math.max(0,Math.min(30,Math.floor(Number(j)||0)));
+  if(n<=0)return 0;
+  if(n>=30)return TOTAL;
+  return validOrder(ord)==='fwd'?juzEnd(n):(TOTAL-JUZ_START[31-n]+1);
+}
+function seqJuzPages(s){
+  const lim=Math.min(TOTAL,Math.ceil(s.frontier||0));
+  if(lim<1)return[];
+  const seq=seqOf(s.order), map=new Map();
+  for(let k=0;k<lim;k++){
+    const p=seq[k], j=juzOf(p);
+    if(!map.has(j))map.set(j,[]);
+    map.get(j).push(p);
+  }
+  return Array.from(map,([j,pages])=>({j,pages}));
+}
+function nextSeqPage(s){
+  const seq=seqOf(s.order);
+  const idx=Math.min(TOTAL-1,Math.floor(s.frontier||0));
+  return seq[idx];
+}
+
 /*STRENGTH*/
 const hzFirst=p=>Math.max(1,HS.filter(x=>x<p).length);
 const hzLast=p=>Math.max(1,HS.filter(x=>x<=p).length);
-function locLabel(a,b){
-  const nm=[];SURAH_AT_PAGE.forEach((x,i)=>{if(x[0]<=b&&SURAH_END[i]>=a)nm.push(x[1])});
+function locLabelPages(pages){
+  if(!pages||!pages.length)return '';
+  const pSet=new Set(pages);
+  const nm=[], jList=[], hList=[];
+  const seenS=new Set(), seenJ=new Set(), seenH=new Set();
+  pages.forEach(p=>{
+    const j=juzOf(p);if(!seenJ.has(j)){seenJ.add(j);jList.push(j)}
+    const h=hzLast(p);if(!seenH.has(h)){seenH.add(h);hList.push(h)}
+  });
+  SURAH_AT_PAGE.forEach((x,i)=>{
+    for(let p=x[0];p<=SURAH_END[i];p++){
+      if(pSet.has(p)){if(!seenS.has(i)){seenS.add(i);nm.push(x[1])}break}
+    }
+  });
   const sur=nm.length===1?'Surah '+nm[0]:nm.length<=3?'Surahs '+nm.slice(0,-1).join(', ')+' & '+nm[nm.length-1]:'Surahs '+nm[0]+' to '+nm[nm.length-1];
-  const ja=juzOf(a),jb=juzOf(b),ha=hzLast(a),hb=hzLast(b);
-  return sur+', Juz '+(ja===jb?ja:ja+'–'+jb)+', Hizb '+(ha===hb?ha:ha+'–'+hb);
+  const jTxt=jList.length===1?String(jList[0]):`${jList[0]}–${jList[jList.length-1]}`;
+  const hTxt=hList.length===1?String(hList[0]):`${hList[0]}–${hList[hList.length-1]}`;
+  return `${sur}, Juz ${jTxt}, Hizb ${hTxt}`;
 }
 function syncPst(s){
   if(typeof s.pst==='string'&&s.pst.length===TOTAL)return;
-  const t=new Array(TOTAL).fill('0'),lim=Math.min(TOTAL,Math.ceil(s.frontier||0));
-  for(let i=0;i<lim;i++)t[i]='s';
+  const t=new Array(TOTAL).fill('0'), seq=seqOf(s.order), lim=Math.min(TOTAL,Math.ceil(s.frontier||0));
+  for(let i=0;i<lim;i++)t[seq[i]-1]='s';
   s.pst=t.join('');
 }
-function markPgs(s,a,b,ch,onlyEmpty){const t=s.pst.split('');for(let p=a;p<=b&&p<=TOTAL;p++)if(!onlyEmpty||t[p-1]==='0')t[p-1]=ch;s.pst=t.join('')}
+function markSeq(s,stepA,stepB,ch,onlyEmpty){
+  const seq=seqOf(s.order), t=s.pst.split('');
+  for(let k=Math.max(1,stepA);k<=Math.min(TOTAL,stepB);k++){
+    const p=seq[k-1];
+    if(!onlyEmpty||t[p-1]==='0')t[p-1]=ch;
+  }
+  s.pst=t.join('');
+}
+function isPureSeqPst(s,ord,steps){
+  const expected=new Array(TOTAL).fill('0'), seq=seqOf(ord);
+  for(let k=0;k<Math.min(TOTAL,steps);k++)expected[seq[k]-1]='s';
+  return s.pst===expected.join('');
+}
 const memCount=s=>{const c=pstCount(s,1,TOTAL);return c.g+c.w};
 function pstCount(s,a,b){let g=0,w=0;for(let p=a;p<=b;p++){const c=s.pst[p-1];if(c==='s')g++;else if(c==='w')w++}return{g,w,n:b-a+1}}
+function completedJuzCount(s){
+  let n=0;
+  for(let j=1;j<=30;j++){const c=pstCount(s,JUZ_START[j],juzEnd(j));if(c.g+c.w>=c.n)n++}
+  return n;
+}
 const stkInner=(g,w,n)=>`<i class="g" style="width:${g/n*100}%"></i><i class="w" style="width:${w/n*100}%"></i>`;
 function surahState(s,i){const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0)return'none';if(c.g+c.w<c.n)return'part';return c.w?'weak':'strong'}
 function setStrength(a,b,ch,all){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(all||t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);DR=null;D=null;render()}
@@ -189,8 +292,9 @@ function strengthCard(s){
     </div>`;
   }
 
+  const juzDone=completedJuzCount(s);
   return `<div class="card">
-    <div class="row"><h2 style="margin:0">Memory strength</h2>${!hasReal?'<span class="pill">Sample data</span>':`<span class="pill">${all.g+all.w} / ${TOTAL}p</span>`}</div>
+    <div class="row"><h2 style="margin:0">Memory strength</h2>${!hasReal?'<span class="pill">Sample data</span>':`<span class="pill">${all.g+all.w}/${TOTAL}p · ${juzDone}/30 Juz</span>`}</div>
     <div class="sbar" style="margin:12px 0 10px">${stkInner(all.g,all.w,TOTAL)}</div>
     <div class="row mu" style="justify-content:flex-start;gap:14px;flex-wrap:wrap">
       <span>Strong ${sPct}%</span>
@@ -211,20 +315,12 @@ function juzSurahRange(j){
   return s1===s2?s1:`${s1} – ${s2}`;
 }
 
-function fmtFace(u){const p=Math.ceil(u/2), half=(u%2===1)?'h1':'h2'; return `${p} ${half}`}
-function rngUnits(u1,u2,useHalf){
-  if(!useHalf){const p1=Math.ceil(u1/2), p2=Math.ceil(u2/2); return p1===p2?`Page ${p1}`:`Pages ${p1}–${p2}`}
-  if(u1===u2)return `Page ${fmtFace(u1)}`;
-  if(u1%2===1 && u2===u1+1)return `Page ${Math.ceil(u1/2)} (h1–h2)`;
-  return `Pages ${fmtFace(u1)} → ${fmtFace(u2)}`;
-}
-const pageFromUnit=u=>Math.max(1,Math.min(TOTAL,Math.ceil(u/2)));
-
 const loadState=()=>{
   const raw=ld('hifdh_state',{});
   if(raw&&raw.frontier!==undefined&&!raw.pst&&!LS.getItem('hifdh_backup_pre_strength'))sv('hifdh_backup_pre_strength',raw);
   const s=Object.assign({},DEFAULTS,raw);
   if(!['tikrar','ottoman','simple'].includes(s.method))s.method='simple';
+  s.order=validOrder(s.order);
   if(!Array.isArray(s.chunks)||!s.chunks.length)s.chunks=s.method==='simple'?[0]:[5,10,15,0];
   syncPst(s);
   return s;
@@ -283,7 +379,8 @@ function allDone(day){
 }
 
 function makePlan(s){
-  const plan={n:null,sb:null,r:[],u:[]};
+  const ord=validOrder(s.order);
+  const plan={n:null,sb:null,r:[],u:[],ord};
   const doHifdh=s.mode==='both'||s.mode==='hifdh';
   const doRev=s.mode==='both'||s.mode==='revision';
   const stepPages=Number(s.newPerDay)||1;
@@ -295,9 +392,10 @@ function makePlan(s){
   if(doHifdh && stepPages>0 && curUnits<totalUnits){
     const uA=curUnits+1;
     const uB=Math.min(totalUnits,curUnits+stepUnits);
+    const pages=pagesInUnits(ord,uA,uB);
     const repTarget=stepPages>=3?30:40;
     plan.n={
-      uA,uB,a:pageFromUnit(uA),b:uB/2,useHalf,repTarget,done:false,
+      uA,uB,a:pages[0],b:uB/2,pages,ord,useHalf,repTarget,done:false,
       subs:{yest:false,listen:false,tafsir:false,repeat:false,record:false}
     };
   }
@@ -307,9 +405,10 @@ function makePlan(s){
     if(curUnits>=stepUnits){
       const connEnd=curUnits;
       const connStart=Math.max(1,connEnd-connWindowUnits+1);
+      const sbPages=pagesInUnits(ord,connStart,connEnd);
       plan.sb={
-        uA:connStart,uB:connEnd,a:pageFromUnit(connStart),b:pageFromUnit(connEnd),
-        useHalf,label:'Recent Connection (Ar-Rabt)',done:false
+        uA:connStart,uB:connEnd,a:sbPages[0],b:sbPages[sbPages.length-1],
+        pages:sbPages,ord,useHalf,label:'Recent Connection (Ar-Rabt)',done:false
       };
       if(doRev){
         const oldEnd=curUnits>=totalUnits ? totalUnits : (connStart-1);
@@ -318,12 +417,13 @@ function makePlan(s){
           const chunk=Math.max(1,Math.ceil(oldEnd/6));
           const revStart=Math.min(oldEnd,(tDay-1)*chunk+1);
           const revEnd=tDay===6?oldEnd:Math.min(oldEnd,tDay*chunk);
+          const revPages=pagesInUnits(ord,revStart,revEnd);
           const before={tourDay:tDay,tourNum:s.tourNum||1};
           const after=tDay>=6?{tourDay:1,tourNum:(s.tourNum||1)+1}:{tourDay:tDay+1,tourNum:s.tourNum||1};
           plan.r.push({
             isTikrar:true,tourNum:s.tourNum||1,tourDay:tDay,
-            uA:revStart,uB:revEnd,a:pageFromUnit(revStart),b:pageFromUnit(revEnd),
-            useHalf,done:false,before,after
+            uA:revStart,uB:revEnd,a:revPages[0],b:revPages[revPages.length-1],
+            pages:revPages,ord,useHalf,done:false,before,after
           });
         }
       }
@@ -335,23 +435,48 @@ function makePlan(s){
     const sbUnits=Math.round(s.sabakPages*2);
     const blk=6*Math.max(1,Math.round((stepPages>0?stepPages:1)*2));
     const startU=curUnits>sbUnits?1+blk*Math.floor((curUnits-sbUnits)/blk):1;
+    const sbPages=pagesInUnits(ord,startU,curUnits);
     plan.sb={
-      uA:startU,uB:curUnits,a:pageFromUnit(startU),b:pageFromUnit(curUnits),
-      useHalf,label:'Recent Revision (6-day window)',done:false
+      uA:startU,uB:curUnits,a:sbPages[0],b:sbPages[sbPages.length-1],
+      pages:sbPages,ord,useHalf,label:'Recent Revision (6-day window)',done:false
     };
   }
   if(doRev && s.frontier>=1){
-    let pos={c:s.cycle,j:s.juz,p:s.period};
-    const chunks=(Array.isArray(s.chunks)&&s.chunks.length)?s.chunks:[0];
-    if(pos.c>=chunks.length)pos.c=0;
-    for(let i=0;i<s.revPerDay;i++){
-      const top=juzOf(s.frontier);
-      if(pos.j>top){pos.j=1;pos.c++;if(pos.c>=chunks.length){pos.c=s.afterLast==='restart'?0:chunks.length-1;pos.p++}}
-      const end=Math.min(juzEnd(pos.j),Math.ceil(s.frontier)),st=JUZ_START[pos.j],N=chunks[pos.c];
-      const from=N>0?Math.max(st,end-N+1):st;
-      const before={c:pos.c,j:pos.j,p:pos.p},after={c:pos.c,j:pos.j+1,p:pos.p};
-      plan.r.push({j:pos.j,a:from,b:end,c:pos.c,p:pos.p,n:N,done:false,before,after});
-      pos={c:after.c,j:after.j,p:after.p};
+    const jList=seqJuzPages(s);
+    if(jList.length){
+      const jNums=jList.map(x=>x.j);
+      const chunks=(Array.isArray(s.chunks)&&s.chunks.length)?s.chunks:[0];
+      let pos={c:s.cycle,j:s.juz,p:s.period};
+      if(pos.c>=chunks.length)pos.c=0;
+      for(let i=0;i<s.revPerDay;i++){
+        let idx=jNums.indexOf(pos.j);
+        if(idx===-1){
+          const pastEnd=ord==='fwd'?(pos.j>jNums[jNums.length-1]):(pos.j<jNums[jNums.length-1]);
+          if(pastEnd){
+            pos.c++;
+            if(pos.c>=chunks.length){pos.c=s.afterLast==='restart'?0:chunks.length-1;pos.p++}
+          }
+          idx=0;
+          pos.j=jNums[0];
+        }
+        const entry=jList[idx], N=chunks[pos.c];
+        const revPages=N>0?entry.pages.slice(-N):entry.pages.slice();
+        const before={c:pos.c,j:pos.j,p:pos.p};
+        let after, wrapped=false, wrappedPeriod=false;
+        if(idx<jNums.length-1){
+          after={c:pos.c,j:jNums[idx+1],p:pos.p};
+        }else{
+          wrapped=true;
+          let nc=pos.c+1, np=pos.p;
+          if(nc>=chunks.length){nc=s.afterLast==='restart'?0:chunks.length-1;np++;wrappedPeriod=true}
+          after={c:nc,j:jNums[0],p:np};
+        }
+        plan.r.push({
+          j:entry.j,a:revPages[0],b:revPages[revPages.length-1],pages:revPages,ord,
+          c:pos.c,p:pos.p,n:N,done:false,before,after,wrapped,wrappedPeriod
+        });
+        pos={c:after.c,j:after.j,p:after.p};
+      }
     }
   }
   return plan;
@@ -365,7 +490,7 @@ const api={
     let day=old;
     if(!old||!anyDone(old)){
       const np=makePlan(s);
-      if(old&&old.n&&np.n&&old.n.uA===np.n.uA&&old.n.subs)np.n.subs=old.n.subs;
+      if(old&&old.n&&np.n&&old.n.uA===np.n.uA&&old.ord===np.ord&&old.n.subs)np.n.subs=old.n.subs;
       day=np;days[today]=np;
     }
     const cutoff=addDays(today,-400);
@@ -387,22 +512,31 @@ const api={
     if(!task.done){
       if(key==='n'){
         const oldF=s.frontier;
+        const pages=Array.isArray(task.pages)&&task.pages.length?task.pages:rangeArr(task.a,Math.ceil(task.b));
+        const touchedJuz=[...new Set(pages.map(juzOf))];
+        const beforeJuzDone=new Set(touchedJuz.filter(j=>{const c=pstCount(s,JUZ_START[j],juzEnd(j));return c.g+c.w>=c.n}));
+        const touchedSurahs=SURAH_AT_PAGE.map((x,i)=>i).filter(i=>pages.some(p=>p>=SURAH_AT_PAGE[i][0]&&p<=SURAH_END[i]));
+        const beforeSurahDone=new Set(touchedSurahs.filter(i=>{const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);return c.g+c.w>=c.n}));
+
         task.prev=oldF;
-        const pA=task.a,pB=Math.min(TOTAL,Math.ceil(task.b));
-        task.pp=s.pst.slice(pA-1,pB);
+        task.pp=pages.map(p=>[p,s.pst[p-1]]);
         s.frontier=Math.max(s.frontier,task.b);
-        {const t=s.pst.split('');for(let p=pA;p<=pB;p++)if(t[p-1]==='0')t[p-1]='w';s.pst=t.join('')}
+        {const t=s.pst.split('');pages.forEach(p=>{if(t[p-1]==='0')t[p-1]='w'});s.pst=t.join('')}
+
         const newF=s.frontier;
+        const newlyDoneJuz=touchedJuz.filter(j=>{if(beforeJuzDone.has(j))return false;const c=pstCount(s,JUZ_START[j],juzEnd(j));return c.g+c.w>=c.n});
+        const newlyDoneSurahs=touchedSurahs.filter(i=>{if(beforeSurahDone.has(i))return false;const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);return c.g+c.w>=c.n});
+        const totalDoneJuz=completedJuzCount(s);
+
         if(newF>=TOTAL && oldF<TOTAL){
-          showCelebration('👑','Māshā’Allāh! Khatmah Complete!','You have ascended all 30 Ranks to the Radiant Summit—all 604 pages of the Noble Qur’an!');
-        }else{
-          const newJ=juzOf(newF);
-          if(newF===juzEnd(newJ) && oldF<newF){
-            showCelebration('🏔️',`Juz ${newJ} Complete!`,`Allāhu Akbar! You completed Juz ${newJ} and ascended to Rank ${Math.min(30,newJ+1)} of 30.`);
-          }else if(Math.floor(newF)<TOTAL && surahIdxOf(Math.floor(newF)+1)>surahIdxOf(Math.ceil(oldF||1)) && newF>oldF){
-            const finishedSurah=surahOf(Math.floor(newF));
-            showCelebration('✨',`Surah ${finishedSurah} Complete!`,`Māshā’Allāh! You finished memorizing Surah ${finishedSurah}. Keep ascending!`);
-          }
+          showCelebration('👑','Māshā’Allāh! Khatmah Complete!','You have completed all 30 Juz—all 604 pages of the Noble Qur’an!');
+        }else if(newlyDoneJuz.length && newF>oldF){
+          const j=newlyDoneJuz[newlyDoneJuz.length-1];
+          showCelebration('🏔️',`Juz ${j} Complete!`,`Allāhu Akbar! You completed Juz ${j} (${totalDoneJuz} of 30 Juz memorized).`);
+        }else if(newlyDoneSurahs.length && newF>oldF){
+          const nm=newlyDoneSurahs.map(i=>SURAH_AT_PAGE[i][1]);
+          const label=nm.length===1?`Surah ${nm[0]}`:`Surahs ${nm.join(', ')}`;
+          showCelebration('✨',`${label} Complete!`,`Māshā’Allāh! You finished memorizing ${label}. Keep going!`);
         }
       }
       else if(key.startsWith('r')){
@@ -413,11 +547,12 @@ const api={
             showCelebration('🔄',`Tour / Circuit #${task.tourNum} Complete!`,`Māshā’Allāh! You completed your 6-day revision circuit of all old memorization. Starting Tour #${task.after.tourNum}!`);
           }
         }else{
-          const topJuz=juzOf(s.frontier);
           const chunks=(Array.isArray(s.chunks)&&s.chunks.length)?s.chunks:[0];
           s.cycle=task.after.c;s.juz=task.after.j;s.period=task.after.p;
-          if(task.j>=topJuz && topJuz>=1){
-            if(task.c+1>=chunks.length){
+          const wrapped=task.wrapped!==undefined?task.wrapped:(task.j>=juzOf(s.frontier)&&juzOf(s.frontier)>=1);
+          const wrappedPeriod=task.wrappedPeriod!==undefined?task.wrappedPeriod:(task.c+1>=chunks.length);
+          if(wrapped){
+            if(wrappedPeriod){
               showCelebration('🌟',`Period ${task.p} Complete!`,`Māshā’Allāh! You finished every cycle of Period ${task.p}. Starting Period ${task.p+1}!`);
             }else{
               showCelebration('🔄',`Revision Cycle ${task.c+1} Complete!`,`Well done! You completed Cycle ${task.c+1} (${chunkName(task.n)}) across all your memorized Juz.`);
@@ -428,7 +563,17 @@ const api={
       task.done=true;day.u.push(key);
     }else{
       if(day.u[day.u.length-1]!==key)return{error:'Undo the most recent tick first.'};
-      if(key==='n'){s.frontier=task.prev;if(task.pp!=null){const pA=task.a,pB=Math.min(TOTAL,Math.ceil(task.b));s.pst=s.pst.slice(0,pA-1)+task.pp+s.pst.slice(pB)}}
+      if(key==='n'){
+        s.frontier=task.prev;
+        if(Array.isArray(task.pp)){
+          const t=s.pst.split('');
+          task.pp.forEach(([p,ch])=>{if(p>=1&&p<=TOTAL)t[p-1]=ch});
+          s.pst=t.join('');
+        }else if(typeof task.pp==='string'){
+          const pA=task.a,pB=Math.min(TOTAL,Math.ceil(task.b));
+          s.pst=s.pst.slice(0,pA-1)+task.pp+s.pst.slice(pB);
+        }
+      }
       else if(key.startsWith('r')){
         if(task.isTikrar){s.tourDay=task.before.tourDay;s.tourNum=task.before.tourNum}
         else{s.cycle=task.before.c;s.juz=task.before.j;s.period=task.before.p}
@@ -451,18 +596,37 @@ const api={
     const s=loadState();
     const chunks=String(f.chunks==null?s.chunks.join(','):f.chunks).split(',').map(x=>parseInt(x.trim(),10)).filter(x=>!isNaN(x)&&x>=0&&x<=21);
     if(!chunks.length)return{error:'Cycle sizes must look like 5,10,15,0 (0 = whole juz).'};
+    const oldOrder=validOrder(s.order);
+    const oldF=Math.ceil(s.frontier||0);
+    const pureBefore=isPureSeqPst(s,oldOrder,oldF);
+
     s.seenIntro=true;s.onboarded=true;
     if(f.name!==undefined)s.name=String(f.name).trim();
     if(['both','hifdh','revision'].includes(f.mode))s.mode=f.mode;
     if(['tikrar','ottoman','simple'].includes(f.method))s.method=f.method;
+    if(['fwd','juz_rev','page_rev'].includes(f.order))s.order=f.order;
+    const orderChanged=s.order!==oldOrder;
+
     s.chunks=chunks.slice(0,8);
-    const fr=parseFloat(f.frontier);if(!isNaN(fr)){const oF=Math.ceil(s.frontier);s.frontier=Math.max(0,Math.min(TOTAL,Math.round(fr*2)/2));const nF=Math.ceil(s.frontier);if(nF>oF)markPgs(s,oF+1,nF,'s',true);else if(nF<oF)markPgs(s,nF+1,oF,'0',false)}
+    const fr=parseFloat(f.frontier);
+    if(!isNaN(fr))s.frontier=Math.max(0,Math.min(TOTAL,Math.round(fr*2)/2));
+    const newF=Math.ceil(s.frontier||0);
+
+    if(orderChanged){
+      if(pureBefore){s.pst='0'.repeat(TOTAL);markSeq(s,1,newF,'s',false)}
+      else{markSeq(s,1,newF,'s',true)}
+    }else if(newF>oldF){
+      markSeq(s,oldF+1,newF,'s',true);
+    }else if(newF<oldF){
+      markSeq(s,newF+1,oldF,'0',false);
+    }
+
     const np=parseFloat(f.newPerDay);if(!isNaN(np))s.newPerDay=Math.max(0,Math.min(20,Math.round(np*2)/2));
     const num=(v,def,lo,hi)=>{const n=parseInt(v,10);return isNaN(n)?def:Math.max(lo,Math.min(hi,n))};
     s.revPerDay=num(f.revPerDay,s.revPerDay,1,5);
     s.sabakPages=num(f.sabakPages,s.sabakPages,0,30);
     s.cycle=num(f.cycle,s.cycle+1,1,s.chunks.length)-1;
-    s.juz=num(f.juz,s.juz,1,30);
+    s.juz=num(f.juz,orderChanged?(s.order==='fwd'?1:30):s.juz,1,30);
     s.period=num(f.period,s.period,1,9999);
     s.tourDay=num(f.tourDay,s.tourDay||1,1,6);
     s.tourNum=num(f.tourNum,s.tourNum||1,1,9999);
@@ -477,9 +641,9 @@ const api={
   addPages(today,n){
     const s=loadState();
     const add=parseFloat(n)||0;
-    const oN=Math.ceil(s.frontier);
+    const oN=Math.ceil(s.frontier||0);
     s.frontier=Math.min(TOTAL,Math.round((s.frontier+Math.max(0,add))*2)/2);
-    markPgs(s,oN+1,Math.ceil(s.frontier),'s',true);
+    markSeq(s,oN+1,Math.ceil(s.frontier),'s',true);
     saveState(s);dropIfUnticked(today);
     return api.getData(today);
   }
@@ -798,8 +962,8 @@ function sendEmailSummary(){
   const body=encodeURIComponent(
     `Assalamu Alaikum ${s.name||''},\n\n`+
     `My Companion Hifdh Summary (${T()}):\n`+
-    `• Current Station: Rank ${juzOf(Math.max(1,s.frontier))} of 30 (Juz ${juzOf(Math.max(1,s.frontier))})\n`+
     `• Memorized: ${memCount(s)} / 604 pages (${Math.round(memCount(s)/604*100)}%)\n`+
+    `• Juz Completed: ${completedJuzCount(s)} of 30\n`+
     `• Active Streak: ${st.streak} day(s)\n\n`+
     `"Read and ascend, for your station will be at the last verse you recite."`
   );
@@ -843,7 +1007,6 @@ function resetAll(){
 }
 function replayIntro(){ensureData();const s=loadState();s.seenIntro=false;OB_SLIDE=0;saveState(s);D.state=s;render()}
 
-const rng=(a,b)=>a===b?`Page ${a}`:`Pages ${a}–${b}`;
 const chunkName=n=>n>0?`last ${n} pages`:'whole juz';
 function fmt(d){return d?new Date(d+'T00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'—'}
 const initials=name=>(name||'M').trim().split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
@@ -861,7 +1024,10 @@ const ICO={
   both:'<path d="M2 5h5a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H2z"/><path d="M13 10a4.5 4.5 0 0 1 8 0M21 16a4.5 4.5 0 0 1-8 0"/><path d="M21 6v4h-4M13 20v-4h4"/>',
   star:'<rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/><rect x="5.5" y="5.5" width="13" height="13" rx="1.5" transform="rotate(45 12 12)"/>',
   cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
-  mark:'<path d="M6 3h12v18l-6-4-6 4z"/>'
+  mark:'<path d="M6 3h12v18l-6-4-6 4z"/>',
+  fwd:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  juzrev:'<path d="M4 7h12M4 12h10M4 17h8M19 6v12M16 15l3 3 3-3"/>',
+  pagerev:'<path d="M19 12H5M11 6l-6 6 6 6"/>'
 };
 const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[n]}</svg>`;
 const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -893,7 +1059,7 @@ function heroRing(done,total){
 /* ---------- plan form (shared by first-time setup and Settings) ---------- */
 function initDraft(){
   const s=loadState();
-  DR={mode:s.mode,method:s.method,pace:s.newPerDay,posType:'page',fr:s.frontier,juzIn:'',
+  DR={mode:s.mode,method:s.method,order:validOrder(s.order),pace:s.newPerDay,posType:'page',fr:s.frontier,juzIn:'',
       rev:s.revPerDay,sabak:s.sabakPages,cycle:s.cycle+1,juz:s.juz,period:s.period,
       tourDay:s.tourDay||1,tourNum:s.tourNum||1,chunks:s.chunks.join(','),after:s.afterLast||'keep'};
 }
@@ -903,6 +1069,11 @@ function drSet(k,v){
   if(k==='method'){
     if(v==='ottoman'){DR.sabak=0;DR.chunks='5,10,15,0'}
     else if(v==='simple'){DR.sabak=5;DR.chunks='0'}
+  }
+  if(k==='order'){
+    if(DR.posType==='juz'&&DR.juzIn!=='')DR.fr=juzCountToPages(DR.juzIn,v);
+    if(v==='fwd'&&DR.juz===30)DR.juz=1;
+    else if(v!=='fwd'&&DR.juz===1)DR.juz=30;
   }
   render();
 }
@@ -914,24 +1085,42 @@ function drPos(v){
     const n=parseFloat(v);DR.fr=isNaN(n)?0:Math.max(0,Math.min(TOTAL,Math.round(n*2)/2));
   }else{
     DR.juzIn=v;
-    if(v!==''){const j=Math.max(0,Math.min(30,Math.floor(parseFloat(v)||0)));DR.fr=j>=1?juzEnd(j):0}
+    if(v!=='')DR.fr=juzCountToPages(v,DR.order);
   }
   const h=$('posHint');if(h)h.textContent=posHintText();
 }
 function posHintText(){
+  const ord=DR?validOrder(DR.order):'fwd';
+  const seq=seqOf(ord);
   const f=DR?DR.fr:0;
-  if(f<=0)return 'Starting from the beginning.';
-  return `Up to page ${f} · Juz ${juzOf(f)} · ${surahOf(f)}`;
+  if(f<=0){
+    const startP=seq[0];
+    return `Starting at Page ${startP} · Juz ${juzOf(startP)} · Surah ${surahOf(startP)}`;
+  }
+  if(f>=TOTAL)return 'All 604 pages memorized · 30 of 30 Juz.';
+  const lastP=seq[Math.ceil(f)-1];
+  const nextP=seq[Math.floor(f)];
+  return `${f} memorized · Last: Page ${lastP} (Juz ${juzOf(lastP)}) · Next: Page ${nextP} (${surahOf(nextP)})`;
 }
 function planForm(ctx){
   if(!DR)initDraft();
   const d=DR;
   const modes=[['both','Both Hifdh & Revision','both'],['hifdh','Hifdh Only','lib'],['revision','Revision Only','loop']];
   const methods=[['tikrar','Madinah Tikrar','Frequent repetition','star'],['ottoman','Ottoman Cycles','Structured rounds','loop'],['simple','Simple Daily','Steady pace','cal']];
+  const orders=[
+    ['fwd','Forward','Juz 1 → 30','fwd'],
+    ['juz_rev','Juz Reverse','Juz 30 → 1','juzrev'],
+    ['page_rev','Page Reverse','Page 604 → 1','pagerev']
+  ];
   const desc={
     tikrar:'Madinah Tikrar: 40× repetition of the new page, recent connection, and a 6-day review circuit.',
     ottoman:'Ottoman Cycles: revise each Juz in 4 easy steps (last 5 pages → 10 → 15 → full Juz), one juz per day.',
     simple:'Simple Daily: set your own daily pages, a few recent pages, and a steady juz rotation.'
+  };
+  const orderDesc={
+    fwd:'Standard order: start at Page 1 (Al-Fatihah) and advance forward to Page 604.',
+    juz_rev:'Start at Juz 30 (Pages 582–604), then Juz 29 (562–581), moving forward inside each Juz.',
+    page_rev:'Strictly backwards from Page 604 (An-Nas) down to Page 1 (Al-Fatihah).'
   };
   const paces=[0.5,1,2,3];
   const paceNum=parseFloat(d.pace);
@@ -948,12 +1137,13 @@ function planForm(ctx){
       <div><label class="f">Juz revised per day</label><input type="number" value="${esc(d.rev)}" oninput="drIn('rev',this.value)"></div>
       <div><label class="f">Recent pages to revise daily</label><input type="number" value="${esc(d.sabak)}" oninput="drIn('sabak',this.value)"></div>
      </div>
-     <label class="f">Cycle sizes (pages from end of each juz, 0 = whole juz)</label>
+     <label class="f">Cycle sizes (pages per juz, 0 = whole juz)</label>
      <input type="text" value="${esc(d.chunks)}" oninput="drIn('chunks',this.value)">
      <div class="mu" style="margin-top:4px">Example: <b>5,10,15,0</b> = last 5, last 10, last 15 pages, then the whole juz.</div>
      <div class="mu" style="margin-top:10px">Recent pages is the minimum. The recent window keeps its start page for 6 days and grows by up to 5 pages, then steps forward.</div>
      <label class="f">After the last cycle</label>
      <div class="seg"><span class="${d.after!=='restart'?'on':''}" onclick="drSet('after','keep')">Keep whole juz</span><span class="${d.after==='restart'?'on':''}" onclick="drSet('after','restart')">Restart cycles</span></div>`;
+  const juzLabel=d.order==='fwd'?'Juz fully memorized from Juz 1 (0–30)':'Juz fully memorized from Juz 30 (0–30)';
   return `
     ${ctx==='onboard'?`<div class="card"><label class="f" style="margin-top:0">Your name</label><input type="text" id="obName" placeholder="e.g. Ahmad" value="${esc(loadState().name)}"></div>`:''}
     <div class="sec" style="margin-top:${ctx==='onboard'?'18':'4'}px">Your Goal</div>
@@ -961,12 +1151,15 @@ function planForm(ctx){
     <div class="sec">Method</div>
     <div class="mgrid">${methods.map(m=>`<div class="mtile ${d.method===m[0]?'on':''}" onclick="drSet('method','${m[0]}')">${ic(m[3])}<b>${m[1]}</b><span>${m[2]}</span></div>`).join('')}</div>
     <div class="mu mdesc">${desc[d.method]}</div>
+    <div class="sec">Memorization Order</div>
+    <div class="mgrid">${orders.map(o=>`<div class="mtile ${d.order===o[0]?'on':''}" onclick="drSet('order','${o[0]}')">${ic(o[3])}<b>${o[1]}</b><span>${o[2]}</span></div>`).join('')}</div>
+    <div class="mu mdesc">${orderDesc[d.order]}</div>
     <div class="sec">Where are you now?</div>
     <div class="card">
-      <div class="seg"><span class="${d.posType==='page'?'on':''}" onclick="drPosType('page')">Page #</span><span class="${d.posType==='juz'?'on':''}" onclick="drPosType('juz')">Juz #</span></div>
+      <div class="seg"><span class="${d.posType==='page'?'on':''}" onclick="drPosType('page')">Pages done</span><span class="${d.posType==='juz'?'on':''}" onclick="drPosType('juz')">Juz done</span></div>
       ${d.posType==='page'
-        ?`<label class="f" style="margin-top:0">Pages memorized so far (0–604)</label><input type="number" step="0.5" value="${d.fr}" oninput="drPos(this.value)">`
-        :`<label class="f" style="margin-top:0">Juz fully memorized (0–30)</label><input type="number" placeholder="e.g. 15" value="${esc(d.juzIn)}" oninput="drPos(this.value)">`}
+        ?`<label class="f" style="margin-top:0">Pages memorized so far in this order (0–604)</label><input type="number" step="0.5" value="${d.fr}" oninput="drPos(this.value)">`
+        :`<label class="f" style="margin-top:0">${juzLabel}</label><input type="number" placeholder="e.g. 1" value="${esc(d.juzIn)}" oninput="drPos(this.value)">`}
       <div class="mu" id="posHint" style="margin-top:6px">${posHintText()}</div>
     </div>
     <div class="sec">Your Daily Pace</div>
@@ -981,7 +1174,7 @@ function savePlan(ctx){
   const d=DR;
   const f={
     name:ctx==='onboard'&&$('obName')?$('obName').value:undefined,
-    mode:d.mode,method:d.method,newPerDay:d.pace,frontier:d.fr,
+    mode:d.mode,method:d.method,order:d.order,newPerDay:d.pace,frontier:d.fr,
     revPerDay:d.rev,sabakPages:d.sabak,cycle:d.cycle,juz:d.juz,period:d.period,
     tourDay:d.tourDay,tourNum:d.tourNum,chunks:d.chunks,afterLast:d.after
   };
@@ -999,15 +1192,18 @@ function saveProfile(){
   saveState(s);DR=null;D=null;toast('Profile saved ✓');render();
 }
 
-/* ---------- Today screen (Redesigned) ---------- */
-function rToday(s,st,day,rank){
-  const activePage=day.n?day.n.a:(day.r[0]?day.r[0].a:Math.max(1,Math.min(TOTAL,Math.ceil(s.frontier||1))));
+/* ---------- Today screen ---------- */
+function rToday(s,st,day){
+  const ord=validOrder(day.ord||s.order);
+  const activePage=day.n?(day.n.pages?day.n.pages[0]:day.n.a):(day.r[0]?(day.r[0].pages?day.r[0].pages[0]:day.r[0].a):nextSeqPage(s));
   const activeSurah=surahOf(activePage);
   const activeJuz=juzOf(activePage);
   const activeHizb=hzLast(activePage);
 
   const tasks=[];
   if(day.n){
+    const nOrd=validOrder(day.n.ord||ord);
+    const nPages=Array.isArray(day.n.pages)&&day.n.pages.length?day.n.pages:rangeArr(day.n.a,Math.ceil(day.n.b));
     const subs=day.n.subs||{};
     const sp=(k,cls,label,act)=>`<span class="pl ${cls} ${subs[k]?'on':''}" onclick="event.stopPropagation();${act}">${subs[k]?'✓ ':''}${label}</span>`;
     let pills='';
@@ -1018,32 +1214,40 @@ function rToday(s,st,day,rank){
       pills+=sp('repeat','c3',`Repeat ${day.n.repTarget||40}x`,subs.repeat?"call('tickSub','repeat')":`jumpToTasbih(${day.n.repTarget||40})`);
       pills+=sp('record','c4','Record 3x',subs.record?"call('tickSub','record')":"setTab('recite')");
     }
-    pills+=`<a class="pl c0" href="https://quran.com/page/${day.n.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`;
+    pills+=`<a class="pl c0" href="https://quran.com/page/${nPages[0]}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`;
     const newAmt=s.newPerDay===0.5?'½ new page':`${s.newPerDay} new ${s.newPerDay===1?'page':'pages'}`;
-    tasks.push({key:'n',done:day.n.done,title:'Memorize',sub:`${newAmt} · Surah ${esc(surahOf(day.n.a))} (${rngUnits(day.n.uA,day.n.uB,day.n.useHalf)})`,pills});
+    tasks.push({
+      key:'n',done:day.n.done,title:'Memorize',
+      sub:`${newAmt} · ${esc(locLabelPages(nPages))} (${rngUnits(day.n.uA,day.n.uB,day.n.useHalf,nOrd)})`,
+      pills
+    });
   }
   if(day.sb){
-    const sbRng=rngUnits(day.sb.uA||day.sb.a*2-1,day.sb.uB||day.sb.b*2,day.sb.useHalf);
-    const sbCount=(day.sb.uB-day.sb.uA+1)/2;
+    const sbOrd=validOrder(day.sb.ord||ord);
+    const sbRng=day.sb.uA&&day.sb.uB?rngUnits(day.sb.uA,day.sb.uB,day.sb.useHalf,sbOrd):fmtPageList(day.sb.pages||rangeArr(day.sb.a,day.sb.b));
+    const sbCount=day.sb.uA&&day.sb.uB?(day.sb.uB-day.sb.uA+1)/2:(day.sb.pages?day.sb.pages.length:Math.abs(day.sb.b-day.sb.a)+1);
     const isConn=s.method==='tikrar';
     const pills=(isConn?'<span class="pl soft">Ar-Rabt</span><span class="pl soft">From memory</span>':'<span class="pl soft">Steps every 6 days</span>')
       +`<a class="pl c0" href="https://quran.com/page/${day.sb.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`;
     tasks.push({key:'sb',done:day.sb.done,title:isConn?'Recent connection':'Recent revision',sub:`${sbRng} · ${sbCount} ${sbCount===1?'page':'pages'}`,pills});
   }
   day.r.forEach((t,i)=>{
+    const rOrd=validOrder(t.ord||ord);
     if(t.isTikrar){
       tasks.push({
         key:'r'+i,done:t.done,title:`Old revision · Tour #${t.tourNum}`,
-        sub:`${rngUnits(t.uA,t.uB,t.useHalf)} · Day ${t.tourDay} of 6`,
+        sub:`${rngUnits(t.uA,t.uB,t.useHalf,rOrd)} · Day ${t.tourDay} of 6`,
         pills:`<span class="pl soft">6-day circuit</span><a class="pl c0" href="https://quran.com/page/${t.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`
       });
     }else{
+      const rPages=Array.isArray(t.pages)&&t.pages.length?t.pages:rangeArr(t.a,t.b);
+      const listStr=fmtPageList(rPages);
+      const shortRange=listStr.replace(/^Pages?\s+/,'');
       const title=s.method==='ottoman'?`Ottoman cycle ${t.c+1}`:`Juz ${t.j} revision`;
-      const rangeStr=t.a===t.b?`p. ${t.a}`:`${t.a}–${t.b}`;
-      const sub=s.method==='ottoman'?`Juz ${t.j} · ${chunkName(t.n)} (${rangeStr})`:`${rng(t.a,t.b)} · ${chunkName(t.n)}`;
+      const sub=s.method==='ottoman'?`Juz ${t.j} · ${chunkName(t.n)} (${shortRange})`:`${listStr} · ${chunkName(t.n)}`;
       tasks.push({
         key:'r'+i,done:t.done,title,sub,
-        pills:`<span class="pl soft">Cycle ${t.c+1}/${s.chunks.length}</span><span class="pl soft">Period ${t.p}</span><a class="pl c0" href="https://quran.com/page/${t.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`
+        pills:`<span class="pl soft">Cycle ${t.c+1}/${s.chunks.length}</span><span class="pl soft">Period ${t.p}</span><a class="pl c0" href="https://quran.com/page/${rPages[0]}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`
       });
     }
   });
@@ -1051,7 +1255,9 @@ function rToday(s,st,day,rank){
   const doneCount=tasks.filter(x=>x.done).length;
   const totalCount=tasks.length;
   const isFull=totalCount>0 && doneCount===totalCount;
-  const kicker=day.n?`New ${rngUnits(day.n.uA,day.n.uB,day.n.useHalf)}`:(s.mode==='revision'?`Revision · ${memCount(s)}/604 pages`:`Rank ${rank} of 30 · ${memCount(s)}/604p`);
+  const kicker=day.n
+    ?`New ${rngUnits(day.n.uA,day.n.uB,day.n.useHalf,day.n.ord||ord)}`
+    :`${memCount(s)} / ${TOTAL} pages · ${completedJuzCount(s)} / 30 Juz`;
 
   setHdr(`<div class="row"><h1 class="brand light">My Companion</h1><div class="row" style="gap:8px"><span class="mu">🔥 ${st.streak}d</span>${themeBtn(s)}</div></div>`);
 
@@ -1116,6 +1322,7 @@ function rSettings(s){
         <p><b>🕌 Madinah Tikrar.</b> Each day: recite yesterday’s portion 5×, listen 3×, read the tafsir, repeat the new portion 40× (30× on 3 pages), and record yourself 3×. Then recite the last ~25 days from memory (connection) and revise older pages in a 6-day circuit.</p>
         <p><b>🌙 Ottoman Cycles.</b> Each day revise the last pages of one juz, moving juz by juz up to where you are. Cycle 1 = last 5 pages of each juz, cycle 2 = last 10, cycle 3 = last 15, cycle 4 = the whole juz. Then a new period starts.</p>
         <p><b>✨ Simple Daily.</b> Your daily new pages, a few recent pages, and a steady juz rotation. Change the sizes in Advanced fine-tuning.</p>
+        <p><b>↕️ Direction Support.</b> All three methods work in Forward (Juz 1 → 30), Juz Reverse (Juz 30 → 1, forward inside each Juz), or Page Reverse (Page 604 → 1).</p>
         <p class="mu" style="border-top:1px solid var(--bd);padding-top:10px;margin-top:10px">Method credit: The Tikrar preset is inspired by the memorization, connectivity, and 6-day review circuit structure from <a href="https://www.tikrar.net" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-weight:700">Tikrar.net ↗</a>. My Companion is an independent study tracker and is not officially affiliated with or endorsed by Tikrar.</p>
       </div>
     </details></div>
@@ -1172,14 +1379,13 @@ async function render(){
   const seq=++RENDER_SEQ;
   if(!D){call('getData');return}
   const s=D.state,st=D.stats,day=D.day;
-  const rank=s.frontier>0?juzOf(s.frontier):1;
 
   if(!s.seenIntro){
     setHdr('');
     $('bottomNav').style.display='none';
     const slides=[
-      {ico:'📖',title:'Welcome to My Companion',desc:'Your minimalist daily companion for Qur’an memorization and revision—featuring the winding path ascension and Tikrar study habits.'},
-      {ico:'🏔️',title:'Winding Ascension Path',desc:'Watch your station elevate step-by-step up the 30-Rank path toward the Radiant Summit light as you master each Juz.'},
+      {ico:'📖',title:'Welcome to My Companion',desc:'Your minimalist daily companion for Qur’an memorization and revision—supporting forward and reverse memorization orders.'},
+      {ico:'🏔️',title:'30-Juz Memory Map',desc:'Track every Juz and Surah as strong or weak, and watch your journey rise step-by-step toward a complete Khatmah.'},
       {ico:'🎙️',title:'Tailored to Your Goal',desc:'Choose Hifdh Only, Revision Only, or Both—with built-in Tasbih counter, Voice Studio, and Rich Notes.'}
     ];
     const cur=slides[OB_SLIDE];
@@ -1210,33 +1416,39 @@ async function render(){
     setHdr(`<div class="row"><h1 class="brand light">${T2[0]}</h1>${themeBtn(s)}</div><div class="tagline">${T2[1]}</div>`);
   }
 
-  if(TAB==='today'){rToday(s,st,day,rank)}
+  if(TAB==='today'){rToday(s,st,day)}
   else if(TAB==='tools'){rTools()}
   else if(TAB==='journey'){
-    const mem=memCount(s),pct=Math.round(mem/604*100);
-    const pagesToNext=Math.max(0,juzEnd(rank)-s.frontier);
+    const mem=memCount(s), pct=Math.round(mem/604*100), juzDone=completedJuzCount(s);
+    const activeJuz=juzOf(nextSeqPage(s));
+    const isFwd=validOrder(s.order)==='fwd';
+    const pathJuz=[];
+    if(isFwd){for(let j=30;j>=1;j--)pathJuz.push(j)}
+    else{for(let j=1;j<=30;j++)pathJuz.push(j)}
+
     let pathHtml=`<div class="summit-crown">
       <div class="summit-badge">👑</div>
       <div style="font-weight:800;font-size:15px">The Radiant Summit · Khatmah</div>
       <div class="mu">“Read and ascend, for your station will be at the last verse you recite.”</div>
     </div><div class="path-container">`;
 
-    for(let j=30;j>=1;j--){
+    pathJuz.forEach((j,idx)=>{
+      const stepNum=30-idx;
       const fill=Math.round(st.juz[j-1]*100);
       const isClimbed=fill===100;
-      const isCurrent=(j===rank && !isClimbed) || (j===30 && s.frontier>=TOTAL);
+      const isCurrent=(j===activeJuz && !isClimbed) || (idx===0 && s.frontier>=TOTAL);
       const cls=isCurrent?'current':(isClimbed?'climbed':'');
       pathHtml+=`<div class="path-node ${cls}">
         <div class="node-bubble">${isClimbed?'✓':j}</div>
         <div class="node-info">
           <div class="row">
-            <b>Rank ${j} · Juz ${j}</b>
+            <b>Juz ${j} · Step ${stepNum} of 30</b>
             ${isCurrent?`<span class="pill">Current · ${fill}%</span>`:`<span class="mu">${fill}%</span>`}
           </div>
           <div class="mu">Surah: ${esc(juzSurahRange(j))}</div>
         </div>
       </div>`;
-    }
+    });
     pathHtml+=`</div>`;
 
     $('app').innerHTML=strengthCard(s)+`
@@ -1244,10 +1456,10 @@ async function render(){
       st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
     `</div></div>
     <details class="card">
-      <summary>🏔️ 30-Rank Ascension Path · Rank ${rank} of 30 (${pct}%)</summary>
+      <summary>🏔️ 30-Juz Ascension Path · ${juzDone} of 30 Juz (${pct}%)</summary>
       <div class="row mu" style="margin-top:10px">
         <span>Memorized: <b>${mem} / 604 pages</b></span>
-        <span>${pagesToNext>0?`${pagesToNext}p to Rank ${Math.min(30,rank+1)}`:'Summit Reached!'}</span>
+        <span>${st.eta?'Est. finish: '+fmt(st.eta):'All 30 Juz'}</span>
       </div>
       <div class="winding-map">${pathHtml}</div>
     </details>`;
