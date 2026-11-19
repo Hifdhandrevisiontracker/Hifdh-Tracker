@@ -7,13 +7,20 @@ const FIREBASE_CFG={
   appId:"1:266861372710:web:df6121d115ee98c610cde7"
 };
 
+const ADMIN_UID='bIv6XebWtLh6qXMKEIBppcSCsUZ2';
 const FB_VER='11.6.0';
 let fbMods=null, fbApp=null, fbAuth=null, fbDb=null, authReady=false, unsubAuth=null, syncTimer=null;
-const CLOUD_STATE={user:null,status:'offline',lastSync:'',busy:false,error:''};
+const CLOUD_STATE={
+  user:null,status:'offline',lastSync:'',busy:false,error:'',
+  circleCode:LS.getItem('hifdh_circle_code')||'',
+  circle:null,nudges:[],communityLessons:[],leaderboard:[],socialMsg:''
+};
+
+const isAdminUser=()=>Boolean(CLOUD_STATE.user&&CLOUD_STATE.user.uid===ADMIN_UID);
 
 function setCloudUi(patch){
   Object.assign(CLOUD_STATE,patch);
-  if(typeof render==='function'&&TAB==='settings')render();
+  if(typeof render==='function')render();
 }
 
 async function ensureFb(){
@@ -37,7 +44,7 @@ async function ensureFb(){
         await runCloudSync('auto');
       }else{
         LS.removeItem('hifdh_has_auth');
-        setCloudUi({user:null,status:'offline',lastSync:'',busy:false});
+        setCloudUi({user:null,status:'offline',lastSync:'',busy:false,circle:null,nudges:[],leaderboard:[]});
       }
     });
   }
@@ -94,7 +101,7 @@ function mergeStates(localS,cloudS){
   const base=Object.assign({},DEFAULTS,cloudS||{},localS||{});
   const useLocalPlan=(localS.updatedAt||0)>=(cloudS.updatedAt||0);
   const planSrc=useLocalPlan?localS:cloudS;
-  ['mode','method','order','newPerDay','revPerDay','sabakPages','chunks','afterLast','theme','color','uiText','uiCard'].forEach(k=>{
+  ['mode','method','order','newPerDay','revPerDay','sabakPages','chunks','afterLast','theme','color','uiText','uiCard','leaderboardOptIn'].forEach(k=>{
     if(planSrc&&planSrc[k]!==undefined)base[k]=planSrc[k];
   });
   base.onboarded=Boolean(localS.onboarded||cloudS.onboarded);
@@ -127,6 +134,181 @@ function askFirstSyncChoice(){
       resolve(choice);
     };
   });
+}
+
+function memberSummary(s,user){
+  const stats=(D&&D.stats)?D.stats:api.getData(T()).stats;
+  return{
+    name:(s.name||user.name||(user.email||'').split('@')[0]||'Student').slice(0,32),
+    pages:Math.round((memCount(s)||0)*10)/10,
+    juz:completedJuzCount(s),
+    streak:stats.streak||0,
+    updatedAt:Date.now()
+  };
+}
+
+async function syncCircleAndNudges(db,m,user,s){
+  const code=(CLOUD_STATE.circleCode||s.circleCode||'').trim().toUpperCase();
+  if(code){
+    const cRef=m.doc(db,'circles',code);
+    const cSnap=await m.getDoc(cRef);
+    if(cSnap.exists()){
+      const cData=cSnap.data()||{};
+      const sum=memberSummary(s,user);
+      await m.updateDoc(cRef,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
+      const membersObj=Object.assign({},cData.members||{},{[user.uid]:sum});
+      setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj}});
+    }else{
+      LS.removeItem('hifdh_circle_code');
+      setCloudUi({circleCode:'',circle:null});
+    }
+  }
+  const q=m.query(m.collection(db,'nudges'),m.where('toUid','==',user.uid));
+  const nSnap=await m.getDocs(q);
+  const items=[];
+  nSnap.forEach(d=>items.push(Object.assign({id:d.id},d.data())));
+  items.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  setCloudUi({nudges:items.slice(0,15)});
+}
+
+async function syncLeaderboard(db,m,user,s){
+  const lbRef=m.doc(db,'leaderboard',user.uid);
+  if(s.leaderboardOptIn){
+    const sum=memberSummary(s,user);
+    await m.setDoc(lbRef,{uid:user.uid,name:sum.name,pages:sum.pages,juz:sum.juz,streak:sum.streak,updatedAt:Date.now()});
+  }else{
+    await m.deleteDoc(lbRef).catch(()=>{});
+  }
+  const q=m.query(m.collection(db,'leaderboard'),m.orderBy('pages','desc'),m.limit(20));
+  const snap=await m.getDocs(q).catch(()=>null);
+  if(snap){
+    const rows=[];
+    snap.forEach(d=>rows.push(d.data()));
+    setCloudUi({leaderboard:rows});
+  }
+}
+
+async function loadCommunityLessons(){
+  try{
+    const {db,m}=await ensureFb();
+    const snap=await m.getDocs(m.collection(db,'community_lessons'));
+    const list=[];
+    snap.forEach(d=>list.push(Object.assign({docId:d.id},d.data())));
+    list.sort((a,b)=>(b.updatedAt||b.id||0)-(a.updatedAt||a.id||0));
+    setCloudUi({communityLessons:list});
+  }catch(e){}
+}
+
+async function createOrJoinCircle(action){
+  try{
+    const {auth,db,m}=await ensureFb();
+    const user=auth.currentUser;
+    if(!user){toast('Sign in under Settings first');return}
+    const s=loadState();
+    const sum=memberSummary(s,user);
+    if(action==='create'){
+      const title=($('circleNameInp')?$('circleNameInp').value.trim():'')||'Hifdh Circle';
+      const code=Math.random().toString(36).substring(2,8).toUpperCase();
+      await m.setDoc(m.doc(db,'circles',code),{
+        name:title.slice(0,40),code,createdBy:user.uid,createdAt:Date.now(),updatedAt:Date.now(),
+        members:{[user.uid]:sum}
+      });
+      s.circleCode=code;saveState(s);LS.setItem('hifdh_circle_code',code);
+      setCloudUi({circleCode:code,circle:{id:code,name:title,members:{[user.uid]:sum}},socialMsg:'Circle created! Share code '+code});
+      toast('Circle '+code+' created ✓');
+    }else{
+      const code=($('circleCodeInp')?$('circleCodeInp').value.trim().toUpperCase():'');
+      if(!code){toast('Enter a 6-character circle code');return}
+      const cRef=m.doc(db,'circles',code);
+      const cSnap=await m.getDoc(cRef);
+      if(!cSnap.exists()){toast('Circle code not found');return}
+      const cData=cSnap.data()||{};
+      await m.updateDoc(cRef,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
+      s.circleCode=code;saveState(s);LS.setItem('hifdh_circle_code',code);
+      const membersObj=Object.assign({},cData.members||{},{[user.uid]:sum});
+      setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj},socialMsg:'Joined '+code+'!'});
+      toast('Joined circle '+code+' ✓');
+    }
+  }catch(e){toast('Circle error: '+(e.message||e.code))}
+}
+
+function leaveCircleLocal(){
+  const s=loadState();s.circleCode='';saveState(s);
+  LS.removeItem('hifdh_circle_code');
+  setCloudUi({circleCode:'',circle:null,socialMsg:''});
+  toast('Left circle');
+}
+
+async function sendNudge(toUid,toName){
+  try{
+    const {auth,db,m}=await ensureFb();
+    const user=auth.currentUser;
+    if(!user||!toUid||toUid===user.uid)return;
+    const s=loadState();
+    const fromName=(s.name||user.name||(user.email||'').split('@')[0]||'Partner').slice(0,30);
+    await m.addDoc(m.collection(db,'nudges'),{
+      fromUid:user.uid,fromName,toUid,
+      text:'Assalamu Alaikum! Time for today’s Hifdh & Muraja’ah session.',
+      createdAt:Date.now()
+    });
+    toast('Nudge sent to '+toName+' ✓');
+  }catch(e){toast('Could not send nudge')}
+}
+
+async function dismissNudge(nudgeId){
+  try{
+    const {db,m}=await ensureFb();
+    await m.deleteDoc(m.doc(db,'nudges',nudgeId));
+    setCloudUi({nudges:CLOUD_STATE.nudges.filter(x=>x.id!==nudgeId)});
+  }catch(e){}
+}
+
+async function publishCommunityLesson(){
+  if(!isAdminUser()){toast('Only the app admin can publish community lessons');return}
+  const title=($('commTitle')?$('commTitle').value.trim():'');
+  const cat=($('commCat')?$('commCat').value:'Tajweed Lessons');
+  const link=($('commLink')?$('commLink').value.trim():'');
+  const rawHtml=($('commEditor')?$('commEditor').innerHTML.trim():'');
+  if(!title||!rawHtml){toast('Add both a lesson title and content');return}
+  try{
+    const {auth,db,m}=await ensureFb();
+    const user=auth.currentUser;
+    const id=Date.now();
+    const docData={
+      id,date:T(),cat,title,link,
+      html:stripInlineImages(sanitizeHtml(rawHtml)),
+      authorUid:user.uid,updatedAt:Date.now()
+    };
+    await m.setDoc(m.doc(db,'community_lessons',String(id)),docData);
+    toast('Published to Community Lessons ✓');
+    await loadCommunityLessons();
+  }catch(e){toast('Publish error: '+(e.message||e.code))}
+}
+
+async function deleteCommunityLesson(docId){
+  if(!isAdminUser()){toast('Admin permission required');return}
+  if(!confirm('Delete this community lesson for all users?'))return;
+  try{
+    const {db,m}=await ensureFb();
+    await m.deleteDoc(m.doc(db,'community_lessons',String(docId)));
+    setCloudUi({communityLessons:CLOUD_STATE.communityLessons.filter(x=>String(x.docId)!==String(docId))});
+    toast('Community lesson removed ✓');
+  }catch(e){toast('Delete error: '+(e.message||e.code))}
+}
+
+async function toggleLeaderboardOptIn(checked){
+  const s=loadState();
+  s.leaderboardOptIn=Boolean(checked);
+  saveState(s);
+  if(D)D.state=s;
+  if(LS.getItem('hifdh_has_auth')){
+    try{
+      const {auth,db,m}=await ensureFb();
+      if(auth.currentUser)await syncLeaderboard(db,m,auth.currentUser,s);
+    }catch(e){}
+  }
+  toast(s.leaderboardOptIn?'Opted in to leaderboard ✓':'Removed from leaderboard');
+  render();
 }
 
 async function runCloudSync(trigger='auto'){
@@ -171,7 +353,6 @@ async function runCloudSync(trigger='auto'){
     delete syncState.aiKey;
     await m.setDoc(userRef,{state:syncState,days:finalDays,updatedAt:Date.now()},{merge:true});
 
-    // Sync notes individually (text-only, stripped of inline base64 photos)
     const notesCol=m.collection(db,'users',user.uid,'notes');
     const cNotesSnap=await m.getDocs(notesCol);
     const cloudNotesMap=new Map();
@@ -218,6 +399,9 @@ async function runCloudSync(trigger='auto'){
     saveNotes(mergedNotes);
     LS.setItem(firstKey,'1');
     D=null;DR=null;
+    await syncCircleAndNudges(db,m,user,finalState);
+    await syncLeaderboard(db,m,user,finalState);
+    await loadCommunityLessons();
     const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     setCloudUi({busy:false,status:'synced',lastSync:nowTime,error:''});
     if(trigger==='manual')toast('Synced with cloud ✓');
@@ -284,6 +468,7 @@ async function deleteCloudAccount(){
     if(!user)return;
     const notesSnap=await m.getDocs(m.collection(db,'users',user.uid,'notes'));
     for(const d of notesSnap.docs)await m.deleteDoc(d.ref);
+    await m.deleteDoc(m.doc(db,'leaderboard',user.uid)).catch(()=>{});
     await m.deleteDoc(m.doc(db,'users',user.uid));
     LS.removeItem('hifdh_first_sync_'+user.uid);
     LS.removeItem('hifdh_has_auth');
@@ -317,7 +502,7 @@ function accountCardHtml(){
   const stLabel=CLOUD_STATE.status==='syncing'?'Syncing…':(CLOUD_STATE.status==='synced'?`Synced ${CLOUD_STATE.lastSync}`:(CLOUD_STATE.status==='error'?'Sync error':'Connected'));
   return `<div class="card">
     <div class="row"><h2 style="margin:0">☁️ Cloud Sync Active</h2><span class="pill">${esc(stLabel)}</span></div>
-    <div class="mu" style="margin:6px 0 10px">Signed in as <b>${esc(u.email||u.name||'Member')}</b></div>
+    <div class="mu" style="margin:6px 0 10px">Signed in as <b>${esc(u.email||u.name||'Member')}</b>${isAdminUser()?' · <span class="pill">Admin</span>':''}</div>
     ${CLOUD_STATE.error?`<div style="color:#b91c1c;font-size:12px;font-weight:600;margin-bottom:8px">${esc(CLOUD_STATE.error)}</div>`:''}
     <div class="two">
       <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 Sync Now</button>
@@ -329,6 +514,70 @@ function accountCardHtml(){
   </div>`;
 }
 
+function circleCardHtml(){
+  if(!CLOUD_STATE.user){
+    return `<div class="card">
+      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Sign in</span></div>
+      <div class="mu" style="margin-top:6px">Sign in under <b>Settings</b> to join a Hifdh circle with a partner or send gentle study nudges.</div>
+    </div>`;
+  }
+  let nudgeBanner='';
+  if(CLOUD_STATE.nudges&&CLOUD_STATE.nudges.length){
+    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box" style="margin-bottom:8px;background:var(--ac2)">
+      <div class="row"><b>🔔 Nudge from ${esc(n.fromName||'Partner')}</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">Dismiss</button></div>
+      <div style="font-size:13px;margin-top:4px">${esc(n.text||'Time for today’s Hifdh session!')}</div>
+    </div>`).join('');
+  }
+  if(!CLOUD_STATE.circle){
+    return `<div class="card">
+      <div class="row"><h2 style="margin:0">🤝 Study Circle &amp; Nudges</h2><span class="pill">Optional</span></div>
+      ${nudgeBanner}
+      <div class="mu" style="margin:6px 0 10px">Create a small circle or enter a 6-character code to see each other’s progress and send nudges.</div>
+      <div class="two">
+        <input type="text" id="circleNameInp" placeholder="New circle name">
+        <button class="sm" onclick="createOrJoinCircle('create')">Create Circle</button>
+      </div>
+      <div class="two" style="margin-top:8px">
+        <input type="text" id="circleCodeInp" placeholder="Enter 6-char code" maxlength="6" style="text-transform:uppercase">
+        <button class="g sm" onclick="createOrJoinCircle('join')">Join Circle</button>
+      </div>
+    </div>`;
+  }
+  const members=Object.entries(CLOUD_STATE.circle.members||{}).sort((a,b)=>(b[1].pages||0)-(a[1].pages||0));
+  return `<div class="card">
+    <div class="row">
+      <div><h2 style="margin:0">🤝 ${esc(CLOUD_STATE.circle.name)}</h2><div class="mu">Code: <b>${esc(CLOUD_STATE.circle.id)}</b> · ${members.length} member(s)</div></div>
+      <button class="g sm" onclick="leaveCircleLocal()">Leave</button>
+    </div>
+    ${nudgeBanner}
+    <div style="margin-top:10px">${members.map(([uid,mInfo])=>{
+      const isMe=uid===CLOUD_STATE.user.uid;
+      return `<div class="sr">
+        <div><b>${esc(mInfo.name||'Member')}</b>${isMe?' <span class="pill">You</span>':''}<div class="mu">${mInfo.pages||0}p · ${mInfo.juz||0}/30 Juz · 🔥 ${mInfo.streak||0}d</div></div>
+        ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}','${esc(mInfo.name||'Partner')}')">👋 Nudge</button>`:''}
+      </div>`;
+    }).join('')}</div>
+  </div>`;
+}
+
+function leaderboardCardHtml(s){
+  const optedIn=Boolean(s.leaderboardOptIn);
+  const rows=CLOUD_STATE.leaderboard||[];
+  return `<div class="card">
+    <div class="row"><h2 style="margin:0">🏆 Community Leaderboard</h2><span class="pill">Opt-In</span></div>
+    <div class="mu" style="margin:6px 0 10px">Only students who opt in appear here. Share your memorized pages and streak with fellow learners.</div>
+    <label class="row" style="justify-content:flex-start;gap:10px;margin-bottom:10px;cursor:pointer">
+      <input type="checkbox" ${optedIn?'checked':''} onchange="toggleLeaderboardOptIn(this.checked)">
+      <span style="font-size:13.5px;font-weight:650">Show my name, pages &amp; streak on the leaderboard</span>
+    </label>
+    ${rows.length?rows.map((r,i)=>`<div class="sr">
+      <div><b>#${i+1} ${esc(r.name||'Student')}</b><div class="mu">${r.juz||0}/30 Juz · 🔥 ${r.streak||0}d</div></div>
+      <span class="pill">${r.pages||0} pages</span>
+    </div>`).join(''):'<div class="mu">No leaderboard entries loaded yet. Tap Sync Now after signing in.</div>'}
+  </div>`;
+}
+
 if(LS.getItem('hifdh_has_auth')){
   ensureFb().catch(()=>{});
 }
+loadCommunityLessons();
