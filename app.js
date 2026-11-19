@@ -38,7 +38,7 @@ const DEFAULTS={
 
 const pad=n=>String(n).padStart(2,'0');
 const T=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-let OPEN_JUZ=new Set(), D=null, DR=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false;
+let SELECTED_JUZ=null, D=null, DR=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false, RENDER_SEQ=0;
 let mediaRec=null, recChunks=[], isRecording=false, audioDevices=[], selectedMic='', selectedMime='';
 const ACTIVE_URLS=new Map();
 const $=id=>document.getElementById(id);
@@ -60,6 +60,52 @@ function revokeObjUrl(key){
   if(entry){URL.revokeObjectURL(entry.url);ACTIVE_URLS.delete(key)}
 }
 
+function safeExternalUrl(raw){
+  if(!raw)return null;
+  try{
+    const u=new URL(String(raw).trim());
+    return (u.protocol==='https:'||u.protocol==='http:')?u.href:null;
+  }catch(e){return null}
+}
+function sanitizeHtml(dirty){
+  if(!dirty)return '';
+  const tpl=document.createElement('template');
+  tpl.innerHTML=String(dirty);
+  const ALLOW_TAGS=new Set(['B','STRONG','I','EM','U','P','BR','UL','OL','LI','H1','H2','H3','H4','TABLE','THEAD','TBODY','TR','TH','TD','SPAN','DIV','BLOCKQUOTE','FONT','IMG','A']);
+  const walk=node=>{
+    Array.from(node.childNodes).forEach(ch=>{
+      if(ch.nodeType===1){
+        const tag=ch.tagName.toUpperCase();
+        if(!ALLOW_TAGS.has(tag)){ch.remove();return}
+        Array.from(ch.attributes).forEach(attr=>{
+          const n=attr.name.toLowerCase();
+          if(n.startsWith('on')||n==='srcdoc'){ch.removeAttribute(attr.name);return}
+          if(tag==='A'){
+            if(n==='href'){
+              const ok=safeExternalUrl(attr.value);
+              if(ok)ch.setAttribute('href',ok);else ch.removeAttribute('href');
+            }else if(n!=='target'&&n!=='rel'){ch.removeAttribute(attr.name)}
+          }else if(tag==='IMG'){
+            if(n==='src'){
+              const v=attr.value.trim();
+              if(!(/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(v)||safeExternalUrl(v)))ch.removeAttribute('src');
+            }else if(n!=='alt'&&n!=='style'){ch.removeAttribute(attr.name)}
+          }else if(tag==='FONT'){
+            if(n!=='face'&&n!=='size'&&n!=='color')ch.removeAttribute(attr.name);
+          }else if(n!=='style'){ch.removeAttribute(attr.name)}
+        });
+        if(tag==='A'&&ch.hasAttribute('href')){
+          ch.setAttribute('target','_blank');
+          ch.setAttribute('rel','noopener noreferrer');
+        }
+        walk(ch);
+      }else if(ch.nodeType===8){ch.remove()}
+    });
+  };
+  walk(tpl.content);
+  return tpl.innerHTML;
+}
+
 const juzEnd=j=>j===30?TOTAL:JUZ_START[j+1]-1;
 function juzOf(p){const pg=Math.max(1,Math.ceil(p));for(let j=30;j>=1;j--)if(pg>=JUZ_START[j])return j;return 1}
 function surahIdxOf(p){const pg=Math.max(1,Math.ceil(p));let idx=0;for(let i=0;i<SURAH_AT_PAGE.length;i++){if(pg>=SURAH_AT_PAGE[i][0])idx=i;else break}return idx}
@@ -67,11 +113,11 @@ const surahOf=p=>SURAH_AT_PAGE[surahIdxOf(p)][1];
 
 /*STRENGTH*/
 const hzFirst=p=>Math.max(1,HS.filter(x=>x<p).length);
-const hzLast=p=>HS.filter(x=>x<=p).length;
+const hzLast=p=>Math.max(1,HS.filter(x=>x<=p).length);
 function locLabel(a,b){
   const nm=[];SURAH_AT_PAGE.forEach((x,i)=>{if(x[0]<=b&&SURAH_END[i]>=a)nm.push(x[1])});
   const sur=nm.length===1?'Surah '+nm[0]:nm.length<=3?'Surahs '+nm.slice(0,-1).join(', ')+' & '+nm[nm.length-1]:'Surahs '+nm[0]+' to '+nm[nm.length-1];
-  const ja=juzOf(a),jb=juzOf(b),ha=hzFirst(a),hb=hzLast(b);
+  const ja=juzOf(a),jb=juzOf(b),ha=hzLast(a),hb=hzLast(b);
   return sur+', Juz '+(ja===jb?ja:ja+'–'+jb)+', Hizb '+(ha===hb?ha:ha+'–'+hb);
 }
 function syncPst(s){
@@ -88,23 +134,75 @@ function surahState(s,i){const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if
 function setStrength(a,b,ch,all){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(all||t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);DR=null;D=null;render()}
 function clearSurah(i){if(!confirm('Remove '+SURAH_AT_PAGE[i][1]+' from your memorized pages?'))return;setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'0',true)}
 function toggleSurah(i){const s=loadState();const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0){setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'w',true);return}setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],c.w>0?'s':'w')}
+function selectJuz(j){
+  SELECTED_JUZ=(SELECTED_JUZ===j)?null:j;
+  render();
+  if(SELECTED_JUZ){
+    setTimeout(()=>{const el=$('juzInspector');if(el)el.scrollIntoView({behavior:'smooth',block:'nearest'})},40);
+  }
+}
 const CHC={strong:'s',weak:'w',part:'p',none:''},CHL={strong:'✓ Strong',weak:'Weak',part:'In progress',none:'+ Add'};
 function strengthCard(s){
-  const all=pstCount(s,1,TOTAL);
-  let rows='';
+  const hasReal=memCount(s)>0;
+  const all=hasReal?pstCount(s,1,TOTAL):{g:314,w:54,n:TOTAL};
+  const sPct=Math.round(all.g/TOTAL*100), wPct=Math.round(all.w/TOTAL*100), nyPct=Math.max(0,100-sPct-wPct);
+
+  const sampleWeak=new Set([13,15,16]), sampleStrong=new Set([1,2,3,4,5,6,7,8,9,10,11,12,14,30]);
+  let gridTiles='';
   for(let j=1;j<=30;j++){
-    const a=JUZ_START[j],b=juzEnd(j),c=pstCount(s,a,b);
-    const body=SURAH_AT_PAGE.map((x,i)=>i).filter(i=>juzOf(SURAH_AT_PAGE[i][0])===j).map(i=>{const st=surahState(s,i);return `<div class="sr"><b>${esc(SURAH_AT_PAGE[i][1])}</b><span style="display:flex;gap:6px"><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button>${st!=='none'?`<button class="chip x" aria-label="Remove" onclick="clearSurah(${i})">✕</button>`:''}</span></div>`}).join('');
-    rows+=`<details class="jz" ${OPEN_JUZ.has(j)?'open':''} ontoggle="this.open?OPEN_JUZ.add(${j}):OPEN_JUZ.delete(${j})">
-      <summary><b>Juz ${j}</b><div class="sbar">${stkInner(c.g,c.w,c.n)}</div><span>${c.g+c.w?Math.round(c.g/c.n*100)+'%':'–'}</span></summary>
-      ${body||'<div class="mu" style="padding:8px 2px">No surah starts in this juz.</div>'}
-      <div class="row" style="justify-content:flex-end;gap:6px;margin-top:4px"><button class="g sm" onclick="setStrength(${a},${b},'s',true)">Whole juz as strong</button><button class="g sm" onclick="setStrength(${a},${b},'w',true)">Whole juz as weak</button></div>
-    </details>`;
+    let cls='';
+    if(hasReal){
+      const c=pstCount(s,JUZ_START[j],juzEnd(j));
+      if(c.w>0)cls='st-weak';
+      else if(c.g>=c.n)cls='st-strong';
+      else if(c.g>0)cls='st-part';
+    }else{
+      if(sampleWeak.has(j))cls='st-weak';
+      else if(sampleStrong.has(j))cls='st-strong';
+    }
+    if(SELECTED_JUZ===j)cls+=(cls?' ':'')+'sel';
+    gridTiles+=`<div class="jtile ${cls}" onclick="selectJuz(${j})" title="Juz ${j}">${j}</div>`;
   }
-  return `<div class="card"><div class="row"><h2>Memory strength</h2><span class="pill">${Math.round(all.g/TOTAL*100)}% strong</span></div>
-    <div class="mu" style="margin-bottom:10px">Add the surahs you already know. Tap a surah to switch it between weak and strong.</div>
-    <div class="sbar" style="height:10px">${stkInner(all.g,all.w,TOTAL)}</div>
-    <div class="mu" style="margin:8px 0 6px">Strong ${all.g} pages · Weak ${all.w} pages · Not yet ${TOTAL-all.g-all.w}</div>${rows}</div>`;
+
+  let inspector='';
+  if(SELECTED_JUZ){
+    const j=SELECTED_JUZ, a=JUZ_START[j], b=juzEnd(j), c=pstCount(s,a,b);
+    const idxs=SURAH_AT_PAGE.map((x,i)=>i).filter(i=>SURAH_AT_PAGE[i][0]<=b&&SURAH_END[i]>=a);
+    const body=idxs.map(i=>{
+      const st=surahState(s,i);
+      const p1=SURAH_AT_PAGE[i][0], p2=SURAH_END[i];
+      const spans=(p1<a||p2>b)?`<span class="mu">Pages ${p1}–${p2}</span>`:'';
+      return `<div class="sr"><div><b>${esc(SURAH_AT_PAGE[i][1])}</b>${spans}</div><span style="display:flex;gap:6px"><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button>${st!=='none'?`<button class="chip x" aria-label="Remove" onclick="clearSurah(${i})">✕</button>`:''}</span></div>`;
+    }).join('');
+    inspector=`<div class="card" id="juzInspector">
+      <div class="row">
+        <div><h2 style="margin:0">Juz ${j} · Pages ${a}–${b}</h2><div class="mu">Strong ${c.g} · Weak ${c.w} · Remaining ${c.n-c.g-c.w} pages</div></div>
+        <button class="g sm" onclick="selectJuz(${j})">✕</button>
+      </div>
+      <div class="sbar" style="margin:10px 0 12px">${stkInner(c.g,c.w,c.n)}</div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-start;margin-bottom:10px">
+        <button class="sm" onclick="setStrength(${a},${b},'s',true)">Whole juz strong</button>
+        <button class="g sm" onclick="setStrength(${a},${b},'w',true)">Whole juz weak</button>
+        ${c.g+c.w>0?`<button class="g sm" onclick="if(confirm('Clear memorized marks for Juz ${j}?'))setStrength(${a},${b},'0',true)">Clear juz</button>`:''}
+      </div>
+      ${body}
+    </div>`;
+  }
+
+  return `<div class="card">
+    <div class="row"><h2 style="margin:0">Memory strength</h2>${!hasReal?'<span class="pill">Sample data</span>':`<span class="pill">${all.g+all.w} / ${TOTAL}p</span>`}</div>
+    <div class="sbar" style="margin:12px 0 10px">${stkInner(all.g,all.w,TOTAL)}</div>
+    <div class="row mu" style="justify-content:flex-start;gap:14px;flex-wrap:wrap">
+      <span>Strong ${sPct}%</span>
+      <span>Weak ${wPct}%</span>
+      <span>Not yet ${nyPct}%</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row"><h2 style="margin:0">Juz</h2>${!hasReal?'<span class="pill">Sample data</span>':''}</div>
+    <div class="juz30-grid">${gridTiles}</div>
+    <div class="mu" style="margin-top:12px">Tap a juz to see its surahs and mark them weak or strong.</div>
+  </div>${inspector}`;
 }
 /*END*/
 
@@ -127,7 +225,7 @@ const loadState=()=>{
   if(raw&&raw.frontier!==undefined&&!raw.pst&&!LS.getItem('hifdh_backup_pre_strength'))sv('hifdh_backup_pre_strength',raw);
   const s=Object.assign({},DEFAULTS,raw);
   if(!['tikrar','ottoman','simple'].includes(s.method))s.method='simple';
-  if(!Array.isArray(s.chunks)||!s.chunks.length)s.chunks=[5,10,15,0];
+  if(!Array.isArray(s.chunks)||!s.chunks.length)s.chunks=s.method==='simple'?[0]:[5,10,15,0];
   syncPst(s);
   return s;
 };
@@ -147,16 +245,16 @@ function applyTheme(s){
 }
 function toggleTheme(){
   const s=loadState();s.theme=s.theme==='dark'?'light':'dark';
-  saveState(s);applyTheme(s);render();
+  saveState(s);applyTheme(s);if(D)D.state=s;render();
 }
-function setColor(c){const s=loadState();s.color=c;saveState(s);applyTheme(s);render()}
+function setColor(c){const s=loadState();s.color=c;saveState(s);applyTheme(s);if(D)D.state=s;render()}
+
+const navKey=t=>['tasbih','recite','library'].includes(t)?'tools':t;
 function setTab(t){
   TAB=t;T_MENU=false;DR=null;
-  NAV.forEach(n=>{const e=$('nav-'+n[0]);if(e)e.classList.toggle('active',n[0]===t)});
+  const activeKey=navKey(t);
+  NAV.forEach(n=>{const e=$('nav-'+n[0]);if(e)e.classList.toggle('active',n[0]===activeKey)});
   render();window.scrollTo(0,0);
-  if(t==='journey'){
-    setTimeout(()=>{const el=document.querySelector('.path-node.current');if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},120);
-  }
 }
 function jumpToTasbih(targetCount){
   ensureData();
@@ -244,7 +342,7 @@ function makePlan(s){
   }
   if(doRev && s.frontier>=1){
     let pos={c:s.cycle,j:s.juz,p:s.period};
-    const chunks=s.method==='simple'?[0]:s.chunks;
+    const chunks=(Array.isArray(s.chunks)&&s.chunks.length)?s.chunks:[0];
     if(pos.c>=chunks.length)pos.c=0;
     for(let i=0;i<s.revPerDay;i++){
       const top=juzOf(s.frontier);
@@ -316,7 +414,7 @@ const api={
           }
         }else{
           const topJuz=juzOf(s.frontier);
-          const chunks=s.method==='simple'?[0]:s.chunks;
+          const chunks=(Array.isArray(s.chunks)&&s.chunks.length)?s.chunks:[0];
           s.cycle=task.after.c;s.juz=task.after.j;s.period=task.after.p;
           if(task.j>=topJuz && topJuz>=1){
             if(task.c+1>=chunks.length){
@@ -407,7 +505,7 @@ function uploadAvatar(inp){
       const min=Math.min(img.width,img.height);
       ctx.drawImage(img,(img.width-min)/2,(img.height-min)/2,min,min,0,0,128,128);
       const s=loadState();s.avatar=canvas.toDataURL('image/jpeg',0.82);
-      saveState(s);ensureData().state=s;render();
+      saveState(s);ensureData().state=s;inp.value='';render();
     };
     img.src=e.target.result;
   };
@@ -506,7 +604,8 @@ async function shareClip(id){
   const clips=await loadClips();
   const c=clips.find(x=>x.id===id);if(!c)return;
   const ext=(c.mime||'').includes('mp4')?'m4a':((c.mime||'').includes('wav')?'wav':'webm');
-  const file=new File([c.blob],`${c.label.replace(/\s+/g,'_')}.${ext}`,{type:c.mime||'audio/webm'});
+  const safeFile=c.label.replace(/[^a-zA-Z0-9_\u0600-\u06FF-]+/g,'_');
+  const file=new File([c.blob],`${safeFile}.${ext}`,{type:c.mime||'audio/webm'});
   if(navigator.canShare && navigator.canShare({files:[file]})){
     await navigator.share({title:c.label,text:c.note||'My Qur’an recitation from My Companion',files:[file]}).catch(()=>{});
   }else{
@@ -614,7 +713,7 @@ async function polishNoteAI(){
       const data=await res.json();
       const out=data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if(out){
-        area.innerHTML=out.replace(/```html|```/g,'').trim();
+        area.innerHTML=sanitizeHtml(out.replace(/```html|```/g,'').trim());
         if($('msg'))$('msg').textContent='✨ Polished with Gemini!';
         setTimeout(()=>{if($('msg'))$('msg').textContent=''},2500);
         return;
@@ -635,7 +734,7 @@ function saveRichNote(){
   const title=$('ntTitle').value.trim()||'Untitled Lesson';
   const cat=$('ntCat').value;
   const link=$('ntLink').value.trim();
-  const html=$('rtEditor').innerHTML.trim();
+  const html=sanitizeHtml($('rtEditor').innerHTML.trim());
   const list=loadNotes();
   if(EDIT_NOTE_ID){
     const idx=list.findIndex(x=>x.id===EDIT_NOTE_ID);
@@ -647,43 +746,37 @@ function saveRichNote(){
   SHOW_COMPOSER=false;
   saveNotes(list);render();
 }
-function editNote(id){
+async function editNote(id){
   const n=loadNotes().find(x=>x.id===id);if(!n)return;
-  EDIT_NOTE_ID=id;SHOW_COMPOSER=true;render();
-  setTimeout(()=>{
-    if($('ntTitle'))$('ntTitle').value=n.title||'';
-    if($('ntCat'))$('ntCat').value=n.cat||'Tajweed Lessons';
-    if($('ntLink'))$('ntLink').value=n.link||'';
-    if($('rtEditor'))$('rtEditor').innerHTML=n.html||n.body||'';
-  },50);
+  EDIT_NOTE_ID=id;SHOW_COMPOSER=true;
+  await render();
+  if($('ntTitle'))$('ntTitle').value=n.title||'';
+  if($('ntCat'))$('ntCat').value=n.cat||'Tajweed Lessons';
+  if($('ntLink'))$('ntLink').value=n.link||'';
+  if($('rtEditor'))$('rtEditor').innerHTML=sanitizeHtml(n.html||esc(n.body||''));
 }
 function delNote(id){if(!confirm('Delete this note/lesson?'))return;saveNotes(loadNotes().filter(x=>x.id!==id));render()}
 function setLibFilter(f){ensureData();const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
 function setLibSubTab(st){ensureData();const s=loadState();s.libSubTab=st;saveState(s);D.state=s;render()}
 
-function safeExternalUrl(raw){
-  if(!raw)return null;
-  try{
-    const u=new URL(raw.trim());
-    return (u.protocol==='https:'||u.protocol==='http:')?u.href:null;
-  }catch(e){return null}
-}
 function exportNoteDoc(id,type){
   const n=loadNotes().find(x=>x.id===id);if(!n)return;
   const cleanLink=safeExternalUrl(n.link);
+  const safeBody=sanitizeHtml(n.html||esc(n.body||''));
+  const safeFile=n.title.replace(/[^a-zA-Z0-9_\u0600-\u06FF-]+/g,'_')||'lesson';
   const content=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(n.title)}</title>
     <style>body{font-family:system-ui,sans-serif;padding:28px;line-height:1.6}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:6px}</style>
-    </head><body><h1>${esc(n.title)}</h1><p style="color:#666">${esc(n.cat)} · ${esc(n.date)}</p>${cleanLink?`<p><a href="${esc(cleanLink)}" target="_blank" rel="noopener noreferrer">${esc(cleanLink)}</a></p>`:''}<div>${n.html||esc(n.body||'')}</div></body></html>`;
+    </head><body><h1>${esc(n.title)}</h1><p style="color:#666">${esc(n.cat)} · ${esc(n.date)}</p>${cleanLink?`<p><a href="${esc(cleanLink)}" target="_blank" rel="noopener noreferrer">${esc(cleanLink)}</a></p>`:''}<div>${safeBody}</div></body></html>`;
   if(type==='pdf'){
     const w=window.open('','_blank');
     if(w){w.document.write(content);w.document.close();w.focus();setTimeout(()=>w.print(),300)}
   }else if(type==='doc'){
     const blob=new Blob(['\ufeff',content],{type:'application/msword'});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=`${n.title.replace(/\s+/g,'_')}.doc`;a.click();
+    const a=document.createElement('a');a.href=url;a.download=`${safeFile}.doc`;a.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }else if(type==='share'){
-    const tmp=document.createElement('div');tmp.innerHTML=n.html||n.body||'';
+    const tmp=document.createElement('div');tmp.innerHTML=safeBody;
     const txt=`📖 ${n.title} (${n.cat})\n\n${tmp.innerText}${cleanLink?'\n🔗 '+cleanLink:''}`;
     if(navigator.share)navigator.share({title:n.title,text:txt}).catch(()=>{});
     else if(navigator.clipboard){navigator.clipboard.writeText(txt).catch(()=>{});toast('Copied to clipboard!')}
@@ -738,7 +831,7 @@ function importData(inp){
     if(!confirm('Replace your current data with this backup?'))return;
     saveState(Object.assign({},DEFAULTS,o.state));sv('hifdh_days',o.days);
     if(o.notes)saveNotes(o.notes);
-    DR=null;D=null;render();
+    DR=null;D=null;SELECTED_JUZ=null;render();
   }catch(e){if($('msg'))$('msg').textContent=e.message}};
   r.readAsText(f);inp.value='';
 }
@@ -746,7 +839,7 @@ function resetAll(){
   LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');
   ACTIVE_URLS.forEach(entry=>URL.revokeObjectURL(entry.url));
   ACTIVE_URLS.clear();
-  DR=null;D=null;render();
+  DR=null;D=null;SELECTED_JUZ=null;render();
 }
 function replayIntro(){ensureData();const s=loadState();s.seenIntro=false;OB_SLIDE=0;saveState(s);D.state=s;render()}
 
@@ -758,7 +851,8 @@ const initials=name=>(name||'M').trim().split(/\s+/).map(x=>x[0]).join('').slice
 /* ---------- icons & small helpers ---------- */
 const ICO={
   home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
-  stats:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  stats:'<path d="M4 20h16M7 20v-7M12 20V7M17 20v-4"/>',
+  tools:'<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
   tasbih:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
   mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   lib:'<path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z"/>',
@@ -769,15 +863,32 @@ const ICO={
   cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   mark:'<path d="M6 3h12v18l-6-4-6 4z"/>'
 };
-const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICO[n]}</svg>`;
+const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[n]}</svg>`;
 const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const encAttr=t=>encodeURIComponent(t).replace(/'/g,'%27');
 function toast(t){const e=$('toast');if(!e)return;e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),2600)}
-const NAV=[['today','home','Today'],['journey','stats','Stats'],['tasbih','tasbih','Tasbih'],['recite','mic','Recite'],['library','lib','Library'],['settings','gear','Settings']];
-function buildNav(){$('bottomNav').innerHTML=NAV.map(n=>`<button id="nav-${n[0]}" class="${n[0]===TAB?'active':''}" onclick="setTab('${n[0]}')">${ic(n[1])}<span>${n[2]}</span></button>`).join('')}
+const NAV=[['today','home','Today'],['journey','stats','Stats'],['tools','tools','Tools'],['settings','gear','Settings']];
+function buildNav(){
+  const activeKey=navKey(TAB);
+  $('bottomNav').innerHTML=NAV.map(n=>`<button id="nav-${n[0]}" class="${n[0]===activeKey?'active':''}" onclick="setTab('${n[0]}')">${ic(n[1])}<span>${n[2]}</span></button>`).join('');
+}
 function setHdr(h){$('hdr').innerHTML=h}
 const themeBtn=s=>`<button class="g sm" onclick="toggleTheme()" id="themeBtn" title="Switch theme">${s.theme==='dark'?'☀️':'🌙'}</button>`;
 function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);DR=null;D=null;render()}
 function setUi(k,v){ensureData();const s=loadState();s[k]=v;saveState(s);applyTheme(s);D.state=s;render()}
+
+function heroRing(done,total){
+  const r=26, circ=2*Math.PI*r;
+  const pct=total>0?(done/total):0;
+  const offset=circ*(1-pct);
+  return `<div class="ring-wrap" aria-label="${done} of ${total} tasks done">
+    <svg class="ring-svg" viewBox="0 0 64 64">
+      <circle class="ring-bg" cx="32" cy="32" r="${r}"></circle>
+      <circle class="ring-fg" cx="32" cy="32" r="${r}" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"></circle>
+    </svg>
+    <span class="ring-txt">${done}/${total}</span>
+  </div>`;
+}
 
 /* ---------- plan form (shared by first-time setup and Settings) ---------- */
 function initDraft(){
@@ -888,25 +999,14 @@ function saveProfile(){
   saveState(s);DR=null;D=null;toast('Profile saved ✓');render();
 }
 
-/* ---------- Today screen ---------- */
+/* ---------- Today screen (Redesigned) ---------- */
 function rToday(s,st,day,rank){
-  const cnt=pstCount(s,1,TOTAL),mem=cnt.g+cnt.w,pct=Math.round(mem/604*100);
-  const curJ=(s.frontier>0&&s.frontier>=juzEnd(rank)&&rank<30)?rank+1:rank;
-  const jlen=juzEnd(curJ)-JUZ_START[curJ]+1;
-  const jc=pstCount(s,JUZ_START[curJ],juzEnd(curJ)),jdone=jc.g+jc.w;
-  const jp=Math.round(jdone/jlen*100);
-  setHdr(`<div class="row"><h1 class="brand light">My Companion</h1>${themeBtn(s)}</div><div class="tagline">Today’s Journey</div><div class="hello">Assalamu Alaikum${s.name?', '+esc(s.name):''}</div>`);
-  const mush=p=>`<a class="pl c0" href="https://quran.com/page/${p}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`;
-  const card=(key,done,title,sub,pills)=>`<div class="tcard ${done?'done':''}" onclick="call('tick','${key}')"><div class="chk">${done?'✓':''}</div><div style="flex:1;min-width:0"><div class="ttl">${title}</div><div class="tsub">${sub}</div><div class="pills">${pills}</div></div></div>`;
-  let h=`<div class="card pcard"><h2>Today’s Progress</h2>
-    <div class="row"><span class="rk">${s.mode==='revision'?'Revision mastery':`Rank ${rank} of 30`}</span><span class="pc2">${pct}% <small>(${mem} of 604 pages)</small></span></div>
-    <div class="sbar" style="margin:12px 0 6px;height:10px">${stkInner(cnt.g,cnt.w,TOTAL)}</div><div class="mu" style="margin-bottom:8px">Strong ${cnt.g} · Weak ${cnt.w} pages</div>
-    <div class="row mu"><span>🔥 ${st.streak} day streak</span><span>${s.mode!=='revision'&&st.eta?'Finish: '+fmt(st.eta):''}</span></div>
-    <div style="border-top:1px solid var(--bd);margin-top:14px;padding-top:12px">
-      <div class="row"><span class="rk" style="font-size:16px">Juz ${curJ}</span><span class="pc2">${jp}% <small>(${jdone} of ${jlen} pages)</small></span></div>
-      <div class="bar" style="margin-top:8px"><i style="width:${jp}%"></i></div>
-    </div></div>`;
+  const activePage=day.n?day.n.a:(day.r[0]?day.r[0].a:Math.max(1,Math.min(TOTAL,Math.ceil(s.frontier||1))));
+  const activeSurah=surahOf(activePage);
+  const activeJuz=juzOf(activePage);
+  const activeHizb=hzLast(activePage);
 
+  const tasks=[];
   if(day.n){
     const subs=day.n.subs||{};
     const sp=(k,cls,label,act)=>`<span class="pl ${cls} ${subs[k]?'on':''}" onclick="event.stopPropagation();${act}">${subs[k]?'✓ ':''}${label}</span>`;
@@ -918,39 +1018,89 @@ function rToday(s,st,day,rank){
       pills+=sp('repeat','c3',`Repeat ${day.n.repTarget||40}x`,subs.repeat?"call('tickSub','repeat')":`jumpToTasbih(${day.n.repTarget||40})`);
       pills+=sp('record','c4','Record 3x',subs.record?"call('tickSub','record')":"setTab('recite')");
     }
-    pills+=mush(day.n.a);
-    h+=card('n',day.n.done,'New '+rngUnits(day.n.uA,day.n.uB,day.n.useHalf),esc(locLabel(day.n.a,Math.min(TOTAL,Math.ceil(day.n.b)))),pills);
+    pills+=`<a class="pl c0" href="https://quran.com/page/${day.n.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`;
+    const newAmt=s.newPerDay===0.5?'½ new page':`${s.newPerDay} new ${s.newPerDay===1?'page':'pages'}`;
+    tasks.push({key:'n',done:day.n.done,title:'Memorize',sub:`${newAmt} · Surah ${esc(surahOf(day.n.a))} (${rngUnits(day.n.uA,day.n.uB,day.n.useHalf)})`,pills});
   }
   if(day.sb){
     const sbRng=rngUnits(day.sb.uA||day.sb.a*2-1,day.sb.uB||day.sb.b*2,day.sb.useHalf);
+    const sbCount=(day.sb.uB-day.sb.uA+1)/2;
     const isConn=s.method==='tikrar';
-    h+=card('sb',day.sb.done,isConn?'Recent Connection':'Recent Revision',sbRng,
-      (isConn?'<span class="pl soft">Ar-Rabt</span><span class="pl soft">From memory</span>':`<span class="pl soft">${(day.sb.uB-day.sb.uA+1)/2} pages · steps every 6 days</span>`)+mush(day.sb.a));
+    const pills=(isConn?'<span class="pl soft">Ar-Rabt</span><span class="pl soft">From memory</span>':'<span class="pl soft">Steps every 6 days</span>')
+      +`<a class="pl c0" href="https://quran.com/page/${day.sb.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`;
+    tasks.push({key:'sb',done:day.sb.done,title:isConn?'Recent connection':'Recent revision',sub:`${sbRng} · ${sbCount} ${sbCount===1?'page':'pages'}`,pills});
   }
   day.r.forEach((t,i)=>{
     if(t.isTikrar){
-      h+=card('r'+i,t.done,'Old Revision',rngUnits(t.uA,t.uB,t.useHalf),
-        `<span class="pl soft">Tour #${t.tourNum}</span><span class="pl soft">Day ${t.tourDay} of 6</span>`+mush(t.a));
+      tasks.push({
+        key:'r'+i,done:t.done,title:`Old revision · Tour #${t.tourNum}`,
+        sub:`${rngUnits(t.uA,t.uB,t.useHalf)} · Day ${t.tourDay} of 6`,
+        pills:`<span class="pl soft">6-day circuit</span><a class="pl c0" href="https://quran.com/page/${t.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`
+      });
     }else{
-      h+=card('r'+i,t.done,`Juz ${t.j} Revision`,rng(t.a,t.b),
-        `<span class="pl soft">${chunkName(t.n)}</span><span class="pl soft">Cycle ${t.c+1}/${s.chunks.length}</span><span class="pl soft">Period ${t.p}</span>`+mush(t.a));
+      const title=s.method==='ottoman'?`Ottoman cycle ${t.c+1}`:`Juz ${t.j} revision`;
+      const rangeStr=t.a===t.b?`p. ${t.a}`:`${t.a}–${t.b}`;
+      const sub=s.method==='ottoman'?`Juz ${t.j} · ${chunkName(t.n)} (${rangeStr})`:`${rng(t.a,t.b)} · ${chunkName(t.n)}`;
+      tasks.push({
+        key:'r'+i,done:t.done,title,sub,
+        pills:`<span class="pl soft">Cycle ${t.c+1}/${s.chunks.length}</span><span class="pl soft">Period ${t.p}</span><a class="pl c0" href="https://quran.com/page/${t.a}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`
+      });
     }
   });
-  if(!day.n&&!day.sb&&!day.r.length){
+
+  const doneCount=tasks.filter(x=>x.done).length;
+  const totalCount=tasks.length;
+  const isFull=totalCount>0 && doneCount===totalCount;
+  const kicker=day.n?`New ${rngUnits(day.n.uA,day.n.uB,day.n.useHalf)}`:(s.mode==='revision'?`Revision · ${memCount(s)}/604 pages`:`Rank ${rank} of 30 · ${memCount(s)}/604p`);
+
+  setHdr(`<div class="row"><h1 class="brand light">My Companion</h1><div class="row" style="gap:8px"><span class="mu">🔥 ${st.streak}d</span>${themeBtn(s)}</div></div>`);
+
+  let h=`<div class="hero-em">
+    <div style="min-width:0">
+      <div class="hero-kicker">${esc(kicker)}</div>
+      <div class="hero-title">Surah ${esc(activeSurah)}</div>
+      <div class="hero-sub">Juz ${activeJuz} · Hizb ${activeHizb}${s.name?' · '+esc(s.name):''}</div>
+    </div>
+    ${heroRing(doneCount,totalCount)}
+  </div>
+
+  <div class="tools-grid3">
+    <div class="tool-tile" onclick="setTab('tasbih')"><div class="tool-ico">${ic('tasbih')}</div><b>Tasbih</b></div>
+    <div class="tool-tile" onclick="setTab('recite')"><div class="tool-ico">${ic('mic')}</div><b>Recite</b></div>
+    <div class="tool-tile" onclick="setTab('library')"><div class="tool-ico">${ic('lib')}</div><b>Library</b></div>
+  </div>
+
+  <div class="sec-lbl">Today’s plan</div>`;
+
+  if(!tasks.length){
     h+=`<div class="card mu">Nothing planned yet. Open <b>Settings</b> to set your plan.</div>`;
-  }else if(day.u.length){
-    const total=(day.n?1:0)+(day.sb?1:0)+day.r.length;
-    h+=`<div class="row" style="margin:2px 4px 14px"><span style="font-weight:650;color:var(--ac)">${day.u.length>=total?'✅ All done today, māshā’Allāh!':''}</span><button class="g sm" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button></div>`;
+  }else{
+    h+=tasks.map(t=>`<div class="tcard ${t.done?'done':''}" onclick="call('tick','${t.key}')">
+      <div style="flex:1;min-width:0">
+        <div class="ttl">${esc(t.title)}</div>
+        <div class="tsub mu">${t.sub}</div>
+        ${t.pills?`<div class="pills">${t.pills}</div>`:''}
+      </div>
+      <div class="chk">${t.done?'✓':''}</div>
+    </div>`).join('');
   }
-  if(s.mode!=='hifdh'&&s.method==='tikrar'){
-    h+=`<div class="card"><div class="row"><h2 style="margin:0">6-Day Review Circuit</h2><span class="pill">Tour #${s.tourNum||1}</span></div><div class="cyc" style="margin-top:10px">`+
-      [1,2,3,4,5,6].map(d=>`<span class="cy ${(s.tourDay||1)===d?'on':''}">Day ${d}</span>`).join('')+`</div></div>`;
-  }else if(s.mode!=='hifdh'&&s.method!=='tikrar'){
-    h+=`<div class="card"><div class="row"><h2 style="margin:0">Revision Cycle</h2><span class="pill">Period ${s.period}</span></div><div class="cyc" style="margin-top:10px">`+
-      s.chunks.map((n,i)=>`<span class="cy ${i===s.cycle?'on':''}">${i+1}. ${chunkName(n)}</span>`).join('')+
-      `</div><div class="mu" style="margin-top:8px">Next up: Juz ${Math.min(30,s.juz)} in cycle ${s.cycle+1}</div></div>`;
+
+  if(day.u.length){
+    h+=`<div class="row" style="margin:2px 4px 12px"><span style="font-weight:650;color:var(--ac)">${isFull?'✅ All done today, māshā’Allāh!':''}</span><button class="g sm" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button></div>`;
   }
+
   $('app').innerHTML=h;
+}
+
+/* ---------- Tools Hub ---------- */
+function rTools(){
+  $('app').innerHTML=`<div class="card">
+    <h2>Study Tools</h2>
+    <div class="mu" style="margin-bottom:12px">Quick access to repetition counting, voice practice, and your lessons & offline media.</div>
+    <div class="goal" onclick="setTab('tasbih')">${ic('tasbih')}<div style="flex:1"><b>Tasbih & Repetition</b><div class="mu">Count ayah repetitions or dhikr</div></div><span class="mu">→</span></div>
+    <div class="goal" onclick="setTab('recite')">${ic('mic')}<div style="flex:1"><b>Recite Studio</b><div class="mu">Record recitations and review notes offline</div></div><span class="mu">→</span></div>
+    <div class="goal" onclick="setTab('library')">${ic('lib')}<div style="flex:1"><b>Library & Vault</b><div class="mu">Rich notes, lessons and offline media</div></div><span class="mu">→</span></div>
+  </div>`;
 }
 
 /* ---------- Settings screen ---------- */
@@ -966,6 +1116,7 @@ function rSettings(s){
         <p><b>🕌 Madinah Tikrar.</b> Each day: recite yesterday’s portion 5×, listen 3×, read the tafsir, repeat the new portion 40× (30× on 3 pages), and record yourself 3×. Then recite the last ~25 days from memory (connection) and revise older pages in a 6-day circuit.</p>
         <p><b>🌙 Ottoman Cycles.</b> Each day revise the last pages of one juz, moving juz by juz up to where you are. Cycle 1 = last 5 pages of each juz, cycle 2 = last 10, cycle 3 = last 15, cycle 4 = the whole juz. Then a new period starts.</p>
         <p><b>✨ Simple Daily.</b> Your daily new pages, a few recent pages, and a steady juz rotation. Change the sizes in Advanced fine-tuning.</p>
+        <p class="mu" style="border-top:1px solid var(--bd);padding-top:10px;margin-top:10px">Method credit: The Tikrar preset is inspired by the memorization, connectivity, and 6-day review circuit structure from <a href="https://www.tikrar.net" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-weight:700">Tikrar.net ↗</a>. My Companion is an independent study tracker and is not officially affiliated with or endorsed by Tikrar.</p>
       </div>
     </details></div>
 
@@ -1018,6 +1169,7 @@ function rSettings(s){
 }
 
 async function render(){
+  const seq=++RENDER_SEQ;
   if(!D){call('getData');return}
   const s=D.state,st=D.stats,day=D.day;
   const rank=s.frontier>0?juzOf(s.frontier):1;
@@ -1054,11 +1206,12 @@ async function render(){
 
   $('bottomNav').style.display='flex';
   if(TAB!=='today'&&TAB!=='settings'){
-    const T2={journey:['Stats','Your ascent so far'],tasbih:['Tasbih','Count your repetitions'],recite:['Recite','Record and review your recitation'],library:['Library','Notes, lessons and media']}[TAB]||['My Companion',''];
+    const T2={journey:['Stats','Memory strength & progress'],tools:['Tools','Tasbih, Recite & Library'],tasbih:['Tasbih','Count your repetitions'],recite:['Recite','Record and review your recitation'],library:['Library','Notes, lessons and media']}[TAB]||['My Companion',''];
     setHdr(`<div class="row"><h1 class="brand light">${T2[0]}</h1>${themeBtn(s)}</div><div class="tagline">${T2[1]}</div>`);
   }
 
   if(TAB==='today'){rToday(s,st,day,rank)}
+  else if(TAB==='tools'){rTools()}
   else if(TAB==='journey'){
     const mem=memCount(s),pct=Math.round(mem/604*100);
     const pagesToNext=Math.max(0,juzEnd(rank)-s.frontier);
@@ -1086,18 +1239,18 @@ async function render(){
     }
     pathHtml+=`</div>`;
 
-    $('app').innerHTML=strengthCard(s)+`<div class="card">
-      <div class="row"><h2>🏔️ Winding Ascension Path</h2><span class="pill">Rank ${rank} of 30</span></div>
-      <div class="row mu" style="margin-bottom:12px">
-        <span>Memorized: <b>${mem} / 604 pages</b> (${pct}%)</span>
+    $('app').innerHTML=strengthCard(s)+`
+    <div class="card"><div class="row"><h2 style="margin:0">Last 28 Days Consistency</h2><span class="mu">🔥 ${st.streak}d streak</span></div><div class="strip">`+
+      st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
+    `</div></div>
+    <details class="card">
+      <summary>🏔️ 30-Rank Ascension Path · Rank ${rank} of 30 (${pct}%)</summary>
+      <div class="row mu" style="margin-top:10px">
+        <span>Memorized: <b>${mem} / 604 pages</b></span>
         <span>${pagesToNext>0?`${pagesToNext}p to Rank ${Math.min(30,rank+1)}`:'Summit Reached!'}</span>
       </div>
       <div class="winding-map">${pathHtml}</div>
-    </div>
-
-    <div class="card"><div class="row"><h2>Last 28 Days Consistency</h2><span class="mu">🔥 ${st.streak}d streak</span></div><div class="strip">`+
-      st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
-    `</div></div>`;
+    </details>`;
   }
   else if(TAB==='tasbih'){
     const count=s.tasbih||0, target=s.tasbihTarget||40;
@@ -1105,7 +1258,8 @@ async function render(){
     const phrases=['SubḥānAllāh','Alḥamdulillāh','Allāhu Akbar','Astaghfirullāh','Lā ilāha illā Allāh'];
     const themes=[['emerald','Emerald'],['midnight','Midnight'],['sand','Warm Sand'],['gold','Royal Gold'],['ocean','Deep Ocean']];
 
-    $('app').innerHTML=`<div class="tasbih-stage t-theme-${s.tasbihTheme||'emerald'}">
+    $('app').innerHTML=`<div class="row" style="margin-bottom:8px"><button class="g sm" onclick="setTab('tools')">← Tools</button></div>
+    <div class="tasbih-stage t-theme-${s.tasbihTheme||'emerald'}">
       <div class="row">
         <div>
           <span class="pill">${isAyah?'📖 Ayah Repetition Mode':'📿 Dhikr / Tasbih Mode'}</span>
@@ -1156,13 +1310,15 @@ async function render(){
   else if(TAB==='recite'){
     await initMics();
     const clips=await loadClips();
+    if(seq!==RENDER_SEQ)return;
     const formats=[
       ['','Auto (Best Supported)'],
       ['audio/webm;codecs=opus','WebM / High-Clarity Opus'],
       ['audio/mp4','MP4 / AAC (iOS & Mobile)'],
       ['audio/wav','WAV Audio']
     ];
-    $('app').innerHTML=`<div class="card" style="text-align:center">
+    $('app').innerHTML=`<div class="row" style="margin-bottom:8px"><button class="g sm" onclick="setTab('tools')">← Tools</button></div>
+    <div class="card" style="text-align:center">
       <div class="row"><h2>🎙️ Voice Recitation Studio</h2><button class="g sm" onclick="$('audUp').click()">+ Upload Audio</button></div>
       <input type="file" id="audUp" accept="audio/*" style="display:none" onchange="uploadAudioClip(this)">
       <div class="mu">Record yourself reciting the memorized portion 3 times from memory, then listen back while checking the Mushaf.</div>
@@ -1208,12 +1364,14 @@ async function render(){
   else if(TAB==='library'){
     const notes=loadNotes();
     const vault=await loadVault();
+    if(seq!==RENDER_SEQ)return;
     const allFolders=['All',...s.folders];
     const filteredNotes=s.libFilter==='All'?notes:notes.filter(n=>n.cat===s.libFilter);
     const filteredVault=s.libFilter==='All'?vault:vault.filter(v=>v.folder===s.libFilter);
     const totalVaultMB=(vault.reduce((a,b)=>a+(b.size||0),0)/(1024*1024)).toFixed(1);
 
-    let h=`<div class="card">
+    let h=`<div class="row" style="margin-bottom:8px"><button class="g sm" onclick="setTab('tools')">← Tools</button></div>
+    <div class="card">
       <div class="row">
         <h2>📂 Study Library & Lessons</h2>
         <div class="row" style="gap:6px">
@@ -1222,7 +1380,7 @@ async function render(){
         </div>
       </div>
       <div class="cyc" style="margin-top:8px">
-        ${allFolders.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" onclick="setLibFilter(decodeURIComponent('${encodeURIComponent(c)}'))">${esc(c)}</span>`).join('')}
+        ${allFolders.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" onclick="setLibFilter(decodeURIComponent('${encAttr(c)}'))">${esc(c)}</span>`).join('')}
         <span class="cy" onclick="addFolder()">+ Folder</span>
       </div>
     </div>`;
@@ -1280,7 +1438,7 @@ async function render(){
           ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
           ${isImg?`<img src="${esc(safeLink)}" style="max-width:100%;border-radius:10px;margin:6px 0">`:''}
           ${safeLink&&!yt&&!isImg?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:12.5px;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
-          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${n.html||esc(n.body||'')}</div>
+          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||esc(n.body||''))}</div>
           <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);flex-wrap:wrap;gap:6px">
             <div class="row" style="gap:5px">
               <button class="g sm" onclick="editNote(${n.id})">✏️ Edit</button>
