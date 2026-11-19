@@ -38,12 +38,27 @@ const DEFAULTS={
 
 const pad=n=>String(n).padStart(2,'0');
 const T=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-let OPEN_JUZ=new Set(), D=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false;
+let OPEN_JUZ=new Set(), D=null, DR=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false;
 let mediaRec=null, recChunks=[], isRecording=false, audioDevices=[], selectedMic='', selectedMime='';
+const ACTIVE_URLS=new Map();
 const $=id=>document.getElementById(id);
 const LS=window.localStorage;
 function ld(k,d){try{const v=LS.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
-function sv(k,v){try{LS.setItem(k,JSON.stringify(v))}catch(e){$('msg').textContent='Storage limit: '+e.message}}
+function sv(k,v){try{LS.setItem(k,JSON.stringify(v))}catch(e){if($('msg'))$('msg').textContent='Storage limit: '+e.message}}
+
+function ensureData(){if(!D)D=api.getData(T());return D}
+function getObjUrl(key,blob){
+  const prev=ACTIVE_URLS.get(key);
+  if(prev && prev.blob===blob)return prev.url;
+  if(prev)URL.revokeObjectURL(prev.url);
+  const url=URL.createObjectURL(blob);
+  ACTIVE_URLS.set(key,{blob,url});
+  return url;
+}
+function revokeObjUrl(key){
+  const entry=ACTIVE_URLS.get(key);
+  if(entry){URL.revokeObjectURL(entry.url);ACTIVE_URLS.delete(key)}
+}
 
 const juzEnd=j=>j===30?TOTAL:JUZ_START[j+1]-1;
 function juzOf(p){const pg=Math.max(1,Math.ceil(p));for(let j=30;j>=1;j--)if(pg>=JUZ_START[j])return j;return 1}
@@ -70,7 +85,7 @@ const memCount=s=>{const c=pstCount(s,1,TOTAL);return c.g+c.w};
 function pstCount(s,a,b){let g=0,w=0;for(let p=a;p<=b;p++){const c=s.pst[p-1];if(c==='s')g++;else if(c==='w')w++}return{g,w,n:b-a+1}}
 const stkInner=(g,w,n)=>`<i class="g" style="width:${g/n*100}%"></i><i class="w" style="width:${w/n*100}%"></i>`;
 function surahState(s,i){const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0)return'none';if(c.g+c.w<c.n)return'part';return c.w?'weak':'strong'}
-function setStrength(a,b,ch,all){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(all||t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);D=null;render()}
+function setStrength(a,b,ch,all){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(all||t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);DR=null;D=null;render()}
 function clearSurah(i){if(!confirm('Remove '+SURAH_AT_PAGE[i][1]+' from your memorized pages?'))return;setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'0',true)}
 function toggleSurah(i){const s=loadState();const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0){setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'w',true);return}setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],c.w>0?'s':'w')}
 const CHC={strong:'s',weak:'w',part:'p',none:''},CHL={strong:'✓ Strong',weak:'Weak',part:'In progress',none:'+ Add'};
@@ -127,7 +142,8 @@ function applyTheme(s){
   document.documentElement.setAttribute('data-size',s.uiText||'m');
   document.documentElement.setAttribute('data-cards',s.uiCard||'m');
   const colors={emerald:'#1f5f4a',blue:'#2563eb',gold:'#a16207',plum:'#7c3aed'};
-  $('metaTheme').setAttribute('content',colors[s.color]||'#1f5f4a');
+  const mt=$('metaTheme');
+  if(mt)mt.setAttribute('content',colors[s.color]||'#1f5f4a');
 }
 function toggleTheme(){
   const s=loadState();s.theme=s.theme==='dark'?'light':'dark';
@@ -135,7 +151,7 @@ function toggleTheme(){
 }
 function setColor(c){const s=loadState();s.color=c;saveState(s);applyTheme(s);render()}
 function setTab(t){
-  TAB=t;T_MENU=false;if(t==='settings')DR=null;
+  TAB=t;T_MENU=false;DR=null;
   NAV.forEach(n=>{const e=$('nav-'+n[0]);if(e)e.classList.toggle('active',n[0]===t)});
   render();window.scrollTo(0,0);
   if(t==='journey'){
@@ -143,6 +159,7 @@ function setTab(t){
   }
 }
 function jumpToTasbih(targetCount){
+  ensureData();
   const s=loadState();
   s.tasbihMode='ayah';s.tasbih=0;s.tasbihTarget=targetCount;
   saveState(s);D.state=s;setTab('tasbih');
@@ -152,13 +169,13 @@ function showCelebration(ico,title,body){
   $('modalRoot').innerHTML=`<div class="modal-bg" onclick="closeModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
       <div style="font-size:46px;margin-bottom:8px">${ico}</div>
-      <div style="font-size:19px;font-weight:800;color:var(--ac);margin-bottom:6px">${title}</div>
-      <div style="font-size:13.5px;line-height:1.5;margin-bottom:16px">${body}</div>
+      <div style="font-size:19px;font-weight:800;color:var(--ac);margin-bottom:6px">${esc(title)}</div>
+      <div style="font-size:13.5px;line-height:1.5;margin-bottom:16px">${esc(body)}</div>
       <button style="width:100%" onclick="closeModal()">Alḥamdulillāh · Continue</button>
     </div>
   </div>`;
 }
-function closeModal(){$('modalRoot').innerHTML=''}
+function closeModal(){const mr=$('modalRoot');if(mr)mr.innerHTML=''}
 
 function addDays(str,k){const p=str.split('-');const d=new Date(+p[0],+p[1]-1,+p[2]);d.setDate(d.getDate()+k);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 const anyDone=day=>(day.n&&day.n.done)||(day.sb&&day.sb.done)||day.r.some(t=>t.done);
@@ -227,7 +244,7 @@ function makePlan(s){
   }
   if(doRev && s.frontier>=1){
     let pos={c:s.cycle,j:s.juz,p:s.period};
-    const chunks=s.method==='classic'?[0]:s.chunks;
+    const chunks=s.method==='simple'?[0]:s.chunks;
     if(pos.c>=chunks.length)pos.c=0;
     for(let i=0;i<s.revPerDay;i++){
       const top=juzOf(s.frontier);
@@ -299,7 +316,7 @@ const api={
           }
         }else{
           const topJuz=juzOf(s.frontier);
-          const chunks=s.method==='classic'?[0]:s.chunks;
+          const chunks=s.method==='simple'?[0]:s.chunks;
           s.cycle=task.after.c;s.juz=task.after.j;s.period=task.after.p;
           if(task.j>=topJuz && topJuz>=1){
             if(task.c+1>=chunks.length){
@@ -372,9 +389,9 @@ const api={
 
 function dropIfUnticked(today){const d=loadDays();if(d[today]&&!anyDone(d[today])){delete d[today];sv('hifdh_days',d)}}
 function call(fn,...a){
-  $('msg').textContent='';
-  try{const r=api[fn](T(),...a);if(r&&r.error){$('msg').textContent=r.error;return}if(r)D=r}
-  catch(e){$('msg').textContent=e.message;return}
+  if($('msg'))$('msg').textContent='';
+  try{const r=api[fn](T(),...a);if(r&&r.error){if($('msg'))$('msg').textContent=r.error;return}if(r){D=r;DR=null}}
+  catch(e){if($('msg'))$('msg').textContent=e.message;return}
   render();
 }
 
@@ -390,15 +407,16 @@ function uploadAvatar(inp){
       const min=Math.min(img.width,img.height);
       ctx.drawImage(img,(img.width-min)/2,(img.height-min)/2,min,min,0,0,128,128);
       const s=loadState();s.avatar=canvas.toDataURL('image/jpeg',0.82);
-      saveState(s);D.state=s;render();
+      saveState(s);ensureData().state=s;render();
     };
     img.src=e.target.result;
   };
   reader.readAsDataURL(f);
 }
-function removeAvatar(){const s=loadState();s.avatar='';saveState(s);D.state=s;render()}
+function removeAvatar(){const s=loadState();s.avatar='';saveState(s);ensureData().state=s;render()}
 
 function tapTasbih(){
+  ensureData();
   const s=loadState();
   s.tasbih=(s.tasbih||0)+1;
   s.tasbihTotal=(s.tasbihTotal||0)+1;
@@ -409,15 +427,15 @@ function tapTasbih(){
   }else{D.state=s}
   render();
 }
-function resetTasbih(){const s=loadState();s.tasbih=0;saveState(s);D.state=s;render()}
+function resetTasbih(){ensureData();const s=loadState();s.tasbih=0;saveState(s);D.state=s;render()}
 function resetTasbihLifetime(){
   if(!confirm('Reset your lifetime counter back to 0?'))return;
-  const s=loadState();s.tasbihTotal=0;saveState(s);D.state=s;render();
+  ensureData();const s=loadState();s.tasbihTotal=0;saveState(s);D.state=s;render();
 }
-function setTasbihTarget(v){const s=loadState();s.tasbihTarget=Math.max(1,parseInt(v,10)||33);saveState(s);D.state=s;render()}
-function setTasbihMode(m){const s=loadState();s.tasbihMode=m;s.tasbih=0;s.tasbihTarget=m==='ayah'?40:33;saveState(s);D.state=s;render()}
-function setTasbihPhrase(p){const s=loadState();s.tasbihPhrase=p;saveState(s);D.state=s;render()}
-function setTasbihTheme(th){const s=loadState();s.tasbihTheme=th;saveState(s);D.state=s;render()}
+function setTasbihTarget(v){ensureData();const s=loadState();s.tasbihTarget=Math.max(1,parseInt(v,10)||33);saveState(s);D.state=s;render()}
+function setTasbihMode(m){ensureData();const s=loadState();s.tasbihMode=m;s.tasbih=0;s.tasbihTarget=m==='ayah'?40:33;saveState(s);D.state=s;render()}
+function setTasbihPhrase(p){ensureData();const s=loadState();s.tasbihPhrase=p;saveState(s);D.state=s;render()}
+function setTasbihTheme(th){ensureData();const s=loadState();s.tasbihTheme=th;saveState(s);D.state=s;render()}
 
 function openDB(){
   return new Promise((res,rej)=>{
@@ -462,7 +480,7 @@ async function toggleRecord(){
         tx.oncomplete=()=>{try{api.tickSub(T(),'record',true);D=api.getData(T())}catch(e){}render()};
       };
       mediaRec.start();isRecording=true;render();
-    }catch(e){$('msg').textContent='Microphone permission needed: '+e.message}
+    }catch(e){if($('msg'))$('msg').textContent='Microphone permission needed: '+e.message}
   }else{
     mediaRec.stop();isRecording=false;render();
   }
@@ -474,7 +492,7 @@ async function uploadAudioClip(inp){
   const db=await openDB();
   const tx=db.transaction('clips','readwrite');
   tx.objectStore('clips').put({id:Date.now(),date:T(),label,note,mime:f.type||'audio/mp3',blob:f});
-  tx.oncomplete=()=>render();
+  tx.oncomplete=()=>{inp.value='';render()};
 }
 async function editClipNote(id){
   const clips=await loadClips();const c=clips.find(x=>x.id===id);if(!c)return;
@@ -492,7 +510,9 @@ async function shareClip(id){
   if(navigator.canShare && navigator.canShare({files:[file]})){
     await navigator.share({title:c.label,text:c.note||'My Qur’an recitation from My Companion',files:[file]}).catch(()=>{});
   }else{
-    const a=document.createElement('a');a.href=URL.createObjectURL(c.blob);a.download=file.name;a.click();
+    const tempUrl=URL.createObjectURL(c.blob);
+    const a=document.createElement('a');a.href=tempUrl;a.download=file.name;a.click();
+    setTimeout(()=>URL.revokeObjectURL(tempUrl),1000);
   }
 }
 async function loadClips(){
@@ -506,6 +526,7 @@ async function loadClips(){
   }catch(e){return[]}
 }
 async function deleteClip(id){
+  revokeObjUrl('clip-'+id);
   const db=await openDB();
   const tx=db.transaction('clips','readwrite');
   tx.objectStore('clips').delete(id);
@@ -519,7 +540,7 @@ async function uploadVaultMedia(inp){
   const db=await openDB();
   const tx=db.transaction('vault','readwrite');
   tx.objectStore('vault').put({id:Date.now(),date:T(),title,folder,name:f.name,type:f.type,size:f.size,blob:f});
-  tx.oncomplete=()=>render();
+  tx.oncomplete=()=>{inp.value='';render()};
 }
 async function loadVault(){
   try{
@@ -532,6 +553,7 @@ async function loadVault(){
   }catch(e){return[]}
 }
 async function deleteVaultItem(id){
+  revokeObjUrl('vault-'+id);
   const db=await openDB();
   const tx=db.transaction('vault','readwrite');
   tx.objectStore('vault').delete(id);
@@ -543,7 +565,7 @@ function addFolder(){
   if(!name||!name.trim())return;
   const s=loadState();
   if(!s.folders.includes(name.trim()))s.folders.push(name.trim());
-  saveState(s);D.state=s;render();
+  saveState(s);ensureData().state=s;render();
 }
 function execRT(cmd,val=null){
   const area=$('rtEditor');if(!area)return;
@@ -562,37 +584,52 @@ function attachInlinePhoto(inp){
     const area=$('rtEditor');if(!area)return;
     area.focus();
     document.execCommand('insertHTML',false,`<img src="${e.target.result}" style="max-width:100%;border-radius:10px;margin:8px 0"><p></p>`);
+    inp.value='';
   };
   r.readAsDataURL(f);
 }
-async function polishNoteAI(){
-  const area=$('rtEditor');if(!area)return;
-  const raw=area.innerText.trim();
-  if(!raw){$('msg').textContent='Write some notes first before polishing.';return}
-  const s=loadState();
-  if(s.aiKey){
-    try{
-      $('msg').textContent='✨ Polishing with Gemini AI...';
-      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(s.aiKey)}`,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({contents:[{parts:[{text:`Organize and polish these Qur'an/Tajweed study notes into clean HTML using <b>, <ul>, <li>, and <p> tags without markdown code fences:\n\n${raw}`}]}]})
-      });
-      const data=await res.json();
-      const out=data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if(out){area.innerHTML=out.replace(/```html|```/g,'');$('msg').textContent='';return}
-    }catch(e){}
-  }
+function formatPlainNotes(raw){
   const lines=raw.split(/\n+/).map(l=>l.trim()).filter(Boolean);
-  const formatted=lines.map((l,idx)=>{
-    const refBold=l.replace(/\b(\d{1,3}:\d{1,3})\b/g,'<b>[$1]</b>');
+  return lines.map((l,idx)=>{
+    const refBold=esc(l).replace(/\b(\d{1,3}:\d{1,3})\b/g,'<b>[$1]</b>');
     if(idx===0 && l.length<65)return `<h3>${refBold}</h3>`;
     if(l.endsWith(':'))return `<p><b>${refBold}</b></p>`;
     if(/^[-•*]/.test(l))return `<li>${refBold.replace(/^[-•*]\s*/,'')}</li>`;
     return `<p>${refBold}</p>`;
   }).join('');
-  area.innerHTML=formatted;
-  $('msg').textContent='✨ Note cleanly structured & formatted!';
-  setTimeout(()=>{$('msg').textContent=''},2500);
+}
+async function polishNoteAI(){
+  const area=$('rtEditor');if(!area)return;
+  const raw=area.innerText.trim();
+  if(!raw){if($('msg'))$('msg').textContent='Write some notes first before polishing.';return}
+  const s=loadState();
+  if(s.aiKey){
+    try{
+      if($('msg'))$('msg').textContent='✨ Polishing with Gemini AI...';
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(s.aiKey)}`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts:[{text:`Organize and polish these Qur'an/Tajweed study notes into clean HTML using <b>, <ul>, <li>, and <p> tags without markdown code fences:\n\n${raw}`}]}]})
+      });
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const data=await res.json();
+      const out=data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if(out){
+        area.innerHTML=out.replace(/```html|```/g,'').trim();
+        if($('msg'))$('msg').textContent='✨ Polished with Gemini!';
+        setTimeout(()=>{if($('msg'))$('msg').textContent=''},2500);
+        return;
+      }
+      throw new Error('Empty response from Gemini');
+    }catch(e){
+      area.innerHTML=formatPlainNotes(raw);
+      if($('msg'))$('msg').textContent='AI polish unavailable ('+e.message+') — applied clean local formatting.';
+      setTimeout(()=>{if($('msg'))$('msg').textContent=''},3500);
+      return;
+    }
+  }
+  area.innerHTML=formatPlainNotes(raw);
+  if($('msg'))$('msg').textContent='✨ Note cleanly structured & formatted!';
+  setTimeout(()=>{if($('msg'))$('msg').textContent=''},2500);
 }
 function saveRichNote(){
   const title=$('ntTitle').value.trim()||'Untitled Lesson';
@@ -614,42 +651,54 @@ function editNote(id){
   const n=loadNotes().find(x=>x.id===id);if(!n)return;
   EDIT_NOTE_ID=id;SHOW_COMPOSER=true;render();
   setTimeout(()=>{
-    $('ntTitle').value=n.title||'';
-    $('ntCat').value=n.cat||'Tajweed Lessons';
-    $('ntLink').value=n.link||'';
-    $('rtEditor').innerHTML=n.html||n.body||'';
+    if($('ntTitle'))$('ntTitle').value=n.title||'';
+    if($('ntCat'))$('ntCat').value=n.cat||'Tajweed Lessons';
+    if($('ntLink'))$('ntLink').value=n.link||'';
+    if($('rtEditor'))$('rtEditor').innerHTML=n.html||n.body||'';
   },50);
 }
 function delNote(id){if(!confirm('Delete this note/lesson?'))return;saveNotes(loadNotes().filter(x=>x.id!==id));render()}
-function setLibFilter(f){const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
-function setLibSubTab(st){const s=loadState();s.libSubTab=st;saveState(s);D.state=s;render()}
+function setLibFilter(f){ensureData();const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
+function setLibSubTab(st){ensureData();const s=loadState();s.libSubTab=st;saveState(s);D.state=s;render()}
 
+function safeExternalUrl(raw){
+  if(!raw)return null;
+  try{
+    const u=new URL(raw.trim());
+    return (u.protocol==='https:'||u.protocol==='http:')?u.href:null;
+  }catch(e){return null}
+}
 function exportNoteDoc(id,type){
   const n=loadNotes().find(x=>x.id===id);if(!n)return;
-  const content=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${n.title}</title>
+  const cleanLink=safeExternalUrl(n.link);
+  const content=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(n.title)}</title>
     <style>body{font-family:system-ui,sans-serif;padding:28px;line-height:1.6}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:6px}</style>
-    </head><body><h1>${n.title}</h1><p style="color:#666">${n.cat} · ${n.date}</p>${n.link?`<p><a href="${n.link}">${n.link}</a></p>`:''}<div>${n.html||n.body||''}</div></body></html>`;
+    </head><body><h1>${esc(n.title)}</h1><p style="color:#666">${esc(n.cat)} · ${esc(n.date)}</p>${cleanLink?`<p><a href="${esc(cleanLink)}" target="_blank" rel="noopener noreferrer">${esc(cleanLink)}</a></p>`:''}<div>${n.html||esc(n.body||'')}</div></body></html>`;
   if(type==='pdf'){
     const w=window.open('','_blank');
     if(w){w.document.write(content);w.document.close();w.focus();setTimeout(()=>w.print(),300)}
   }else if(type==='doc'){
     const blob=new Blob(['\ufeff',content],{type:'application/msword'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${n.title.replace(/\s+/g,'_')}.doc`;a.click();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`${n.title.replace(/\s+/g,'_')}.doc`;a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
   }else if(type==='share'){
     const tmp=document.createElement('div');tmp.innerHTML=n.html||n.body||'';
-    const txt=`📖 ${n.title} (${n.cat})\n\n${tmp.innerText}\n${n.link?'\n🔗 '+n.link:''}`;
+    const txt=`📖 ${n.title} (${n.cat})\n\n${tmp.innerText}${cleanLink?'\n🔗 '+cleanLink:''}`;
     if(navigator.share)navigator.share({title:n.title,text:txt}).catch(()=>{});
-    else{navigator.clipboard.writeText(txt);$('msg').textContent='Copied to clipboard!'}
+    else if(navigator.clipboard){navigator.clipboard.writeText(txt).catch(()=>{});toast('Copied to clipboard!')}
   }
 }
 
 function ytEmbedUrl(url){
-  if(!url)return null;
-  const m=url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
+  const safe=safeExternalUrl(url);
+  if(!safe)return null;
+  const m=safe.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
   return m?`https://www.youtube.com/embed/${m[1]}`:null;
 }
 
 function sendEmailSummary(){
+  ensureData();
   const s=D.state,st=D.stats;
   const to=encodeURIComponent(s.email||'');
   const subj=encodeURIComponent(`My Companion Progress — ${s.name||'Student'} (${T()})`);
@@ -664,7 +713,8 @@ function sendEmailSummary(){
   window.location.href=`mailto:${to}?subject=${subj}&body=${body}`;
 }
 function enableReminder(){
-  if(!('Notification' in window)){$('msg').textContent='Notifications not supported on this browser.';return}
+  ensureData();
+  if(!('Notification' in window)){if($('msg'))$('msg').textContent='Notifications not supported on this browser.';return}
   Notification.requestPermission().then(p=>{
     if(p==='granted')new Notification('My Companion',{body:`Assalamu Alaikum ${D.state.name||''}! Daily Hifdh reminder is active.`});
   });
@@ -672,9 +722,12 @@ function enableReminder(){
 
 function exportData(){
   const s=loadState();s.lastBackup=T();saveState(s);
-  const blob=new Blob([JSON.stringify({app:'hifdh',v:7,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='my-companion-backup-'+T()+'.json';
-  document.body.appendChild(a);a.click();a.remove();render();
+  const blob=new Blob([JSON.stringify({app:'hifdh',v:8,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='my-companion-backup-'+T()+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  render();
 }
 function importData(inp){
   const f=inp.files[0];if(!f)return;
@@ -685,19 +738,24 @@ function importData(inp){
     if(!confirm('Replace your current data with this backup?'))return;
     saveState(Object.assign({},DEFAULTS,o.state));sv('hifdh_days',o.days);
     if(o.notes)saveNotes(o.notes);
-    D=null;render();
-  }catch(e){$('msg').textContent=e.message}};
+    DR=null;D=null;render();
+  }catch(e){if($('msg'))$('msg').textContent=e.message}};
   r.readAsText(f);inp.value='';
 }
-function resetAll(){LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');D=null;render()}
-function replayIntro(){const s=loadState();s.seenIntro=false;OB_SLIDE=0;saveState(s);D.state=s;render()}
+function resetAll(){
+  LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');
+  ACTIVE_URLS.forEach(entry=>URL.revokeObjectURL(entry.url));
+  ACTIVE_URLS.clear();
+  DR=null;D=null;render();
+}
+function replayIntro(){ensureData();const s=loadState();s.seenIntro=false;OB_SLIDE=0;saveState(s);D.state=s;render()}
 
 const rng=(a,b)=>a===b?`Page ${a}`:`Pages ${a}–${b}`;
 const chunkName=n=>n>0?`last ${n} pages`:'whole juz';
 function fmt(d){return d?new Date(d+'T00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'—'}
 const initials=name=>(name||'M').trim().split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
 
-/* ---------- icons & small helpers (v2) ---------- */
+/* ---------- icons & small helpers ---------- */
 const ICO={
   home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   stats:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
@@ -713,15 +771,15 @@ const ICO={
 };
 const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICO[n]}</svg>`;
 const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),2600)}
+function toast(t){const e=$('toast');if(!e)return;e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),2600)}
 const NAV=[['today','home','Today'],['journey','stats','Stats'],['tasbih','tasbih','Tasbih'],['recite','mic','Recite'],['library','lib','Library'],['settings','gear','Settings']];
 function buildNav(){$('bottomNav').innerHTML=NAV.map(n=>`<button id="nav-${n[0]}" class="${n[0]===TAB?'active':''}" onclick="setTab('${n[0]}')">${ic(n[1])}<span>${n[2]}</span></button>`).join('')}
 function setHdr(h){$('hdr').innerHTML=h}
 const themeBtn=s=>`<button class="g sm" onclick="toggleTheme()" id="themeBtn" title="Switch theme">${s.theme==='dark'?'☀️':'🌙'}</button>`;
-function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);D=null;render()}
-function setUi(k,v){const s=loadState();s[k]=v;saveState(s);applyTheme(s);if(D)D.state=s;render()}
+function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);DR=null;D=null;render()}
+function setUi(k,v){ensureData();const s=loadState();s[k]=v;saveState(s);applyTheme(s);D.state=s;render()}
+
 /* ---------- plan form (shared by first-time setup and Settings) ---------- */
-let DR=null;
 function initDraft(){
   const s=loadState();
   DR={mode:s.mode,method:s.method,pace:s.newPerDay,posType:'page',fr:s.frontier,juzIn:'',
@@ -737,9 +795,10 @@ function drSet(k,v){
   }
   render();
 }
-function drIn(k,v){DR[k]=v}
-function drPosType(t){if(DR.posType!==t){DR.posType=t;DR.juzIn='';render()}}
+function drIn(k,v){if(!DR)initDraft();DR[k]=v}
+function drPosType(t){if(!DR)initDraft();if(DR.posType!==t){DR.posType=t;DR.juzIn='';render()}}
 function drPos(v){
+  if(!DR)initDraft();
   if(DR.posType==='page'){
     const n=parseFloat(v);DR.fr=isNaN(n)?0:Math.max(0,Math.min(TOTAL,Math.round(n*2)/2));
   }else{
@@ -749,7 +808,7 @@ function drPos(v){
   const h=$('posHint');if(h)h.textContent=posHintText();
 }
 function posHintText(){
-  const f=DR.fr;
+  const f=DR?DR.fr:0;
   if(f<=0)return 'Starting from the beginning.';
   return `Up to page ${f} · Juz ${juzOf(f)} · ${surahOf(f)}`;
 }
@@ -807,6 +866,7 @@ function planForm(ctx){
     <button class="bigbtn" onclick="savePlan('${ctx}')">${ctx==='onboard'?'Start My Journey 🚀':'Save Plan'}</button>`;
 }
 function savePlan(ctx){
+  if(!DR)initDraft();
   const d=DR;
   const f={
     name:ctx==='onboard'&&$('obName')?$('obName').value:undefined,
@@ -814,9 +874,9 @@ function savePlan(ctx){
     revPerDay:d.rev,sabakPages:d.sabak,cycle:d.cycle,juz:d.juz,period:d.period,
     tourDay:d.tourDay,tourNum:d.tourNum,chunks:d.chunks,afterLast:d.after
   };
-  $('msg').textContent='';
+  if($('msg'))$('msg').textContent='';
   const r=api.savePlan(T(),f);
-  if(r&&r.error){$('msg').textContent=r.error;window.scrollTo(0,0);return}
+  if(r&&r.error){if($('msg'))$('msg').textContent=r.error;window.scrollTo(0,0);return}
   D=r;DR=null;
   if(ctx==='onboard'){TAB='today';window.scrollTo(0,0)}
   toast(r.kept?'Saved ✓ Today’s ticked tasks stay; the new plan applies from tomorrow.':'Plan saved ✓');
@@ -825,9 +885,10 @@ function savePlan(ctx){
 function saveProfile(){
   const s=loadState();
   s.name=$('stName').value.trim();s.email=$('stEmail').value.trim();s.aiKey=$('stAiKey').value.trim();
-  saveState(s);D=null;toast('Profile saved ✓');render();
+  saveState(s);DR=null;D=null;toast('Profile saved ✓');render();
 }
-/* ---------- Today screen (v2) ---------- */
+
+/* ---------- Today screen ---------- */
 function rToday(s,st,day,rank){
   const cnt=pstCount(s,1,TOTAL),mem=cnt.g+cnt.w,pct=Math.round(mem/604*100);
   const curJ=(s.frontier>0&&s.frontier>=juzEnd(rank)&&rank<30)?rank+1:rank;
@@ -835,7 +896,7 @@ function rToday(s,st,day,rank){
   const jc=pstCount(s,JUZ_START[curJ],juzEnd(curJ)),jdone=jc.g+jc.w;
   const jp=Math.round(jdone/jlen*100);
   setHdr(`<div class="row"><h1 class="brand light">My Companion</h1>${themeBtn(s)}</div><div class="tagline">Today’s Journey</div><div class="hello">Assalamu Alaikum${s.name?', '+esc(s.name):''}</div>`);
-  const mush=p=>`<a class="pl c0" href="https://quran.com/page/${p}" target="_blank" onclick="event.stopPropagation()">Mushaf ↗</a>`;
+  const mush=p=>`<a class="pl c0" href="https://quran.com/page/${p}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Mushaf ↗</a>`;
   const card=(key,done,title,sub,pills)=>`<div class="tcard ${done?'done':''}" onclick="call('tick','${key}')"><div class="chk">${done?'✓':''}</div><div style="flex:1;min-width:0"><div class="ttl">${title}</div><div class="tsub">${sub}</div><div class="pills">${pills}</div></div></div>`;
   let h=`<div class="card pcard"><h2>Today’s Progress</h2>
     <div class="row"><span class="rk">${s.mode==='revision'?'Revision mastery':`Rank ${rank} of 30`}</span><span class="pc2">${pct}% <small>(${mem} of 604 pages)</small></span></div>
@@ -892,7 +953,7 @@ function rToday(s,st,day,rank){
   $('app').innerHTML=h;
 }
 
-/* ---------- Settings screen (v2) ---------- */
+/* ---------- Settings screen ---------- */
 function rSettings(s){
   const cols=[['emerald','#1f5f4a'],['blue','#2563eb'],['gold','#a16207'],['plum','#7c3aed']];
   setHdr(`<div class="row"><h1 class="brand light">Settings</h1>${themeBtn(s)}</div><div class="tagline">Your plan, profile and backup</div>`);
@@ -928,7 +989,7 @@ function rSettings(s){
         <div><label class="f">Your name</label><input type="text" id="stName" value="${esc(s.name)}"></div>
         <div><label class="f">Your email</label><input type="email" id="stEmail" value="${esc(s.email)}"></div>
       </div>
-      <label class="f">Optional Gemini API key (<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">get a free key ↗</a>)</label>
+      <label class="f">Optional Gemini API key (<a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color:var(--ac)">get a free key ↗</a>)</label>
       <input type="text" id="stAiKey" placeholder="AIza..." value="${esc(s.aiKey||'')}">
       <label class="f">App colour</label>
       <div class="swatches">${cols.map(c=>`<div class="swatch ${s.color===c[0]?'on':''}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></div>`).join('')}</div>
@@ -952,7 +1013,7 @@ function rSettings(s){
     <div class="tg-banner">
       <div style="font-size:15px;font-weight:800">📢 My Companion Community & Updates</div>
       <div style="font-size:12.5px;opacity:.92;margin-top:3px">Follow our official Telegram channel for updates, tips, or support.</div>
-      <div><a href="https://t.me/MyCompanionApp" target="_blank">🚀 Updates channel</a><a href="https://t.me/MyCompanionApp" target="_blank">💡 Request feature</a></div>
+      <div><a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">🚀 Updates channel</a><a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">💡 Request feature</a></div>
     </div>`;
 }
 
@@ -961,7 +1022,6 @@ async function render(){
   const s=D.state,st=D.stats,day=D.day;
   const rank=s.frontier>0?juzOf(s.frontier):1;
 
-/* 1. 3-SLIDE ANIMATED WELCOME TOUR */
   if(!s.seenIntro){
     setHdr('');
     $('bottomNav').style.display='none';
@@ -974,8 +1034,8 @@ async function render(){
     $('app').innerHTML=`<div class="card ob-wrap">
       <div class="row"><span class="pill">Welcome Tour ${OB_SLIDE+1}/3</span><button class="g sm" onclick="skipIntro()">Skip ↗</button></div>
       <div class="ob-art">${cur.ico}</div>
-      <h2 style="font-size:19px;margin-bottom:8px">${cur.title}</h2>
-      <div class="mu" style="max-width:360px;margin:0 auto;font-size:13.5px">${cur.desc}</div>
+      <h2 style="font-size:19px;margin-bottom:8px">${esc(cur.title)}</h2>
+      <div class="mu" style="max-width:360px;margin:0 auto;font-size:13.5px">${esc(cur.desc)}</div>
       <div class="dots">${slides.map((_,i)=>`<div class="dot ${i===OB_SLIDE?'on':''}"></div>`).join('')}</div>
       <div class="row" style="margin-top:10px">
         ${OB_SLIDE>0?`<button class="g" style="flex:1" onclick="OB_SLIDE--;render()">Back</button>`:'<div style="flex:1"></div>'}
@@ -985,8 +1045,6 @@ async function render(){
     return;
   }
 
-  
-  /* 2. FIRST-TIME SETUP (same visual form as Settings) */
   if(!s.onboarded){
     $('bottomNav').style.display='none';
     setHdr(`<div class="row"><h1 class="brand">My Companion ${ic('mark')}</h1>${themeBtn(s)}</div><div class="tagline">A gentle path to memorization.</div>`);
@@ -1001,7 +1059,6 @@ async function render(){
   }
 
   if(TAB==='today'){rToday(s,st,day,rank)}
-  /* TAB 2: ASCEND (Winding Landscape Journey Map) */
   else if(TAB==='journey'){
     const mem=memCount(s),pct=Math.round(mem/604*100);
     const pagesToNext=Math.max(0,juzEnd(rank)-s.frontier);
@@ -1023,7 +1080,7 @@ async function render(){
             <b>Rank ${j} · Juz ${j}</b>
             ${isCurrent?`<span class="pill">Current · ${fill}%</span>`:`<span class="mu">${fill}%</span>`}
           </div>
-          <div class="mu">Surah: ${juzSurahRange(j)}</div>
+          <div class="mu">Surah: ${esc(juzSurahRange(j))}</div>
         </div>
       </div>`;
     }
@@ -1042,8 +1099,6 @@ async function render(){
       st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
     `</div></div>`;
   }
-
-  /* TAB 3: TASBIH */
   else if(TAB==='tasbih'){
     const count=s.tasbih||0, target=s.tasbihTarget||40;
     const isAyah=s.tasbihMode==='ayah';
@@ -1054,7 +1109,7 @@ async function render(){
       <div class="row">
         <div>
           <span class="pill">${isAyah?'📖 Ayah Repetition Mode':'📿 Dhikr / Tasbih Mode'}</span>
-          <div style="font-weight:750;font-size:15px;margin-top:4px">${isAyah?`Repeating Current Portion`:s.tasbihPhrase}</div>
+          <div style="font-weight:750;font-size:15px;margin-top:4px">${isAyah?'Repeating Current Portion':esc(s.tasbihPhrase)}</div>
         </div>
         <button class="g sm" style="font-size:16px;padding:5px 11px;background:rgba(255,255,255,.15);color:inherit" onclick="T_MENU=!T_MENU;render()">⋮</button>
       </div>
@@ -1068,7 +1123,7 @@ async function render(){
         </div>
         ${!isAyah?`<label class="f">Select Dhikr</label>
           <select onchange="setTasbihPhrase(this.value)">
-            ${phrases.map(p=>`<option value="${p}" ${s.tasbihPhrase===p?'selected':''}>${p}</option>`).join('')}
+            ${phrases.map(p=>`<option value="${esc(p)}" ${s.tasbihPhrase===p?'selected':''}>${esc(p)}</option>`).join('')}
           </select>`:''}
         <label class="f">Target Count</label>
         <div class="cyc">
@@ -1098,8 +1153,6 @@ async function render(){
       </div>
     </div>`;
   }
-
-  /* TAB 4: RECITE */
   else if(TAB==='recite'){
     await initMics();
     const clips=await loadClips();
@@ -1123,13 +1176,13 @@ async function render(){
             <label class="f">Microphone Input</label>
             <select onchange="selectedMic=this.value">
               <option value="">Default Microphone</option>
-              ${audioDevices.map((d,i)=>`<option value="${d.deviceId}" ${selectedMic===d.deviceId?'selected':''}>${d.label||'Mic '+(i+1)}</option>`).join('')}
+              ${audioDevices.map((d,i)=>`<option value="${esc(d.deviceId)}" ${selectedMic===d.deviceId?'selected':''}>${esc(d.label||'Mic '+(i+1))}</option>`).join('')}
             </select>
           </div>
           <div>
             <label class="f">Recording Format</label>
             <select onchange="selectedMime=this.value">
-              ${formats.map(f=>`<option value="${f[0]}" ${selectedMime===f[0]?'selected':''}>${f[1]}</option>`).join('')}
+              ${formats.map(f=>`<option value="${f[0]}" ${selectedMime===f[0]?'selected':''}>${esc(f[1])}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -1138,9 +1191,9 @@ async function render(){
 
     <div class="card"><h2>Saved Recitations (${clips.length})</h2>
       ${clips.length?clips.map(c=>{
-        const url=URL.createObjectURL(c.blob);
+        const url=getObjUrl('clip-'+c.id,c.blob);
         return `<div class="media-box" style="margin-bottom:10px">
-          <div class="row"><b>${esc(c.label)}</b><span class="mu">${c.date}</span></div>
+          <div class="row"><b>${esc(c.label)}</b><span class="mu">${esc(c.date)}</span></div>
           ${c.note?`<div style="font-size:12.5px;background:var(--ac2);color:var(--ac);padding:6px 9px;border-radius:8px;margin-top:6px">📌 ${esc(c.note)}</div>`:''}
           <audio controls src="${url}" style="width:100%;height:36px;margin-top:8px"></audio>
           <div class="row" style="margin-top:8px;justify-content:flex-end;gap:6px">
@@ -1152,8 +1205,6 @@ async function render(){
       }).join(''):'<div class="mu">No recordings yet. Tap record above or upload an existing recitation.</div>'}
     </div>`;
   }
-
-  /* TAB 5: LIBRARY */
   else if(TAB==='library'){
     const notes=loadNotes();
     const vault=await loadVault();
@@ -1221,14 +1272,15 @@ async function render(){
 
       h+=filteredNotes.length?filteredNotes.map(n=>{
         const yt=ytEmbedUrl(n.link);
-        const isImg=n.link && /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(n.link);
+        const safeLink=safeExternalUrl(n.link);
+        const isImg=safeLink && /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(safeLink);
         return `<div class="card">
-          <div class="row"><span class="pill">${esc(n.cat||'Lesson')}</span><span class="mu">${n.date}</span></div>
+          <div class="row"><span class="pill">${esc(n.cat||'Lesson')}</span><span class="mu">${esc(n.date)}</span></div>
           <h2 style="margin:6px 0">${esc(n.title)}</h2>
           ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
-          ${isImg?`<img src="${n.link}" style="max-width:100%;border-radius:10px;margin:6px 0">`:''}
-          ${n.link&&!yt&&!isImg?`<div style="margin:4px 0"><a href="${n.link}" target="_blank" style="color:var(--ac);font-size:12.5px;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
-          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${n.html||n.body||''}</div>
+          ${isImg?`<img src="${esc(safeLink)}" style="max-width:100%;border-radius:10px;margin:6px 0">`:''}
+          ${safeLink&&!yt&&!isImg?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:12.5px;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
+          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${n.html||esc(n.body||'')}</div>
           <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);flex-wrap:wrap;gap:6px">
             <div class="row" style="gap:5px">
               <button class="g sm" onclick="editNote(${n.id})">✏️ Edit</button>
@@ -1256,10 +1308,10 @@ async function render(){
       </div>`;
 
       h+=filteredVault.length?`<div class="media-grid">`+filteredVault.map(v=>{
-        const url=URL.createObjectURL(v.blob);
+        const url=getObjUrl('vault-'+v.id,v.blob);
         const tp=v.type||'';
         let mediaEl='';
-        if(tp.startsWith('image/'))mediaEl=`<img src="${url}" onclick="window.open('${url}','_blank')">`;
+        if(tp.startsWith('image/'))mediaEl=`<img src="${url}" onclick="window.open('${url}','_blank','noopener,noreferrer')">`;
         else if(tp.startsWith('video/'))mediaEl=`<video controls src="${url}"></video>`;
         else mediaEl=`<audio controls src="${url}" style="width:100%"></audio>`;
         return `<div class="media-box">
@@ -1275,12 +1327,10 @@ async function render(){
     }
     $('app').innerHTML=h;
   }
-
-  
   else if(TAB==='settings'){rSettings(s)}
 }
 
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){D=null;render()}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){DR=null;D=null;render()}});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 buildNav();
