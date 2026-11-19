@@ -268,7 +268,7 @@ const DEFAULTS={
   tasbihMode:'ayah',tasbihPhrase:'SubḥānAllāh',
   tasbih:0,tasbihTarget:40,tasbihTotal:0,tasbihTheme:'emerald',
   folders:['Tajweed Lessons','Mutashabihat','Tafsir & Reflections'],
-  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m',pst:''
+  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m',pst:'',afterLast:'keep'
 };
 
 const pad=n=>String(n).padStart(2,'0');
@@ -453,10 +453,11 @@ function makePlan(s){
 
   if(s.sabakPages>0 && curUnits>=1 && (doRev || s.mode==='hifdh')){
     const sbUnits=Math.round(s.sabakPages*2);
-    const startU=Math.max(1,curUnits-sbUnits+1);
+    const blk=6*Math.max(1,Math.round((stepPages>0?stepPages:1)*2));
+    const startU=curUnits>sbUnits?1+blk*Math.floor((curUnits-sbUnits)/blk):1;
     plan.sb={
       uA:startU,uB:curUnits,a:pageFromUnit(startU),b:pageFromUnit(curUnits),
-      useHalf,label:`Recent Revision (Last ${s.sabakPages}p)`,done:false
+      useHalf,label:'Recent Revision (6-day window)',done:false
     };
   }
   if(doRev && s.frontier>=1){
@@ -465,7 +466,7 @@ function makePlan(s){
     if(pos.c>=chunks.length)pos.c=0;
     for(let i=0;i<s.revPerDay;i++){
       const top=juzOf(s.frontier);
-      if(pos.j>top){pos.j=1;pos.c++;if(pos.c>=chunks.length){pos.c=0;pos.p++}}
+      if(pos.j>top){pos.j=1;pos.c++;if(pos.c>=chunks.length){pos.c=s.afterLast==='restart'?0:chunks.length-1;pos.p++}}
       const end=Math.min(juzEnd(pos.j),Math.ceil(s.frontier)),st=JUZ_START[pos.j],N=chunks[pos.c];
       const from=N>0?Math.max(st,end-N+1):st;
       const before={c:pos.c,j:pos.j,p:pos.p},after={c:pos.c,j:pos.j+1,p:pos.p};
@@ -585,6 +586,7 @@ const api={
     s.period=num(f.period,s.period,1,9999);
     s.tourDay=num(f.tourDay,s.tourDay||1,1,6);
     s.tourNum=num(f.tourNum,s.tourNum||1,1,9999);
+    if(['keep','restart'].includes(f.afterLast))s.afterLast=f.afterLast;
     saveState(s);
     const days=loadDays(),cur=days[today];
     let kept=false;
@@ -959,7 +961,7 @@ function initDraft(){
   const s=loadState();
   DR={mode:s.mode,method:s.method,pace:s.newPerDay,posType:'page',fr:s.frontier,juzIn:'',
       rev:s.revPerDay,sabak:s.sabakPages,cycle:s.cycle+1,juz:s.juz,period:s.period,
-      tourDay:s.tourDay||1,tourNum:s.tourNum||1,chunks:s.chunks.join(',')};
+      tourDay:s.tourDay||1,tourNum:s.tourNum||1,chunks:s.chunks.join(','),after:s.afterLast||'keep'};
 }
 function drSet(k,v){
   if(!DR)initDraft();
@@ -1013,7 +1015,10 @@ function planForm(ctx){
      </div>
      <label class="f">Cycle sizes (pages from end of each juz, 0 = whole juz)</label>
      <input type="text" value="${esc(d.chunks)}" oninput="drIn('chunks',this.value)">
-     <div class="mu" style="margin-top:4px">Example: <b>5,10,15,0</b> = last 5, last 10, last 15 pages, then the whole juz.</div>`;
+     <div class="mu" style="margin-top:4px">Example: <b>5,10,15,0</b> = last 5, last 10, last 15 pages, then the whole juz.</div>
+     <div class="mu" style="margin-top:10px">Recent pages is the minimum. The recent window keeps its start page for 6 days and grows by up to 5 pages, then steps forward.</div>
+     <label class="f">After the last cycle</label>
+     <div class="seg"><span class="${d.after!=='restart'?'on':''}" onclick="drSet('after','keep')">Keep whole juz</span><span class="${d.after==='restart'?'on':''}" onclick="drSet('after','restart')">Restart cycles</span></div>`;
   return `
     ${ctx==='onboard'?`<div class="card"><label class="f" style="margin-top:0">Your name</label><input type="text" id="obName" placeholder="e.g. Ahmad" value="${esc(loadState().name)}"></div>`:''}
     <div class="sec" style="margin-top:${ctx==='onboard'?'18':'4'}px">Your Goal</div>
@@ -1042,7 +1047,7 @@ function savePlan(ctx){
     name:ctx==='onboard'&&$('obName')?$('obName').value:undefined,
     mode:d.mode,method:d.method,newPerDay:d.pace,frontier:d.fr,
     revPerDay:d.rev,sabakPages:d.sabak,cycle:d.cycle,juz:d.juz,period:d.period,
-    tourDay:d.tourDay,tourNum:d.tourNum,chunks:d.chunks
+    tourDay:d.tourDay,tourNum:d.tourNum,chunks:d.chunks,afterLast:d.after
   };
   $('msg').textContent='';
   const r=api.savePlan(T(),f);
@@ -1094,7 +1099,7 @@ function rToday(s,st,day,rank){
     const sbRng=rngUnits(day.sb.uA||day.sb.a*2-1,day.sb.uB||day.sb.b*2,day.sb.useHalf);
     const isConn=s.method==='tikrar';
     h+=card('sb',day.sb.done,isConn?'Recent Connection':'Recent Revision',sbRng,
-      (isConn?'<span class="pl soft">Ar-Rabt</span><span class="pl soft">From memory</span>':`<span class="pl soft">Last ${s.sabakPages} pages</span>`)+mush(day.sb.a));
+      (isConn?'<span class="pl soft">Ar-Rabt</span><span class="pl soft">From memory</span>':`<span class="pl soft">${(day.sb.uB-day.sb.uA+1)/2} pages · steps every 6 days</span>`)+mush(day.sb.a));
   }
   day.r.forEach((t,i)=>{
     if(t.isTikrar){
