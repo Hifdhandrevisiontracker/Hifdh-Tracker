@@ -33,7 +33,8 @@ const DEFAULTS={
   tasbihMode:'ayah',tasbihPhrase:'SubḥānAllāh',
   tasbih:0,tasbihTarget:40,tasbihTotal:0,tasbihTheme:'emerald',
   folders:['Tajweed Lessons','Mutashabihat','Tafsir & Reflections'],
-  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m',pst:'',afterLast:'keep'
+  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m',pst:'',afterLast:'keep',
+  circleCode:'',leaderboardOptIn:false
 };
 
 const pad=n=>String(n).padStart(2,'0');
@@ -111,7 +112,6 @@ function juzOf(p){const pg=Math.max(1,Math.ceil(p));for(let j=30;j>=1;j--)if(pg>
 function surahIdxOf(p){const pg=Math.max(1,Math.ceil(p));let idx=0;for(let i=0;i<SURAH_AT_PAGE.length;i++){if(pg>=SURAH_AT_PAGE[i][0])idx=i;else break}return idx}
 const surahOf=p=>SURAH_AT_PAGE[surahIdxOf(p)][1];
 
-/* ---------- Direction & Sequence Mapping (Forward / Juz Reverse / Page Reverse) ---------- */
 const SEQ=(()=>{
   const fwd=[], page_rev=[], juz_rev=[];
   for(let p=1;p<=TOTAL;p++)fwd.push(p);
@@ -184,7 +184,6 @@ function nextSeqPage(s){
   return seq[idx];
 }
 
-/*STRENGTH*/
 const hzFirst=p=>Math.max(1,HS.filter(x=>x<p).length);
 const hzLast=p=>Math.max(1,HS.filter(x=>x<=p).length);
 function locLabelPages(pages){
@@ -308,7 +307,6 @@ function strengthCard(s){
     <div class="mu" style="margin-top:12px">Tap a juz to see its surahs and mark them weak or strong.</div>
   </div>${inspector}`;
 }
-/*END*/
 
 function juzSurahRange(j){
   const s1=surahOf(JUZ_START[j]), s2=surahOf(juzEnd(j));
@@ -926,7 +924,7 @@ function delNote(id){
   saveNotes(loadNotes().filter(x=>x.id!==id));render();
 }
 function setLibFilter(f){ensureData();const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
-function setLibSubTab(st){ensureData();const s=loadState();s.libSubTab=st;saveState(s);D.state=s;render()}
+function setLibSubTab(st){ensureData();const s=loadState();s.libSubTab=st;saveState(s);D.state=s;if(st==='community'&&typeof loadCommunityLessons==='function')loadCommunityLessons();render()}
 
 function exportNoteDoc(id,type){
   const n=loadNotes().find(x=>x.id===id);if(!n)return;
@@ -1016,7 +1014,6 @@ const chunkName=n=>n>0?`last ${n} pages`:'whole juz';
 function fmt(d){return d?new Date(d+'T00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'—'}
 const initials=name=>(name||'M').trim().split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
 
-/* ---------- icons & small helpers ---------- */
 const ICO={
   home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   stats:'<path d="M4 20h16M7 20v-7M12 20V7M17 20v-4"/>',
@@ -1024,7 +1021,7 @@ const ICO={
   tasbih:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
   mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   lib:'<path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z"/>',
-  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l2 2"/>',
   loop:'<path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/>',
   both:'<path d="M2 5h5a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H2z"/><path d="M13 10a4.5 4.5 0 0 1 8 0M21 16a4.5 4.5 0 0 1-8 0"/><path d="M21 6v4h-4M13 20v-4h4"/>',
   star:'<rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/><rect x="5.5" y="5.5" width="13" height="13" rx="1.5" transform="rotate(45 12 12)"/>',
@@ -1061,7 +1058,6 @@ function heroRing(done,total){
   </div>`;
 }
 
-/* ---------- plan form (shared by first-time setup and Settings) ---------- */
 function initDraft(){
   const s=loadState();
   DR={mode:s.mode,method:s.method,order:validOrder(s.order),pace:s.newPerDay,posType:'page',fr:s.frontier,juzIn:'',
@@ -1197,7 +1193,6 @@ function saveProfile(){
   saveState(s);DR=null;D=null;toast('Profile saved ✓');render();
 }
 
-/* ---------- Today screen ---------- */
 function rToday(s,st,day){
   const ord=validOrder(day.ord||s.order);
   const activePage=day.n?(day.n.pages?day.n.pages[0]:day.n.a):(day.r[0]?(day.r[0].pages?day.r[0].pages[0]:day.r[0].a):nextSeqPage(s));
@@ -1300,26 +1295,29 @@ function rToday(s,st,day){
     h+=`<div class="row" style="margin:2px 4px 12px"><span style="font-weight:650;color:var(--ac)">${isFull?'✅ All done today, māshā’Allāh!':''}</span><button class="g sm" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button></div>`;
   }
 
+  if(typeof circleCardHtml==='function'){
+    h+=`<div class="sec-lbl">Study Circle</div>${circleCardHtml()}`;
+  }
+
   $('app').innerHTML=h;
 }
 
-/* ---------- Tools Hub ---------- */
 function rTools(){
   $('app').innerHTML=`<div class="card">
     <h2>Study Tools</h2>
     <div class="mu" style="margin-bottom:12px">Quick access to repetition counting, voice practice, and your lessons & offline media.</div>
     <div class="goal" onclick="setTab('tasbih')">${ic('tasbih')}<div style="flex:1"><b>Tasbih & Repetition</b><div class="mu">Count ayah repetitions or dhikr</div></div><span class="mu">→</span></div>
     <div class="goal" onclick="setTab('recite')">${ic('mic')}<div style="flex:1"><b>Recite Studio</b><div class="mu">Record recitations and review notes offline</div></div><span class="mu">→</span></div>
-    <div class="goal" onclick="setTab('library')">${ic('lib')}<div style="flex:1"><b>Library & Vault</b><div class="mu">Rich notes, lessons and offline media</div></div><span class="mu">→</span></div>
+    <div class="goal" onclick="setTab('library')">${ic('lib')}<div style="flex:1"><b>Library &amp; Community</b><div class="mu">Notes, community lessons, vault &amp; leaderboard</div></div><span class="mu">→</span></div>
   </div>`;
 }
 
-/* ---------- Settings screen ---------- */
 function rSettings(s){
   const cols=[['emerald','#1f5f4a'],['blue','#2563eb'],['gold','#a16207'],['plum','#7c3aed']];
   setHdr(`<div class="row"><h1 class="brand light">Settings</h1>${themeBtn(s)}</div><div class="tagline">Your plan, profile and backup</div>`);
   $('app').innerHTML=`
     ${typeof accountCardHtml==='function'?accountCardHtml():''}
+    ${typeof leaderboardCardHtml==='function'?leaderboardCardHtml(s):''}
     ${planForm('settings')}
 
     <div class="card" style="margin-top:14px"><details>
@@ -1418,7 +1416,7 @@ async function render(){
 
   $('bottomNav').style.display='flex';
   if(TAB!=='today'&&TAB!=='settings'){
-    const T2={journey:['Stats','Memory strength & progress'],tools:['Tools','Tasbih, Recite & Library'],tasbih:['Tasbih','Count your repetitions'],recite:['Recite','Record and review your recitation'],library:['Library','Notes, lessons and media']}[TAB]||['My Companion',''];
+    const T2={journey:['Stats','Memory strength & progress'],tools:['Tools','Tasbih, Recite & Library'],tasbih:['Tasbih','Count your repetitions'],recite:['Recite','Record and review your recitation'],library:['Library','Notes, community lessons & media']}[TAB]||['My Companion',''];
     setHdr(`<div class="row"><h1 class="brand light">${T2[0]}</h1>${themeBtn(s)}</div><div class="tagline">${T2[1]}</div>`);
   }
 
@@ -1587,20 +1585,23 @@ async function render(){
     const filteredNotes=s.libFilter==='All'?notes:notes.filter(n=>n.cat===s.libFilter);
     const filteredVault=s.libFilter==='All'?vault:vault.filter(v=>v.folder===s.libFilter);
     const totalVaultMB=(vault.reduce((a,b)=>a+(b.size||0),0)/(1024*1024)).toFixed(1);
+    const commList=(typeof CLOUD_STATE!=='undefined'&&CLOUD_STATE.communityLessons)?CLOUD_STATE.communityLessons:[];
+    const adminHere=typeof isAdminUser==='function'&&isAdminUser();
 
     let h=`<div class="row" style="margin-bottom:8px"><button class="g sm" onclick="setTab('tools')">← Tools</button></div>
     <div class="card">
       <div class="row">
-        <h2>📂 Study Library & Lessons</h2>
-        <div class="row" style="gap:6px">
-          <button class="${s.libSubTab==='notes'?'':'g'} sm" onclick="setLibSubTab('notes')">📝 Lessons (${notes.length})</button>
+        <h2>📂 Study Library</h2>
+        <div class="row" style="gap:5px;flex-wrap:wrap">
+          <button class="${s.libSubTab==='notes'?'':'g'} sm" onclick="setLibSubTab('notes')">📝 My Notes (${notes.length})</button>
+          <button class="${s.libSubTab==='community'?'':'g'} sm" onclick="setLibSubTab('community')">🌐 Community (${commList.length})</button>
           <button class="${s.libSubTab==='vault'?'':'g'} sm" onclick="setLibSubTab('vault')">🎞️ Vault (${vault.length})</button>
         </div>
       </div>
-      <div class="cyc" style="margin-top:8px">
+      ${s.libSubTab!=='community'?`<div class="cyc" style="margin-top:8px">
         ${allFolders.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" onclick="setLibFilter(decodeURIComponent('${encAttr(c)}'))">${esc(c)}</span>`).join('')}
         <span class="cy" onclick="addFolder()">+ Folder</span>
-      </div>
+      </div>`:''}
     </div>`;
 
     if(s.libSubTab==='notes'){
@@ -1670,6 +1671,35 @@ async function render(){
           </div>
         </div>`;
       }).join(''):`<div class="card mu">No lessons or notes in this folder yet. Tap <b>+ New Note</b> above to create one!</div>`;
+    }else if(s.libSubTab==='community'){
+      if(adminHere){
+        h+=`<div class="card">
+          <b>📢 Publish Community Lesson (Admin)</b>
+          <div class="two" style="margin-top:8px">
+            <div><label class="f">Lesson Title</label><input type="text" id="commTitle" placeholder="e.g., Juz 30 Muraja’ah Tips"></div>
+            <div><label class="f">Topic</label>
+              <select id="commCat">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+            </div>
+          </div>
+          <label class="f">Optional Video / Reference Link</label>
+          <input type="text" id="commLink" placeholder="https://youtube.com/...">
+          <label class="f">Lesson Content</label>
+          <div id="commEditor" class="rt-area" contenteditable="true" placeholder="Write a public lesson for all users..."></div>
+          <button style="width:100%;margin-top:10px" onclick="publishCommunityLesson()">🚀 Publish to Community</button>
+        </div>`;
+      }
+      h+=commList.length?commList.map(n=>{
+        const yt=ytEmbedUrl(n.link);
+        const safeLink=safeExternalUrl(n.link);
+        return `<div class="card">
+          <div class="row"><span class="pill">${esc(n.cat||'Community Lesson')}</span><span class="mu">${esc(n.date||'')}</span></div>
+          <h2 style="margin:6px 0">${esc(n.title)}</h2>
+          ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
+          ${safeLink&&!yt?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:12.5px;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
+          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||'')}</div>
+          ${adminHere?`<div style="margin-top:10px;text-align:right"><button class="g sm" onclick="deleteCommunityLesson('${esc(n.docId||n.id)}')">🗑️ Delete Lesson</button></div>`:''}
+        </div>`;
+      }).join(''):`<div class="card mu">No community lessons published yet.</div>`;
     }else{
       h+=`<div class="card">
         <div class="row">
