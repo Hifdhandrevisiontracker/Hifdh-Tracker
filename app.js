@@ -1,0 +1,1287 @@
+const JUZ_START=[0,1,22,42,62,82,102,122,142,162,182,202,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582];
+const SURAH_AT_PAGE=[
+  [1,"Al-Fatihah"],[2,"Al-Baqarah"],[50,"Ali 'Imran"],[77,"An-Nisa"],[106,"Al-Ma'idah"],[128,"Al-An'am"],
+  [151,"Al-A'raf"],[177,"Al-Anfal"],[187,"At-Tawbah"],[208,"Yunus"],[221,"Hud"],[235,"Yusuf"],
+  [249,"Ar-Ra'd"],[255,"Ibrahim"],[262,"Al-Hijr"],[267,"An-Nahl"],[282,"Al-Isra"],[293,"Al-Kahf"],
+  [305,"Maryam"],[312,"Ta-Ha"],[322,"Al-Anbiya"],[332,"Al-Hajj"],[342,"Al-Mu'minun"],[350,"An-Nur"],
+  [359,"Al-Furqan"],[367,"Ash-Shu'ara"],[377,"An-Naml"],[385,"Al-Qasas"],[396,"Al-'Ankabut"],[404,"Ar-Rum"],
+  [411,"Luqman"],[415,"As-Sajdah"],[418,"Al-Ahzab"],[428,"Saba"],[434,"Fatir"],[440,"Ya-Sin"],
+  [446,"As-Saffat"],[453,"Sad"],[458,"Az-Zumar"],[467,"Ghafir"],[477,"Fussilat"],[483,"Ash-Shura"],
+  [489,"Az-Zukhruf"],[496,"Ad-Dukhan"],[499,"Al-Jathiyah"],[502,"Al-Ahqaf"],[507,"Muhammad"],[511,"Al-Fath"],
+  [515,"Al-Hujurat"],[518,"Qaf"],[520,"Adh-Dhariyat"],[523,"At-Tur"],[526,"An-Najm"],[528,"Al-Qamar"],
+  [531,"Ar-Rahman"],[534,"Al-Waqi'ah"],[537,"Al-Hadid"],[542,"Al-Mujadila"],[545,"Al-Hashr"],[549,"Al-Mumtahanah"],
+  [551,"As-Saff"],[553,"Al-Jumu'ah"],[554,"Al-Munafiqun"],[556,"At-Taghabun"],[558,"At-Talaq"],[560,"At-Tahrim"],
+  [562,"Al-Mulk"],[564,"Al-Qalam"],[566,"Al-Haqqah"],[568,"Al-Ma'arij"],[570,"Nuh"],[572,"Al-Jinn"],
+  [574,"Al-Muzzammil"],[575,"Al-Muddaththir"],[577,"Al-Qiyamah"],[578,"Al-Insan"],[580,"Al-Mursalat"],
+  [582,"An-Naba"],[583,"An-Nazi'at"],[585,"'Abasa"],[586,"At-Takwir"],[587,"Al-Infitar"],[587,"Al-Mutaffifin"],
+  [589,"Al-Inshiqaq"],[590,"Al-Buruj"],[591,"At-Tariq"],[591,"Al-A'la"],[592,"Al-Ghashiyah"],[593,"Al-Fajr"],
+  [594,"Al-Balad"],[595,"Ash-Shams"],[595,"Al-Layl"],[596,"Ad-Duhaa"],[596,"Ash-Sharh"],[597,"At-Tin"],
+  [597,"Al-'Alaq"],[598,"Al-Qadr"],[598,"Al-Bayyinah"],[599,"Az-Zalzalah"],[599,"Al-'Adiyat"],[600,"Al-Qari'ah"],
+  [600,"At-Takathur"],[601,"Al-'Asr"],[601,"Al-Humazah"],[601,"Al-Fil"],[602,"Quraysh"],[602,"Al-Ma'un"],
+  [602,"Al-Kawthar"],[603,"Al-Kafirun"],[603,"An-Nasr"],[603,"Al-Masad"],[604,"Al-Ikhlas"],[604,"Al-Falaq"],[604,"An-Nas"]
+];
+const TOTAL=604;
+const HS=[1,11,22,32,42,51,62,72,82,92,102,112,121,132,142,151,162,173,182,192,201,212,222,231,242,252,262,272,282,292,302,312,322,332,342,352,362,371,382,392,402,413,422,431,442,451,462,472,482,491,502,513,522,531,542,553,562,572,582,591];
+const SURAH_END=[1,49,76,106,127,150,176,186,207,221,235,248,255,261,267,281,293,304,312,321,331,341,349,359,366,376,385,396,404,410,414,417,427,434,440,445,452,458,467,476,482,489,495,498,502,506,510,515,517,520,523,525,528,531,534,537,541,545,548,551,552,554,555,557,559,561,564,566,568,570,571,573,575,577,578,580,581,583,584,585,586,587,589,589,590,591,592,592,594,594,595,596,596,596,597,597,598,599,599,600,600,600,601,601,601,602,602,602,603,603,603,604,604,604];
+const DEFAULTS={
+  seenIntro:false,onboarded:false,name:'',avatar:'',email:'',
+  mode:'both',method:'tikrar',
+  frontier:0,newPerDay:1,revPerDay:1,sabakPages:5,
+  chunks:[5,10,15,0],cycle:0,juz:1,period:1,
+  tourDay:1,tourNum:1,
+  theme:'light',color:'emerald',
+  tasbihMode:'ayah',tasbihPhrase:'SubḥānAllāh',
+  tasbih:0,tasbihTarget:40,tasbihTotal:0,tasbihTheme:'emerald',
+  folders:['Tajweed Lessons','Mutashabihat','Tafsir & Reflections'],
+  libFilter:'All',libSubTab:'notes',lastBackup:'',aiKey:'',uiText:'m',uiCard:'m',pst:'',afterLast:'keep'
+};
+
+const pad=n=>String(n).padStart(2,'0');
+const T=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+let OPEN_JUZ=new Set(), D=null, TAB='today', OB_SLIDE=0, T_MENU=false, EDIT_NOTE_ID=null, SHOW_COMPOSER=false;
+let mediaRec=null, recChunks=[], isRecording=false, audioDevices=[], selectedMic='', selectedMime='';
+const $=id=>document.getElementById(id);
+const LS=window.localStorage;
+function ld(k,d){try{const v=LS.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function sv(k,v){try{LS.setItem(k,JSON.stringify(v))}catch(e){$('msg').textContent='Storage limit: '+e.message}}
+
+const juzEnd=j=>j===30?TOTAL:JUZ_START[j+1]-1;
+function juzOf(p){const pg=Math.max(1,Math.ceil(p));for(let j=30;j>=1;j--)if(pg>=JUZ_START[j])return j;return 1}
+function surahIdxOf(p){const pg=Math.max(1,Math.ceil(p));let idx=0;for(let i=0;i<SURAH_AT_PAGE.length;i++){if(pg>=SURAH_AT_PAGE[i][0])idx=i;else break}return idx}
+const surahOf=p=>SURAH_AT_PAGE[surahIdxOf(p)][1];
+
+/*STRENGTH*/
+const hzFirst=p=>Math.max(1,HS.filter(x=>x<p).length);
+const hzLast=p=>HS.filter(x=>x<=p).length;
+function locLabel(a,b){
+  const nm=[];SURAH_AT_PAGE.forEach((x,i)=>{if(x[0]<=b&&SURAH_END[i]>=a)nm.push(x[1])});
+  const sur=nm.length===1?'Surah '+nm[0]:nm.length<=3?'Surahs '+nm.slice(0,-1).join(', ')+' & '+nm[nm.length-1]:'Surahs '+nm[0]+' to '+nm[nm.length-1];
+  const ja=juzOf(a),jb=juzOf(b),ha=hzFirst(a),hb=hzLast(b);
+  return sur+', Juz '+(ja===jb?ja:ja+'–'+jb)+', Hizb '+(ha===hb?ha:ha+'–'+hb);
+}
+function syncPst(s){
+  if(typeof s.pst==='string'&&s.pst.length===TOTAL)return;
+  const t=new Array(TOTAL).fill('0'),lim=Math.min(TOTAL,Math.ceil(s.frontier||0));
+  for(let i=0;i<lim;i++)t[i]='s';
+  s.pst=t.join('');
+}
+function markPgs(s,a,b,ch,onlyEmpty){const t=s.pst.split('');for(let p=a;p<=b&&p<=TOTAL;p++)if(!onlyEmpty||t[p-1]==='0')t[p-1]=ch;s.pst=t.join('')}
+const memCount=s=>{const c=pstCount(s,1,TOTAL);return c.g+c.w};
+function pstCount(s,a,b){let g=0,w=0;for(let p=a;p<=b;p++){const c=s.pst[p-1];if(c==='s')g++;else if(c==='w')w++}return{g,w,n:b-a+1}}
+const stkInner=(g,w,n)=>`<i class="g" style="width:${g/n*100}%"></i><i class="w" style="width:${w/n*100}%"></i>`;
+function surahState(s,i){const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0)return'none';if(c.g+c.w<c.n)return'part';return c.w?'weak':'strong'}
+function setStrength(a,b,ch,all){const s=loadState();const t=s.pst.split('');for(let p=a;p<=b;p++)if(all||t[p-1]!=='0')t[p-1]=ch;s.pst=t.join('');saveState(s);D=null;render()}
+function clearSurah(i){if(!confirm('Remove '+SURAH_AT_PAGE[i][1]+' from your memorized pages?'))return;setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'0',true)}
+function toggleSurah(i){const s=loadState();const c=pstCount(s,SURAH_AT_PAGE[i][0],SURAH_END[i]);if(c.g+c.w===0){setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],'w',true);return}setStrength(SURAH_AT_PAGE[i][0],SURAH_END[i],c.w>0?'s':'w')}
+const CHC={strong:'s',weak:'w',part:'p',none:''},CHL={strong:'✓ Strong',weak:'Weak',part:'In progress',none:'+ Add'};
+function strengthCard(s){
+  const all=pstCount(s,1,TOTAL);
+  let rows='';
+  for(let j=1;j<=30;j++){
+    const a=JUZ_START[j],b=juzEnd(j),c=pstCount(s,a,b);
+    const body=SURAH_AT_PAGE.map((x,i)=>i).filter(i=>juzOf(SURAH_AT_PAGE[i][0])===j).map(i=>{const st=surahState(s,i);return `<div class="sr"><b>${esc(SURAH_AT_PAGE[i][1])}</b><span style="display:flex;gap:6px"><button class="chip ${CHC[st]}" onclick="toggleSurah(${i})">${CHL[st]}</button>${st!=='none'?`<button class="chip x" aria-label="Remove" onclick="clearSurah(${i})">✕</button>`:''}</span></div>`}).join('');
+    rows+=`<details class="jz" ${OPEN_JUZ.has(j)?'open':''} ontoggle="this.open?OPEN_JUZ.add(${j}):OPEN_JUZ.delete(${j})">
+      <summary><b>Juz ${j}</b><div class="sbar">${stkInner(c.g,c.w,c.n)}</div><span>${c.g+c.w?Math.round(c.g/c.n*100)+'%':'–'}</span></summary>
+      ${body||'<div class="mu" style="padding:8px 2px">No surah starts in this juz.</div>'}
+      <div class="row" style="justify-content:flex-end;gap:6px;margin-top:4px"><button class="g sm" onclick="setStrength(${a},${b},'s',true)">Whole juz as strong</button><button class="g sm" onclick="setStrength(${a},${b},'w',true)">Whole juz as weak</button></div>
+    </details>`;
+  }
+  return `<div class="card"><div class="row"><h2>Memory strength</h2><span class="pill">${Math.round(all.g/TOTAL*100)}% strong</span></div>
+    <div class="mu" style="margin-bottom:10px">Add the surahs you already know. Tap a surah to switch it between weak and strong.</div>
+    <div class="sbar" style="height:10px">${stkInner(all.g,all.w,TOTAL)}</div>
+    <div class="mu" style="margin:8px 0 6px">Strong ${all.g} pages · Weak ${all.w} pages · Not yet ${TOTAL-all.g-all.w}</div>${rows}</div>`;
+}
+/*END*/
+
+function juzSurahRange(j){
+  const s1=surahOf(JUZ_START[j]), s2=surahOf(juzEnd(j));
+  return s1===s2?s1:`${s1} – ${s2}`;
+}
+
+function fmtFace(u){const p=Math.ceil(u/2), half=(u%2===1)?'h1':'h2'; return `${p} ${half}`}
+function rngUnits(u1,u2,useHalf){
+  if(!useHalf){const p1=Math.ceil(u1/2), p2=Math.ceil(u2/2); return p1===p2?`Page ${p1}`:`Pages ${p1}–${p2}`}
+  if(u1===u2)return `Page ${fmtFace(u1)}`;
+  if(u1%2===1 && u2===u1+1)return `Page ${Math.ceil(u1/2)} (h1–h2)`;
+  return `Pages ${fmtFace(u1)} → ${fmtFace(u2)}`;
+}
+const pageFromUnit=u=>Math.max(1,Math.min(TOTAL,Math.ceil(u/2)));
+
+const loadState=()=>{
+  const raw=ld('hifdh_state',{});
+  if(raw&&raw.frontier!==undefined&&!raw.pst&&!LS.getItem('hifdh_backup_pre_strength'))sv('hifdh_backup_pre_strength',raw);
+  const s=Object.assign({},DEFAULTS,raw);
+  if(!['tikrar','ottoman','simple'].includes(s.method))s.method='simple';
+  if(!Array.isArray(s.chunks)||!s.chunks.length)s.chunks=[5,10,15,0];
+  syncPst(s);
+  return s;
+};
+const saveState=s=>sv('hifdh_state',s);
+const loadDays=()=>ld('hifdh_days',{});
+const loadNotes=()=>ld('hifdh_notes',[]);
+const saveNotes=n=>sv('hifdh_notes',n);
+
+function applyTheme(s){
+  document.documentElement.setAttribute('data-theme',s.theme||'light');
+  document.documentElement.setAttribute('data-color',s.color||'emerald');
+  document.documentElement.setAttribute('data-size',s.uiText||'m');
+  document.documentElement.setAttribute('data-cards',s.uiCard||'m');
+  const colors={emerald:'#1f5f4a',blue:'#2563eb',gold:'#a16207',plum:'#7c3aed'};
+  $('metaTheme').setAttribute('content',colors[s.color]||'#1f5f4a');
+}
+function toggleTheme(){
+  const s=loadState();s.theme=s.theme==='dark'?'light':'dark';
+  saveState(s);applyTheme(s);render();
+}
+function setColor(c){const s=loadState();s.color=c;saveState(s);applyTheme(s);render()}
+function setTab(t){
+  TAB=t;T_MENU=false;if(t==='settings')DR=null;
+  NAV.forEach(n=>{const e=$('nav-'+n[0]);if(e)e.classList.toggle('active',n[0]===t)});
+  render();window.scrollTo(0,0);
+  if(t==='journey'){
+    setTimeout(()=>{const el=document.querySelector('.path-node.current');if(el)el.scrollIntoView({behavior:'smooth',block:'center'})},120);
+  }
+}
+function jumpToTasbih(targetCount){
+  const s=loadState();
+  s.tasbihMode='ayah';s.tasbih=0;s.tasbihTarget=targetCount;
+  saveState(s);D.state=s;setTab('tasbih');
+}
+
+function showCelebration(ico,title,body){
+  $('modalRoot').innerHTML=`<div class="modal-bg" onclick="closeModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div style="font-size:46px;margin-bottom:8px">${ico}</div>
+      <div style="font-size:19px;font-weight:800;color:var(--ac);margin-bottom:6px">${title}</div>
+      <div style="font-size:13.5px;line-height:1.5;margin-bottom:16px">${body}</div>
+      <button style="width:100%" onclick="closeModal()">Alḥamdulillāh · Continue</button>
+    </div>
+  </div>`;
+}
+function closeModal(){$('modalRoot').innerHTML=''}
+
+function addDays(str,k){const p=str.split('-');const d=new Date(+p[0],+p[1]-1,+p[2]);d.setDate(d.getDate()+k);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+const anyDone=day=>(day.n&&day.n.done)||(day.sb&&day.sb.done)||day.r.some(t=>t.done);
+function allDone(day){
+  const t=(day.n?1:0)+(day.sb?1:0)+day.r.length;if(!t)return false;
+  return(!day.n||day.n.done)&&(!day.sb||day.sb.done)&&day.r.every(x=>x.done);
+}
+
+function makePlan(s){
+  const plan={n:null,sb:null,r:[],u:[]};
+  const doHifdh=s.mode==='both'||s.mode==='hifdh';
+  const doRev=s.mode==='both'||s.mode==='revision';
+  const stepPages=Number(s.newPerDay)||1;
+  const useHalf=(stepPages===0.5 || (s.frontier%1!==0));
+  const curUnits=Math.round((s.frontier||0)*2);
+  const stepUnits=Math.max(1,Math.round(stepPages*2));
+  const totalUnits=TOTAL*2;
+
+  if(doHifdh && stepPages>0 && curUnits<totalUnits){
+    const uA=curUnits+1;
+    const uB=Math.min(totalUnits,curUnits+stepUnits);
+    const repTarget=stepPages>=3?30:40;
+    plan.n={
+      uA,uB,a:pageFromUnit(uA),b:uB/2,useHalf,repTarget,done:false,
+      subs:{yest:false,listen:false,tafsir:false,repeat:false,record:false}
+    };
+  }
+
+  if(s.method==='tikrar'){
+    const connWindowUnits=25*(stepPages>0?stepUnits:2);
+    if(curUnits>=stepUnits){
+      const connEnd=curUnits;
+      const connStart=Math.max(1,connEnd-connWindowUnits+1);
+      plan.sb={
+        uA:connStart,uB:connEnd,a:pageFromUnit(connStart),b:pageFromUnit(connEnd),
+        useHalf,label:'Recent Connection (Ar-Rabt)',done:false
+      };
+      if(doRev){
+        const oldEnd=curUnits>=totalUnits ? totalUnits : (connStart-1);
+        if(oldEnd>=1){
+          const tDay=Math.max(1,Math.min(6,s.tourDay||1));
+          const chunk=Math.max(1,Math.ceil(oldEnd/6));
+          const revStart=Math.min(oldEnd,(tDay-1)*chunk+1);
+          const revEnd=tDay===6?oldEnd:Math.min(oldEnd,tDay*chunk);
+          const before={tourDay:tDay,tourNum:s.tourNum||1};
+          const after=tDay>=6?{tourDay:1,tourNum:(s.tourNum||1)+1}:{tourDay:tDay+1,tourNum:s.tourNum||1};
+          plan.r.push({
+            isTikrar:true,tourNum:s.tourNum||1,tourDay:tDay,
+            uA:revStart,uB:revEnd,a:pageFromUnit(revStart),b:pageFromUnit(revEnd),
+            useHalf,done:false,before,after
+          });
+        }
+      }
+    }
+    return plan;
+  }
+
+  if(s.sabakPages>0 && curUnits>=1 && (doRev || s.mode==='hifdh')){
+    const sbUnits=Math.round(s.sabakPages*2);
+    const blk=6*Math.max(1,Math.round((stepPages>0?stepPages:1)*2));
+    const startU=curUnits>sbUnits?1+blk*Math.floor((curUnits-sbUnits)/blk):1;
+    plan.sb={
+      uA:startU,uB:curUnits,a:pageFromUnit(startU),b:pageFromUnit(curUnits),
+      useHalf,label:'Recent Revision (6-day window)',done:false
+    };
+  }
+  if(doRev && s.frontier>=1){
+    let pos={c:s.cycle,j:s.juz,p:s.period};
+    const chunks=s.method==='classic'?[0]:s.chunks;
+    if(pos.c>=chunks.length)pos.c=0;
+    for(let i=0;i<s.revPerDay;i++){
+      const top=juzOf(s.frontier);
+      if(pos.j>top){pos.j=1;pos.c++;if(pos.c>=chunks.length){pos.c=s.afterLast==='restart'?0:chunks.length-1;pos.p++}}
+      const end=Math.min(juzEnd(pos.j),Math.ceil(s.frontier)),st=JUZ_START[pos.j],N=chunks[pos.c];
+      const from=N>0?Math.max(st,end-N+1):st;
+      const before={c:pos.c,j:pos.j,p:pos.p},after={c:pos.c,j:pos.j+1,p:pos.p};
+      plan.r.push({j:pos.j,a:from,b:end,c:pos.c,p:pos.p,n:N,done:false,before,after});
+      pos={c:after.c,j:after.j,p:after.p};
+    }
+  }
+  return plan;
+}
+
+const api={
+  getData(today){
+    const s=loadState(),days=loadDays();
+    applyTheme(s);
+    const old=days[today];
+    let day=old;
+    if(!old||!anyDone(old)){
+      const np=makePlan(s);
+      if(old&&old.n&&np.n&&old.n.uA===np.n.uA&&old.n.subs)np.n.subs=old.n.subs;
+      day=np;days[today]=np;
+    }
+    const cutoff=addDays(today,-400);
+    Object.keys(days).forEach(k=>{if(k<cutoff)delete days[k]});
+    sv('hifdh_days',days);
+    const strip=[];
+    for(let i=27;i>=0;i--){const d=addDays(today,-i);const o=days[d];strip.push({d,s:o?(allDone(o)?2:(anyDone(o)?1:0)):0})}
+    let streak=0;for(let k=strip[27].s===2?27:26;k>=0&&strip[k].s===2;k--)streak++;
+    const juz=[];
+    for(let j=1;j<=30;j++){const len=juzEnd(j)-JUZ_START[j]+1;const c=pstCount(s,JUZ_START[j],juzEnd(j));juz.push((c.g+c.w)/len)}
+    const remaining=Math.max(0,TOTAL-s.frontier);
+    const eta=(s.mode!=='revision'&&s.newPerDay>0&&remaining>0)?addDays(today,Math.ceil(remaining/s.newPerDay)-1):null;
+    return{state:s,day,stats:{juz,strip,streak,remaining,eta}};
+  },
+  tick(today,key){
+    const s=loadState(),days=loadDays(),day=days[today];
+    const task=key==='n'?day.n:(key==='sb'?day.sb:day.r[+key.slice(1)]);
+    if(!task)return{error:'Task not found.'};
+    if(!task.done){
+      if(key==='n'){
+        const oldF=s.frontier;
+        task.prev=oldF;
+        const pA=task.a,pB=Math.min(TOTAL,Math.ceil(task.b));
+        task.pp=s.pst.slice(pA-1,pB);
+        s.frontier=Math.max(s.frontier,task.b);
+        {const t=s.pst.split('');for(let p=pA;p<=pB;p++)if(t[p-1]==='0')t[p-1]='w';s.pst=t.join('')}
+        const newF=s.frontier;
+        if(newF>=TOTAL && oldF<TOTAL){
+          showCelebration('👑','Māshā’Allāh! Khatmah Complete!','You have ascended all 30 Ranks to the Radiant Summit—all 604 pages of the Noble Qur’an!');
+        }else{
+          const newJ=juzOf(newF);
+          if(newF===juzEnd(newJ) && oldF<newF){
+            showCelebration('🏔️',`Juz ${newJ} Complete!`,`Allāhu Akbar! You completed Juz ${newJ} and ascended to Rank ${Math.min(30,newJ+1)} of 30.`);
+          }else if(Math.floor(newF)<TOTAL && surahIdxOf(Math.floor(newF)+1)>surahIdxOf(Math.ceil(oldF||1)) && newF>oldF){
+            const finishedSurah=surahOf(Math.floor(newF));
+            showCelebration('✨',`Surah ${finishedSurah} Complete!`,`Māshā’Allāh! You finished memorizing Surah ${finishedSurah}. Keep ascending!`);
+          }
+        }
+      }
+      else if(key.startsWith('r')){
+        if(task.isTikrar){
+          s.tourDay=task.after.tourDay;
+          s.tourNum=task.after.tourNum;
+          if(task.tourDay===6){
+            showCelebration('🔄',`Tour / Circuit #${task.tourNum} Complete!`,`Māshā’Allāh! You completed your 6-day revision circuit of all old memorization. Starting Tour #${task.after.tourNum}!`);
+          }
+        }else{
+          const topJuz=juzOf(s.frontier);
+          const chunks=s.method==='classic'?[0]:s.chunks;
+          s.cycle=task.after.c;s.juz=task.after.j;s.period=task.after.p;
+          if(task.j>=topJuz && topJuz>=1){
+            if(task.c+1>=chunks.length){
+              showCelebration('🌟',`Period ${task.p} Complete!`,`Māshā’Allāh! You finished every cycle of Period ${task.p}. Starting Period ${task.p+1}!`);
+            }else{
+              showCelebration('🔄',`Revision Cycle ${task.c+1} Complete!`,`Well done! You completed Cycle ${task.c+1} (${chunkName(task.n)}) across all your memorized Juz.`);
+            }
+          }
+        }
+      }
+      task.done=true;day.u.push(key);
+    }else{
+      if(day.u[day.u.length-1]!==key)return{error:'Undo the most recent tick first.'};
+      if(key==='n'){s.frontier=task.prev;if(task.pp!=null){const pA=task.a,pB=Math.min(TOTAL,Math.ceil(task.b));s.pst=s.pst.slice(0,pA-1)+task.pp+s.pst.slice(pB)}}
+      else if(key.startsWith('r')){
+        if(task.isTikrar){s.tourDay=task.before.tourDay;s.tourNum=task.before.tourNum}
+        else{s.cycle=task.before.c;s.juz=task.before.j;s.period=task.before.p}
+      }
+      task.done=false;day.u.pop();
+    }
+    saveState(s);sv('hifdh_days',days);
+    return api.getData(today);
+  },
+  tickSub(today,subKey,force){
+    const days=loadDays(),day=days[today];
+    if(day&&day.n){
+      day.n.subs=day.n.subs||{};
+      day.n.subs[subKey]=force===true?true:!day.n.subs[subKey];
+      sv('hifdh_days',days);
+    }
+    return api.getData(today);
+  },
+  savePlan(today,f){
+    const s=loadState();
+    const chunks=String(f.chunks==null?s.chunks.join(','):f.chunks).split(',').map(x=>parseInt(x.trim(),10)).filter(x=>!isNaN(x)&&x>=0&&x<=21);
+    if(!chunks.length)return{error:'Cycle sizes must look like 5,10,15,0 (0 = whole juz).'};
+    s.seenIntro=true;s.onboarded=true;
+    if(f.name!==undefined)s.name=String(f.name).trim();
+    if(['both','hifdh','revision'].includes(f.mode))s.mode=f.mode;
+    if(['tikrar','ottoman','simple'].includes(f.method))s.method=f.method;
+    s.chunks=chunks.slice(0,8);
+    const fr=parseFloat(f.frontier);if(!isNaN(fr)){const oF=Math.ceil(s.frontier);s.frontier=Math.max(0,Math.min(TOTAL,Math.round(fr*2)/2));const nF=Math.ceil(s.frontier);if(nF>oF)markPgs(s,oF+1,nF,'s',true);else if(nF<oF)markPgs(s,nF+1,oF,'0',false)}
+    const np=parseFloat(f.newPerDay);if(!isNaN(np))s.newPerDay=Math.max(0,Math.min(20,Math.round(np*2)/2));
+    const num=(v,def,lo,hi)=>{const n=parseInt(v,10);return isNaN(n)?def:Math.max(lo,Math.min(hi,n))};
+    s.revPerDay=num(f.revPerDay,s.revPerDay,1,5);
+    s.sabakPages=num(f.sabakPages,s.sabakPages,0,30);
+    s.cycle=num(f.cycle,s.cycle+1,1,s.chunks.length)-1;
+    s.juz=num(f.juz,s.juz,1,30);
+    s.period=num(f.period,s.period,1,9999);
+    s.tourDay=num(f.tourDay,s.tourDay||1,1,6);
+    s.tourNum=num(f.tourNum,s.tourNum||1,1,9999);
+    if(['keep','restart'].includes(f.afterLast))s.afterLast=f.afterLast;
+    saveState(s);
+    const days=loadDays(),cur=days[today];
+    let kept=false;
+    if(cur&&!anyDone(cur)){delete days[today];sv('hifdh_days',days)}
+    else if(cur)kept=true;
+    const r=api.getData(today);r.kept=kept;return r;
+  },
+  addPages(today,n){
+    const s=loadState();
+    const add=parseFloat(n)||0;
+    const oN=Math.ceil(s.frontier);
+    s.frontier=Math.min(TOTAL,Math.round((s.frontier+Math.max(0,add))*2)/2);
+    markPgs(s,oN+1,Math.ceil(s.frontier),'s',true);
+    saveState(s);dropIfUnticked(today);
+    return api.getData(today);
+  }
+};
+
+function dropIfUnticked(today){const d=loadDays();if(d[today]&&!anyDone(d[today])){delete d[today];sv('hifdh_days',d)}}
+function call(fn,...a){
+  $('msg').textContent='';
+  try{const r=api[fn](T(),...a);if(r&&r.error){$('msg').textContent=r.error;return}if(r)D=r}
+  catch(e){$('msg').textContent=e.message;return}
+  render();
+}
+
+function uploadAvatar(inp){
+  const f=inp.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      canvas.width=128;canvas.height=128;
+      const ctx=canvas.getContext('2d');
+      const min=Math.min(img.width,img.height);
+      ctx.drawImage(img,(img.width-min)/2,(img.height-min)/2,min,min,0,0,128,128);
+      const s=loadState();s.avatar=canvas.toDataURL('image/jpeg',0.82);
+      saveState(s);D.state=s;render();
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(f);
+}
+function removeAvatar(){const s=loadState();s.avatar='';saveState(s);D.state=s;render()}
+
+function tapTasbih(){
+  const s=loadState();
+  s.tasbih=(s.tasbih||0)+1;
+  s.tasbihTotal=(s.tasbihTotal||0)+1;
+  saveState(s);
+  if(navigator.vibrate)navigator.vibrate(s.tasbih===s.tasbihTarget?[60,40,60]:22);
+  if(s.tasbihMode==='ayah'&&s.tasbih===s.tasbihTarget){
+    try{api.tickSub(T(),'repeat',true);D=api.getData(T())}catch(e){D.state=s}
+  }else{D.state=s}
+  render();
+}
+function resetTasbih(){const s=loadState();s.tasbih=0;saveState(s);D.state=s;render()}
+function resetTasbihLifetime(){
+  if(!confirm('Reset your lifetime counter back to 0?'))return;
+  const s=loadState();s.tasbihTotal=0;saveState(s);D.state=s;render();
+}
+function setTasbihTarget(v){const s=loadState();s.tasbihTarget=Math.max(1,parseInt(v,10)||33);saveState(s);D.state=s;render()}
+function setTasbihMode(m){const s=loadState();s.tasbihMode=m;s.tasbih=0;s.tasbihTarget=m==='ayah'?40:33;saveState(s);D.state=s;render()}
+function setTasbihPhrase(p){const s=loadState();s.tasbihPhrase=p;saveState(s);D.state=s;render()}
+function setTasbihTheme(th){const s=loadState();s.tasbihTheme=th;saveState(s);D.state=s;render()}
+
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open('my_companion_db',2);
+    req.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains('clips'))db.createObjectStore('clips',{keyPath:'id'});
+      if(!db.objectStoreNames.contains('vault'))db.createObjectStore('vault',{keyPath:'id'});
+    };
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=e=>rej(e);
+  });
+}
+
+async function initMics(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.enumerateDevices)return;
+  try{
+    const devs=await navigator.mediaDevices.enumerateDevices();
+    audioDevices=devs.filter(d=>d.kind==='audioinput');
+  }catch(e){}
+}
+async function toggleRecord(){
+  if(!isRecording){
+    try{
+      const constraints={audio:selectedMic?{deviceId:{exact:selectedMic}}:true};
+      const stream=await navigator.mediaDevices.getUserMedia(constraints);
+      await initMics();
+      recChunks=[];
+      const opts={};
+      if(selectedMime && window.MediaRecorder && MediaRecorder.isTypeSupported(selectedMime))opts.mimeType=selectedMime;
+      mediaRec=new MediaRecorder(stream,opts);
+      mediaRec.ondataavailable=e=>{if(e.data.size>0)recChunks.push(e.data)};
+      mediaRec.onstop=async()=>{
+        const mime=mediaRec.mimeType||'audio/webm';
+        const blob=new Blob(recChunks,{type:mime});
+        stream.getTracks().forEach(t=>t.stop());
+        const label=prompt('Label this recitation (e.g., Surah Al-Baqarah 3x Test):','Recitation '+T())||('Recitation '+T());
+        const note=prompt('Optional note or Tajweed highlight (e.g., Check Ghunnah at 0:45):','')||'';
+        const db=await openDB();
+        const tx=db.transaction('clips','readwrite');
+        tx.objectStore('clips').put({id:Date.now(),date:T(),label,note,mime,blob});
+        tx.oncomplete=()=>{try{api.tickSub(T(),'record',true);D=api.getData(T())}catch(e){}render()};
+      };
+      mediaRec.start();isRecording=true;render();
+    }catch(e){$('msg').textContent='Microphone permission needed: '+e.message}
+  }else{
+    mediaRec.stop();isRecording=false;render();
+  }
+}
+async function uploadAudioClip(inp){
+  const f=inp.files[0];if(!f)return;
+  const label=prompt('Title for this audio file:',f.name.replace(/\.[^/.]+$/,''))||f.name;
+  const note=prompt('Optional note/highlight for this audio:','')||'';
+  const db=await openDB();
+  const tx=db.transaction('clips','readwrite');
+  tx.objectStore('clips').put({id:Date.now(),date:T(),label,note,mime:f.type||'audio/mp3',blob:f});
+  tx.oncomplete=()=>render();
+}
+async function editClipNote(id){
+  const clips=await loadClips();const c=clips.find(x=>x.id===id);if(!c)return;
+  const next=prompt('Update recitation note / highlight:',c.note||'');
+  if(next===null)return;
+  c.note=next;
+  const db=await openDB();const tx=db.transaction('clips','readwrite');
+  tx.objectStore('clips').put(c);tx.oncomplete=()=>render();
+}
+async function shareClip(id){
+  const clips=await loadClips();
+  const c=clips.find(x=>x.id===id);if(!c)return;
+  const ext=(c.mime||'').includes('mp4')?'m4a':((c.mime||'').includes('wav')?'wav':'webm');
+  const file=new File([c.blob],`${c.label.replace(/\s+/g,'_')}.${ext}`,{type:c.mime||'audio/webm'});
+  if(navigator.canShare && navigator.canShare({files:[file]})){
+    await navigator.share({title:c.label,text:c.note||'My Qur’an recitation from My Companion',files:[file]}).catch(()=>{});
+  }else{
+    const a=document.createElement('a');a.href=URL.createObjectURL(c.blob);a.download=file.name;a.click();
+  }
+}
+async function loadClips(){
+  try{
+    const db=await openDB();
+    return new Promise(res=>{
+      const req=db.transaction('clips','readonly').objectStore('clips').getAll();
+      req.onsuccess=()=>res((req.result||[]).sort((a,b)=>b.id-a.id));
+      req.onerror=()=>res([]);
+    });
+  }catch(e){return[]}
+}
+async function deleteClip(id){
+  const db=await openDB();
+  const tx=db.transaction('clips','readwrite');
+  tx.objectStore('clips').delete(id);
+  tx.oncomplete=()=>render();
+}
+
+async function uploadVaultMedia(inp){
+  const f=inp.files[0];if(!f)return;
+  const title=prompt('Title for this media file:',f.name.replace(/\.[^/.]+$/,''))||f.name;
+  const folder=$('vaultFolderSel')?$('vaultFolderSel').value:'Tajweed Lessons';
+  const db=await openDB();
+  const tx=db.transaction('vault','readwrite');
+  tx.objectStore('vault').put({id:Date.now(),date:T(),title,folder,name:f.name,type:f.type,size:f.size,blob:f});
+  tx.oncomplete=()=>render();
+}
+async function loadVault(){
+  try{
+    const db=await openDB();
+    return new Promise(res=>{
+      const req=db.transaction('vault','readonly').objectStore('vault').getAll();
+      req.onsuccess=()=>res((req.result||[]).sort((a,b)=>b.id-a.id));
+      req.onerror=()=>res([]);
+    });
+  }catch(e){return[]}
+}
+async function deleteVaultItem(id){
+  const db=await openDB();
+  const tx=db.transaction('vault','readwrite');
+  tx.objectStore('vault').delete(id);
+  tx.oncomplete=()=>render();
+}
+
+function addFolder(){
+  const name=prompt('New Folder / Lesson Category Name:');
+  if(!name||!name.trim())return;
+  const s=loadState();
+  if(!s.folders.includes(name.trim()))s.folders.push(name.trim());
+  saveState(s);D.state=s;render();
+}
+function execRT(cmd,val=null){
+  const area=$('rtEditor');if(!area)return;
+  area.focus();document.execCommand(cmd,false,val);
+}
+function insertRTTable(){
+  const area=$('rtEditor');if(!area)return;
+  area.focus();
+  const tbl=`<table><tr><th>Rule / Surah</th><th>Details & Examples</th></tr><tr><td>Example 1</td><td>Write notes here...</td></tr><tr><td>Example 2</td><td>Write notes here...</td></tr></table><p></p>`;
+  document.execCommand('insertHTML',false,tbl);
+}
+function attachInlinePhoto(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    const area=$('rtEditor');if(!area)return;
+    area.focus();
+    document.execCommand('insertHTML',false,`<img src="${e.target.result}" style="max-width:100%;border-radius:10px;margin:8px 0"><p></p>`);
+  };
+  r.readAsDataURL(f);
+}
+async function polishNoteAI(){
+  const area=$('rtEditor');if(!area)return;
+  const raw=area.innerText.trim();
+  if(!raw){$('msg').textContent='Write some notes first before polishing.';return}
+  const s=loadState();
+  if(s.aiKey){
+    try{
+      $('msg').textContent='✨ Polishing with Gemini AI...';
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(s.aiKey)}`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts:[{text:`Organize and polish these Qur'an/Tajweed study notes into clean HTML using <b>, <ul>, <li>, and <p> tags without markdown code fences:\n\n${raw}`}]}]})
+      });
+      const data=await res.json();
+      const out=data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if(out){area.innerHTML=out.replace(/```html|```/g,'');$('msg').textContent='';return}
+    }catch(e){}
+  }
+  const lines=raw.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const formatted=lines.map((l,idx)=>{
+    const refBold=l.replace(/\b(\d{1,3}:\d{1,3})\b/g,'<b>[$1]</b>');
+    if(idx===0 && l.length<65)return `<h3>${refBold}</h3>`;
+    if(l.endsWith(':'))return `<p><b>${refBold}</b></p>`;
+    if(/^[-•*]/.test(l))return `<li>${refBold.replace(/^[-•*]\s*/,'')}</li>`;
+    return `<p>${refBold}</p>`;
+  }).join('');
+  area.innerHTML=formatted;
+  $('msg').textContent='✨ Note cleanly structured & formatted!';
+  setTimeout(()=>{$('msg').textContent=''},2500);
+}
+function saveRichNote(){
+  const title=$('ntTitle').value.trim()||'Untitled Lesson';
+  const cat=$('ntCat').value;
+  const link=$('ntLink').value.trim();
+  const html=$('rtEditor').innerHTML.trim();
+  const list=loadNotes();
+  if(EDIT_NOTE_ID){
+    const idx=list.findIndex(x=>x.id===EDIT_NOTE_ID);
+    if(idx>-1)list[idx]=Object.assign(list[idx],{title,cat,link,html,date:T()});
+    EDIT_NOTE_ID=null;
+  }else{
+    list.unshift({id:Date.now(),date:T(),cat,title,link,html});
+  }
+  SHOW_COMPOSER=false;
+  saveNotes(list);render();
+}
+function editNote(id){
+  const n=loadNotes().find(x=>x.id===id);if(!n)return;
+  EDIT_NOTE_ID=id;SHOW_COMPOSER=true;render();
+  setTimeout(()=>{
+    $('ntTitle').value=n.title||'';
+    $('ntCat').value=n.cat||'Tajweed Lessons';
+    $('ntLink').value=n.link||'';
+    $('rtEditor').innerHTML=n.html||n.body||'';
+  },50);
+}
+function delNote(id){if(!confirm('Delete this note/lesson?'))return;saveNotes(loadNotes().filter(x=>x.id!==id));render()}
+function setLibFilter(f){const s=loadState();s.libFilter=f;saveState(s);D.state=s;render()}
+function setLibSubTab(st){const s=loadState();s.libSubTab=st;saveState(s);D.state=s;render()}
+
+function exportNoteDoc(id,type){
+  const n=loadNotes().find(x=>x.id===id);if(!n)return;
+  const content=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${n.title}</title>
+    <style>body{font-family:system-ui,sans-serif;padding:28px;line-height:1.6}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:6px}</style>
+    </head><body><h1>${n.title}</h1><p style="color:#666">${n.cat} · ${n.date}</p>${n.link?`<p><a href="${n.link}">${n.link}</a></p>`:''}<div>${n.html||n.body||''}</div></body></html>`;
+  if(type==='pdf'){
+    const w=window.open('','_blank');
+    if(w){w.document.write(content);w.document.close();w.focus();setTimeout(()=>w.print(),300)}
+  }else if(type==='doc'){
+    const blob=new Blob(['\ufeff',content],{type:'application/msword'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${n.title.replace(/\s+/g,'_')}.doc`;a.click();
+  }else if(type==='share'){
+    const tmp=document.createElement('div');tmp.innerHTML=n.html||n.body||'';
+    const txt=`📖 ${n.title} (${n.cat})\n\n${tmp.innerText}\n${n.link?'\n🔗 '+n.link:''}`;
+    if(navigator.share)navigator.share({title:n.title,text:txt}).catch(()=>{});
+    else{navigator.clipboard.writeText(txt);$('msg').textContent='Copied to clipboard!'}
+  }
+}
+
+function ytEmbedUrl(url){
+  if(!url)return null;
+  const m=url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
+  return m?`https://www.youtube.com/embed/${m[1]}`:null;
+}
+
+function sendEmailSummary(){
+  const s=D.state,st=D.stats;
+  const to=encodeURIComponent(s.email||'');
+  const subj=encodeURIComponent(`My Companion Progress — ${s.name||'Student'} (${T()})`);
+  const body=encodeURIComponent(
+    `Assalamu Alaikum ${s.name||''},\n\n`+
+    `My Companion Hifdh Summary (${T()}):\n`+
+    `• Current Station: Rank ${juzOf(Math.max(1,s.frontier))} of 30 (Juz ${juzOf(Math.max(1,s.frontier))})\n`+
+    `• Memorized: ${memCount(s)} / 604 pages (${Math.round(memCount(s)/604*100)}%)\n`+
+    `• Active Streak: ${st.streak} day(s)\n\n`+
+    `"Read and ascend, for your station will be at the last verse you recite."`
+  );
+  window.location.href=`mailto:${to}?subject=${subj}&body=${body}`;
+}
+function enableReminder(){
+  if(!('Notification' in window)){$('msg').textContent='Notifications not supported on this browser.';return}
+  Notification.requestPermission().then(p=>{
+    if(p==='granted')new Notification('My Companion',{body:`Assalamu Alaikum ${D.state.name||''}! Daily Hifdh reminder is active.`});
+  });
+}
+
+function exportData(){
+  const s=loadState();s.lastBackup=T();saveState(s);
+  const blob=new Blob([JSON.stringify({app:'hifdh',v:7,state:s,days:loadDays(),notes:loadNotes()})],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='my-companion-backup-'+T()+'.json';
+  document.body.appendChild(a);a.click();a.remove();render();
+}
+function importData(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{
+    const o=JSON.parse(r.result);
+    if(o.app!=='hifdh'||!o.state||!o.days)throw new Error('Invalid backup file.');
+    if(!confirm('Replace your current data with this backup?'))return;
+    saveState(Object.assign({},DEFAULTS,o.state));sv('hifdh_days',o.days);
+    if(o.notes)saveNotes(o.notes);
+    D=null;render();
+  }catch(e){$('msg').textContent=e.message}};
+  r.readAsText(f);inp.value='';
+}
+function resetAll(){LS.removeItem('hifdh_state');LS.removeItem('hifdh_days');LS.removeItem('hifdh_notes');D=null;render()}
+function replayIntro(){const s=loadState();s.seenIntro=false;OB_SLIDE=0;saveState(s);D.state=s;render()}
+
+const rng=(a,b)=>a===b?`Page ${a}`:`Pages ${a}–${b}`;
+const chunkName=n=>n>0?`last ${n} pages`:'whole juz';
+function fmt(d){return d?new Date(d+'T00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'—'}
+const initials=name=>(name||'M').trim().split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
+
+/* ---------- icons & small helpers (v2) ---------- */
+const ICO={
+  home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  stats:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  tasbih:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  lib:'<path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  loop:'<path d="M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2"/><path d="M20 4v5h-5M4 20v-5h5"/>',
+  both:'<path d="M2 5h5a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H2z"/><path d="M13 10a4.5 4.5 0 0 1 8 0M21 16a4.5 4.5 0 0 1-8 0"/><path d="M21 6v4h-4M13 20v-4h4"/>',
+  star:'<rect x="5.5" y="5.5" width="13" height="13" rx="1.5"/><rect x="5.5" y="5.5" width="13" height="13" rx="1.5" transform="rotate(45 12 12)"/>',
+  cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  mark:'<path d="M6 3h12v18l-6-4-6 4z"/>'
+};
+const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICO[n]}</svg>`;
+const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),2600)}
+const NAV=[['today','home','Today'],['journey','stats','Stats'],['tasbih','tasbih','Tasbih'],['recite','mic','Recite'],['library','lib','Library'],['settings','gear','Settings']];
+function buildNav(){$('bottomNav').innerHTML=NAV.map(n=>`<button id="nav-${n[0]}" class="${n[0]===TAB?'active':''}" onclick="setTab('${n[0]}')">${ic(n[1])}<span>${n[2]}</span></button>`).join('')}
+function setHdr(h){$('hdr').innerHTML=h}
+const themeBtn=s=>`<button class="g sm" onclick="toggleTheme()" id="themeBtn" title="Switch theme">${s.theme==='dark'?'☀️':'🌙'}</button>`;
+function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);D=null;render()}
+function setUi(k,v){const s=loadState();s[k]=v;saveState(s);applyTheme(s);if(D)D.state=s;render()}
+/* ---------- plan form (shared by first-time setup and Settings) ---------- */
+let DR=null;
+function initDraft(){
+  const s=loadState();
+  DR={mode:s.mode,method:s.method,pace:s.newPerDay,posType:'page',fr:s.frontier,juzIn:'',
+      rev:s.revPerDay,sabak:s.sabakPages,cycle:s.cycle+1,juz:s.juz,period:s.period,
+      tourDay:s.tourDay||1,tourNum:s.tourNum||1,chunks:s.chunks.join(','),after:s.afterLast||'keep'};
+}
+function drSet(k,v){
+  if(!DR)initDraft();
+  DR[k]=v;
+  if(k==='method'){
+    if(v==='ottoman'){DR.sabak=0;DR.chunks='5,10,15,0'}
+    else if(v==='simple'){DR.sabak=5;DR.chunks='0'}
+  }
+  render();
+}
+function drIn(k,v){DR[k]=v}
+function drPosType(t){if(DR.posType!==t){DR.posType=t;DR.juzIn='';render()}}
+function drPos(v){
+  if(DR.posType==='page'){
+    const n=parseFloat(v);DR.fr=isNaN(n)?0:Math.max(0,Math.min(TOTAL,Math.round(n*2)/2));
+  }else{
+    DR.juzIn=v;
+    if(v!==''){const j=Math.max(0,Math.min(30,Math.floor(parseFloat(v)||0)));DR.fr=j>=1?juzEnd(j):0}
+  }
+  const h=$('posHint');if(h)h.textContent=posHintText();
+}
+function posHintText(){
+  const f=DR.fr;
+  if(f<=0)return 'Starting from the beginning.';
+  return `Up to page ${f} · Juz ${juzOf(f)} · ${surahOf(f)}`;
+}
+function planForm(ctx){
+  if(!DR)initDraft();
+  const d=DR;
+  const modes=[['both','Both Hifdh & Revision','both'],['hifdh','Hifdh Only','lib'],['revision','Revision Only','loop']];
+  const methods=[['tikrar','Madinah Tikrar','Frequent repetition','star'],['ottoman','Ottoman Cycles','Structured rounds','loop'],['simple','Simple Daily','Steady pace','cal']];
+  const desc={
+    tikrar:'Madinah Tikrar: 40× repetition of the new page, recent connection, and a 6-day review circuit.',
+    ottoman:'Ottoman Cycles: revise each Juz in 4 easy steps (last 5 pages → 10 → 15 → full Juz), one juz per day.',
+    simple:'Simple Daily: set your own daily pages, a few recent pages, and a steady juz rotation.'
+  };
+  const paces=[0.5,1,2,3];
+  const paceNum=parseFloat(d.pace);
+  const showPaces=paces.includes(paceNum)?paces:[...paces,paceNum];
+  const adv=d.method==='tikrar'
+   ?`<div class="two">
+      <div><label class="f">Review tour #</label><input type="number" value="${esc(d.tourNum)}" oninput="drIn('tourNum',this.value)"></div>
+      <div><label class="f">Day in 6-day tour (1–6)</label><input type="number" value="${esc(d.tourDay)}" oninput="drIn('tourDay',this.value)"></div>
+     </div>`
+   :`<div class="two">
+      <div><label class="f">Next juz to revise (1–30)</label><input type="number" value="${esc(d.juz)}" oninput="drIn('juz',this.value)"></div>
+      <div><label class="f">Current cycle #</label><input type="number" value="${esc(d.cycle)}" oninput="drIn('cycle',this.value)"></div>
+      <div><label class="f">Period #</label><input type="number" value="${esc(d.period)}" oninput="drIn('period',this.value)"></div>
+      <div><label class="f">Juz revised per day</label><input type="number" value="${esc(d.rev)}" oninput="drIn('rev',this.value)"></div>
+      <div><label class="f">Recent pages to revise daily</label><input type="number" value="${esc(d.sabak)}" oninput="drIn('sabak',this.value)"></div>
+     </div>
+     <label class="f">Cycle sizes (pages from end of each juz, 0 = whole juz)</label>
+     <input type="text" value="${esc(d.chunks)}" oninput="drIn('chunks',this.value)">
+     <div class="mu" style="margin-top:4px">Example: <b>5,10,15,0</b> = last 5, last 10, last 15 pages, then the whole juz.</div>
+     <div class="mu" style="margin-top:10px">Recent pages is the minimum. The recent window keeps its start page for 6 days and grows by up to 5 pages, then steps forward.</div>
+     <label class="f">After the last cycle</label>
+     <div class="seg"><span class="${d.after!=='restart'?'on':''}" onclick="drSet('after','keep')">Keep whole juz</span><span class="${d.after==='restart'?'on':''}" onclick="drSet('after','restart')">Restart cycles</span></div>`;
+  return `
+    ${ctx==='onboard'?`<div class="card"><label class="f" style="margin-top:0">Your name</label><input type="text" id="obName" placeholder="e.g. Ahmad" value="${esc(loadState().name)}"></div>`:''}
+    <div class="sec" style="margin-top:${ctx==='onboard'?'18':'4'}px">Your Goal</div>
+    ${modes.map(m=>`<div class="goal ${d.mode===m[0]?'on':''}" onclick="drSet('mode','${m[0]}')">${ic(m[2])}<b>${m[1]}</b><span class="tk">✓</span></div>`).join('')}
+    <div class="sec">Method</div>
+    <div class="mgrid">${methods.map(m=>`<div class="mtile ${d.method===m[0]?'on':''}" onclick="drSet('method','${m[0]}')">${ic(m[3])}<b>${m[1]}</b><span>${m[2]}</span></div>`).join('')}</div>
+    <div class="mu mdesc">${desc[d.method]}</div>
+    <div class="sec">Where are you now?</div>
+    <div class="card">
+      <div class="seg"><span class="${d.posType==='page'?'on':''}" onclick="drPosType('page')">Page #</span><span class="${d.posType==='juz'?'on':''}" onclick="drPosType('juz')">Juz #</span></div>
+      ${d.posType==='page'
+        ?`<label class="f" style="margin-top:0">Pages memorized so far (0–604)</label><input type="number" step="0.5" value="${d.fr}" oninput="drPos(this.value)">`
+        :`<label class="f" style="margin-top:0">Juz fully memorized (0–30)</label><input type="number" placeholder="e.g. 15" value="${esc(d.juzIn)}" oninput="drPos(this.value)">`}
+      <div class="mu" id="posHint" style="margin-top:6px">${posHintText()}</div>
+    </div>
+    <div class="sec">Your Daily Pace</div>
+    <div class="card"><div class="mu" style="margin-bottom:10px">New pages to memorize each day</div>
+      <div class="pace">${showPaces.map(p=>`<span class="${p===paceNum?'on':''}" onclick="drSet('pace',${p})">${p===0.5?'½ Page':p+(p===1?' Page':' Pages')}</span>`).join('')}</div>
+    </div>
+    <details class="card adv"><summary>⚙️ Advanced fine-tuning (optional)</summary><div style="margin-top:10px">${adv}</div></details>
+    <button class="bigbtn" onclick="savePlan('${ctx}')">${ctx==='onboard'?'Start My Journey 🚀':'Save Plan'}</button>`;
+}
+function savePlan(ctx){
+  const d=DR;
+  const f={
+    name:ctx==='onboard'&&$('obName')?$('obName').value:undefined,
+    mode:d.mode,method:d.method,newPerDay:d.pace,frontier:d.fr,
+    revPerDay:d.rev,sabakPages:d.sabak,cycle:d.cycle,juz:d.juz,period:d.period,
+    tourDay:d.tourDay,tourNum:d.tourNum,chunks:d.chunks,afterLast:d.after
+  };
+  $('msg').textContent='';
+  const r=api.savePlan(T(),f);
+  if(r&&r.error){$('msg').textContent=r.error;window.scrollTo(0,0);return}
+  D=r;DR=null;
+  if(ctx==='onboard'){TAB='today';window.scrollTo(0,0)}
+  toast(r.kept?'Saved ✓ Today’s ticked tasks stay; the new plan applies from tomorrow.':'Plan saved ✓');
+  buildNav();render();
+}
+function saveProfile(){
+  const s=loadState();
+  s.name=$('stName').value.trim();s.email=$('stEmail').value.trim();s.aiKey=$('stAiKey').value.trim();
+  saveState(s);D=null;toast('Profile saved ✓');render();
+}
+/* ---------- Today screen (v2) ---------- */
+function rToday(s,st,day,rank){
+  const cnt=pstCount(s,1,TOTAL),mem=cnt.g+cnt.w,pct=Math.round(mem/604*100);
+  const curJ=(s.frontier>0&&s.frontier>=juzEnd(rank)&&rank<30)?rank+1:rank;
+  const jlen=juzEnd(curJ)-JUZ_START[curJ]+1;
+  const jc=pstCount(s,JUZ_START[curJ],juzEnd(curJ)),jdone=jc.g+jc.w;
+  const jp=Math.round(jdone/jlen*100);
+  setHdr(`<div class="row"><h1 class="brand light">My Companion</h1>${themeBtn(s)}</div><div class="tagline">Today’s Journey</div><div class="hello">Assalamu Alaikum${s.name?', '+esc(s.name):''}</div>`);
+  const mush=p=>`<a class="pl c0" href="https://quran.com/page/${p}" target="_blank" onclick="event.stopPropagation()">Mushaf ↗</a>`;
+  const card=(key,done,title,sub,pills)=>`<div class="tcard ${done?'done':''}" onclick="call('tick','${key}')"><div class="chk">${done?'✓':''}</div><div style="flex:1;min-width:0"><div class="ttl">${title}</div><div class="tsub">${sub}</div><div class="pills">${pills}</div></div></div>`;
+  let h=`<div class="card pcard"><h2>Today’s Progress</h2>
+    <div class="row"><span class="rk">${s.mode==='revision'?'Revision mastery':`Rank ${rank} of 30`}</span><span class="pc2">${pct}% <small>(${mem} of 604 pages)</small></span></div>
+    <div class="sbar" style="margin:12px 0 6px;height:10px">${stkInner(cnt.g,cnt.w,TOTAL)}</div><div class="mu" style="margin-bottom:8px">Strong ${cnt.g} · Weak ${cnt.w} pages</div>
+    <div class="row mu"><span>🔥 ${st.streak} day streak</span><span>${s.mode!=='revision'&&st.eta?'Finish: '+fmt(st.eta):''}</span></div>
+    <div style="border-top:1px solid var(--bd);margin-top:14px;padding-top:12px">
+      <div class="row"><span class="rk" style="font-size:16px">Juz ${curJ}</span><span class="pc2">${jp}% <small>(${jdone} of ${jlen} pages)</small></span></div>
+      <div class="bar" style="margin-top:8px"><i style="width:${jp}%"></i></div>
+    </div></div>`;
+
+  if(day.n){
+    const subs=day.n.subs||{};
+    const sp=(k,cls,label,act)=>`<span class="pl ${cls} ${subs[k]?'on':''}" onclick="event.stopPropagation();${act}">${subs[k]?'✓ ':''}${label}</span>`;
+    let pills='';
+    if(s.method==='tikrar'){
+      if(s.frontier>0)pills+=sp('yest','c0','Yesterday 5x',"call('tickSub','yest')");
+      pills+=sp('listen','c1','Listen 3x',"call('tickSub','listen')");
+      pills+=sp('tafsir','c2','Tafsir',"call('tickSub','tafsir')");
+      pills+=sp('repeat','c3',`Repeat ${day.n.repTarget||40}x`,subs.repeat?"call('tickSub','repeat')":`jumpToTasbih(${day.n.repTarget||40})`);
+      pills+=sp('record','c4','Record 3x',subs.record?"call('tickSub','record')":"setTab('recite')");
+    }
+    pills+=mush(day.n.a);
+    h+=card('n',day.n.done,'New '+rngUnits(day.n.uA,day.n.uB,day.n.useHalf),esc(locLabel(day.n.a,Math.min(TOTAL,Math.ceil(day.n.b)))),pills);
+  }
+  if(day.sb){
+    const sbRng=rngUnits(day.sb.uA||day.sb.a*2-1,day.sb.uB||day.sb.b*2,day.sb.useHalf);
+    const isConn=s.method==='tikrar';
+    h+=card('sb',day.sb.done,isConn?'Recent Connection':'Recent Revision',sbRng,
+      (isConn?'<span class="pl soft">Ar-Rabt</span><span class="pl soft">From memory</span>':`<span class="pl soft">${(day.sb.uB-day.sb.uA+1)/2} pages · steps every 6 days</span>`)+mush(day.sb.a));
+  }
+  day.r.forEach((t,i)=>{
+    if(t.isTikrar){
+      h+=card('r'+i,t.done,'Old Revision',rngUnits(t.uA,t.uB,t.useHalf),
+        `<span class="pl soft">Tour #${t.tourNum}</span><span class="pl soft">Day ${t.tourDay} of 6</span>`+mush(t.a));
+    }else{
+      h+=card('r'+i,t.done,`Juz ${t.j} Revision`,rng(t.a,t.b),
+        `<span class="pl soft">${chunkName(t.n)}</span><span class="pl soft">Cycle ${t.c+1}/${s.chunks.length}</span><span class="pl soft">Period ${t.p}</span>`+mush(t.a));
+    }
+  });
+  if(!day.n&&!day.sb&&!day.r.length){
+    h+=`<div class="card mu">Nothing planned yet. Open <b>Settings</b> to set your plan.</div>`;
+  }else if(day.u.length){
+    const total=(day.n?1:0)+(day.sb?1:0)+day.r.length;
+    h+=`<div class="row" style="margin:2px 4px 14px"><span style="font-weight:650;color:var(--ac)">${day.u.length>=total?'✅ All done today, māshā’Allāh!':''}</span><button class="g sm" onclick="call('tick','${day.u[day.u.length-1]}')">Undo last tick</button></div>`;
+  }
+  if(s.mode!=='hifdh'&&s.method==='tikrar'){
+    h+=`<div class="card"><div class="row"><h2 style="margin:0">6-Day Review Circuit</h2><span class="pill">Tour #${s.tourNum||1}</span></div><div class="cyc" style="margin-top:10px">`+
+      [1,2,3,4,5,6].map(d=>`<span class="cy ${(s.tourDay||1)===d?'on':''}">Day ${d}</span>`).join('')+`</div></div>`;
+  }else if(s.mode!=='hifdh'&&s.method!=='tikrar'){
+    h+=`<div class="card"><div class="row"><h2 style="margin:0">Revision Cycle</h2><span class="pill">Period ${s.period}</span></div><div class="cyc" style="margin-top:10px">`+
+      s.chunks.map((n,i)=>`<span class="cy ${i===s.cycle?'on':''}">${i+1}. ${chunkName(n)}</span>`).join('')+
+      `</div><div class="mu" style="margin-top:8px">Next up: Juz ${Math.min(30,s.juz)} in cycle ${s.cycle+1}</div></div>`;
+  }
+  $('app').innerHTML=h;
+}
+
+/* ---------- Settings screen (v2) ---------- */
+function rSettings(s){
+  const cols=[['emerald','#1f5f4a'],['blue','#2563eb'],['gold','#a16207'],['plum','#7c3aed']];
+  setHdr(`<div class="row"><h1 class="brand light">Settings</h1>${themeBtn(s)}</div><div class="tagline">Your plan, profile and backup</div>`);
+  $('app').innerHTML=`
+    ${planForm('settings')}
+
+    <div class="card" style="margin-top:14px"><details>
+      <summary>📚 Study methods explained</summary>
+      <div style="font-size:13.5px;line-height:1.6;margin-top:10px">
+        <p><b>🕌 Madinah Tikrar.</b> Each day: recite yesterday’s portion 5×, listen 3×, read the tafsir, repeat the new portion 40× (30× on 3 pages), and record yourself 3×. Then recite the last ~25 days from memory (connection) and revise older pages in a 6-day circuit.</p>
+        <p><b>🌙 Ottoman Cycles.</b> Each day revise the last pages of one juz, moving juz by juz up to where you are. Cycle 1 = last 5 pages of each juz, cycle 2 = last 10, cycle 3 = last 15, cycle 4 = the whole juz. Then a new period starts.</p>
+        <p><b>✨ Simple Daily.</b> Your daily new pages, a few recent pages, and a steady juz rotation. Change the sizes in Advanced fine-tuning.</p>
+      </div>
+    </details></div>
+
+    <div class="card"><h2>🔍 Display size</h2>
+      <label class="f" style="margin-top:0">Text size</label>
+      <div class="pace">${[['s','Small'],['m','Medium'],['l','Large']].map(x=>`<span class="${(s.uiText||'m')===x[0]?'on':''}" onclick="setUi('uiText','${x[0]}')">${x[1]}</span>`).join('')}</div>
+      <label class="f">Task card &amp; tick box size</label>
+      <div class="pace">${[['s','Small'],['m','Medium'],['l','Large']].map(x=>`<span class="${(s.uiCard||'m')===x[0]?'on':''}" onclick="setUi('uiCard','${x[0]}')">${x[1]}</span>`).join('')}</div>
+    </div>
+
+    <div class="card"><h2>👤 Profile & Appearance</h2>
+      <div class="row" style="justify-content:flex-start;gap:14px;margin-bottom:10px">
+        <div class="avatar avatar-lg">${s.avatar?`<img src="${s.avatar}" alt="">`:initials(s.name)}</div>
+        <div>
+          <button class="sm" onclick="$('avInp').click()">Upload photo</button>
+          ${s.avatar?`<button class="g sm" style="margin-left:6px" onclick="removeAvatar()">Remove</button>`:''}
+          <input type="file" id="avInp" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+        </div>
+      </div>
+      <div class="two">
+        <div><label class="f">Your name</label><input type="text" id="stName" value="${esc(s.name)}"></div>
+        <div><label class="f">Your email</label><input type="email" id="stEmail" value="${esc(s.email)}"></div>
+      </div>
+      <label class="f">Optional Gemini API key (<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">get a free key ↗</a>)</label>
+      <input type="text" id="stAiKey" placeholder="AIza..." value="${esc(s.aiKey||'')}">
+      <label class="f">App colour</label>
+      <div class="swatches">${cols.map(c=>`<div class="swatch ${s.color===c[0]?'on':''}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></div>`).join('')}</div>
+      <button style="width:100%;margin-top:14px" onclick="saveProfile()">Save profile</button>
+      <div class="two" style="margin-top:10px">
+        <button class="g sm" onclick="enableReminder()">🔔 Daily alert</button>
+        <button class="g sm" onclick="sendEmailSummary()">✉️ Email summary</button>
+      </div>
+    </div>
+
+    <div class="card"><h2>⚡ Quick actions & backup</h2>
+      <label class="f">Add extra memorized pages</label>
+      <div class="row"><input type="number" step="0.5" id="ad" value="1" style="width:90px"><button class="sm" onclick="call('addPages',$('ad').value)">Add pages</button></div>
+      <label class="f" style="margin-top:14px">Backup data (last backup: ${s.lastBackup||'never'})</label>
+      <div class="two"><button onclick="exportData()">Export backup</button><button class="g" onclick="$('imp').click()">Import backup</button></div>
+      <input type="file" id="imp" accept=".json,application/json" style="display:none" onchange="importData(this)">
+      <div class="mu" style="margin-top:6px">The backup holds your plan, progress and notes. Recordings and vault files stay on this phone.</div>
+      <button class="d" style="width:100%;margin-top:16px" onclick="if(confirm('Delete ALL your data?')){resetAll()}">Reset everything</button>
+    </div>
+
+    <div class="tg-banner">
+      <div style="font-size:15px;font-weight:800">📢 My Companion Community & Updates</div>
+      <div style="font-size:12.5px;opacity:.92;margin-top:3px">Follow our official Telegram channel for updates, tips, or support.</div>
+      <div><a href="https://t.me/MyCompanionApp" target="_blank">🚀 Updates channel</a><a href="https://t.me/MyCompanionApp" target="_blank">💡 Request feature</a></div>
+    </div>`;
+}
+
+async function render(){
+  if(!D){call('getData');return}
+  const s=D.state,st=D.stats,day=D.day;
+  const rank=s.frontier>0?juzOf(s.frontier):1;
+
+/* 1. 3-SLIDE ANIMATED WELCOME TOUR */
+  if(!s.seenIntro){
+    setHdr('');
+    $('bottomNav').style.display='none';
+    const slides=[
+      {ico:'📖',title:'Welcome to My Companion',desc:'Your minimalist daily companion for Qur’an memorization and revision—featuring the winding path ascension and Tikrar study habits.'},
+      {ico:'🏔️',title:'Winding Ascension Path',desc:'Watch your station elevate step-by-step up the 30-Rank path toward the Radiant Summit light as you master each Juz.'},
+      {ico:'🎙️',title:'Tailored to Your Goal',desc:'Choose Hifdh Only, Revision Only, or Both—with built-in Tasbih counter, Voice Studio, and Rich Notes.'}
+    ];
+    const cur=slides[OB_SLIDE];
+    $('app').innerHTML=`<div class="card ob-wrap">
+      <div class="row"><span class="pill">Welcome Tour ${OB_SLIDE+1}/3</span><button class="g sm" onclick="skipIntro()">Skip ↗</button></div>
+      <div class="ob-art">${cur.ico}</div>
+      <h2 style="font-size:19px;margin-bottom:8px">${cur.title}</h2>
+      <div class="mu" style="max-width:360px;margin:0 auto;font-size:13.5px">${cur.desc}</div>
+      <div class="dots">${slides.map((_,i)=>`<div class="dot ${i===OB_SLIDE?'on':''}"></div>`).join('')}</div>
+      <div class="row" style="margin-top:10px">
+        ${OB_SLIDE>0?`<button class="g" style="flex:1" onclick="OB_SLIDE--;render()">Back</button>`:'<div style="flex:1"></div>'}
+        <button style="flex:2" onclick="${OB_SLIDE<2?'OB_SLIDE++;render()':'skipIntro()'}">${OB_SLIDE<2?'Next →':'Set Up My Companion'}</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  
+  /* 2. FIRST-TIME SETUP (same visual form as Settings) */
+  if(!s.onboarded){
+    $('bottomNav').style.display='none';
+    setHdr(`<div class="row"><h1 class="brand">My Companion ${ic('mark')}</h1>${themeBtn(s)}</div><div class="tagline">A gentle path to memorization.</div>`);
+    $('app').innerHTML=planForm('onboard');
+    return;
+  }
+
+  $('bottomNav').style.display='flex';
+  if(TAB!=='today'&&TAB!=='settings'){
+    const T2={journey:['Stats','Your ascent so far'],tasbih:['Tasbih','Count your repetitions'],recite:['Recite','Record and review your recitation'],library:['Library','Notes, lessons and media']}[TAB]||['My Companion',''];
+    setHdr(`<div class="row"><h1 class="brand light">${T2[0]}</h1>${themeBtn(s)}</div><div class="tagline">${T2[1]}</div>`);
+  }
+
+  if(TAB==='today'){rToday(s,st,day,rank)}
+  /* TAB 2: ASCEND (Winding Landscape Journey Map) */
+  else if(TAB==='journey'){
+    const mem=memCount(s),pct=Math.round(mem/604*100);
+    const pagesToNext=Math.max(0,juzEnd(rank)-s.frontier);
+    let pathHtml=`<div class="summit-crown">
+      <div class="summit-badge">👑</div>
+      <div style="font-weight:800;font-size:15px">The Radiant Summit · Khatmah</div>
+      <div class="mu">“Read and ascend, for your station will be at the last verse you recite.”</div>
+    </div><div class="path-container">`;
+
+    for(let j=30;j>=1;j--){
+      const fill=Math.round(st.juz[j-1]*100);
+      const isClimbed=fill===100;
+      const isCurrent=(j===rank && !isClimbed) || (j===30 && s.frontier>=TOTAL);
+      const cls=isCurrent?'current':(isClimbed?'climbed':'');
+      pathHtml+=`<div class="path-node ${cls}">
+        <div class="node-bubble">${isClimbed?'✓':j}</div>
+        <div class="node-info">
+          <div class="row">
+            <b>Rank ${j} · Juz ${j}</b>
+            ${isCurrent?`<span class="pill">Current · ${fill}%</span>`:`<span class="mu">${fill}%</span>`}
+          </div>
+          <div class="mu">Surah: ${juzSurahRange(j)}</div>
+        </div>
+      </div>`;
+    }
+    pathHtml+=`</div>`;
+
+    $('app').innerHTML=strengthCard(s)+`<div class="card">
+      <div class="row"><h2>🏔️ Winding Ascension Path</h2><span class="pill">Rank ${rank} of 30</span></div>
+      <div class="row mu" style="margin-bottom:12px">
+        <span>Memorized: <b>${mem} / 604 pages</b> (${pct}%)</span>
+        <span>${pagesToNext>0?`${pagesToNext}p to Rank ${Math.min(30,rank+1)}`:'Summit Reached!'}</span>
+      </div>
+      <div class="winding-map">${pathHtml}</div>
+    </div>
+
+    <div class="card"><div class="row"><h2>Last 28 Days Consistency</h2><span class="mu">🔥 ${st.streak}d streak</span></div><div class="strip">`+
+      st.strip.map(x=>`<div class="s s${x.s}" title="${x.d}"></div>`).join('')+
+    `</div></div>`;
+  }
+
+  /* TAB 3: TASBIH */
+  else if(TAB==='tasbih'){
+    const count=s.tasbih||0, target=s.tasbihTarget||40;
+    const isAyah=s.tasbihMode==='ayah';
+    const phrases=['SubḥānAllāh','Alḥamdulillāh','Allāhu Akbar','Astaghfirullāh','Lā ilāha illā Allāh'];
+    const themes=[['emerald','Emerald'],['midnight','Midnight'],['sand','Warm Sand'],['gold','Royal Gold'],['ocean','Deep Ocean']];
+
+    $('app').innerHTML=`<div class="tasbih-stage t-theme-${s.tasbihTheme||'emerald'}">
+      <div class="row">
+        <div>
+          <span class="pill">${isAyah?'📖 Ayah Repetition Mode':'📿 Dhikr / Tasbih Mode'}</span>
+          <div style="font-weight:750;font-size:15px;margin-top:4px">${isAyah?`Repeating Current Portion`:s.tasbihPhrase}</div>
+        </div>
+        <button class="g sm" style="font-size:16px;padding:5px 11px;background:rgba(255,255,255,.15);color:inherit" onclick="T_MENU=!T_MENU;render()">⋮</button>
+      </div>
+
+      ${T_MENU?`<div class="pop-menu">
+        <div class="row" style="margin-bottom:8px"><b>Counter Options</b><button class="g sm" onclick="T_MENU=false;render()">✕</button></div>
+        <label class="f">Counter Purpose</label>
+        <div class="two">
+          <button class="${isAyah?'':'g'} sm" onclick="setTasbihMode('ayah')">Ayah Repeat</button>
+          <button class="${!isAyah?'':'g'} sm" onclick="setTasbihMode('dhikr')">Dhikr / Tasbih</button>
+        </div>
+        ${!isAyah?`<label class="f">Select Dhikr</label>
+          <select onchange="setTasbihPhrase(this.value)">
+            ${phrases.map(p=>`<option value="${p}" ${s.tasbihPhrase===p?'selected':''}>${p}</option>`).join('')}
+          </select>`:''}
+        <label class="f">Target Count</label>
+        <div class="cyc">
+          ${[5,20,30,33,40,100].map(p=>`<span class="cy ${target===p?'on':''}" onclick="setTasbihTarget(${p})">${p}x</span>`).join('')}
+        </div>
+        <label class="f">Counter Theme</label>
+        <div class="cyc">
+          ${themes.map(th=>`<span class="cy ${s.tasbihTheme===th[0]?'on':''}" onclick="setTasbihTheme('${th[0]}')">${th[1]}</span>`).join('')}
+        </div>
+        <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)" class="row">
+          <span class="mu">Lifetime taps: <b>${s.tasbihTotal||0}</b></span>
+          <button class="g sm" onclick="resetTasbihLifetime()">Reset</button>
+        </div>
+      </div>`:''}
+
+      <div class="tasbih-center">
+        <button class="tasbih-orb" onclick="tapTasbih()">
+          <span class="tasbih-num">${count}</span>
+          <span class="tasbih-sub">${count>=target?'🎉 Target Reached!':'Target: '+target}</span>
+        </button>
+        <div class="mu" style="color:inherit;opacity:.75">Tap anywhere in the circle to count</div>
+      </div>
+
+      <div class="row">
+        <button class="g sm" style="background:rgba(255,255,255,.14);color:inherit" onclick="resetTasbih()">↺ Reset Current</button>
+        <span style="font-size:12px;opacity:.8">Target: ${target}</span>
+      </div>
+    </div>`;
+  }
+
+  /* TAB 4: RECITE */
+  else if(TAB==='recite'){
+    await initMics();
+    const clips=await loadClips();
+    const formats=[
+      ['','Auto (Best Supported)'],
+      ['audio/webm;codecs=opus','WebM / High-Clarity Opus'],
+      ['audio/mp4','MP4 / AAC (iOS & Mobile)'],
+      ['audio/wav','WAV Audio']
+    ];
+    $('app').innerHTML=`<div class="card" style="text-align:center">
+      <div class="row"><h2>🎙️ Voice Recitation Studio</h2><button class="g sm" onclick="$('audUp').click()">+ Upload Audio</button></div>
+      <input type="file" id="audUp" accept="audio/*" style="display:none" onchange="uploadAudioClip(this)">
+      <div class="mu">Record yourself reciting the memorized portion 3 times from memory, then listen back while checking the Mushaf.</div>
+      <button class="rec-btn ${isRecording?'d':''}" onclick="toggleRecord()">${isRecording?'⏹':'●'}</button>
+      <div style="font-weight:700;font-size:13px;color:${isRecording?'#b91c1c':'var(--ac)'}">${isRecording?'Recording... Tap to Stop & Save':'Tap to Record'}</div>
+
+      <details style="margin-top:12px;text-align:left">
+        <summary style="font-size:12.5px;color:var(--mu)">⚙️ Microphone & Format Options</summary>
+        <div class="two" style="margin-top:8px">
+          <div>
+            <label class="f">Microphone Input</label>
+            <select onchange="selectedMic=this.value">
+              <option value="">Default Microphone</option>
+              ${audioDevices.map((d,i)=>`<option value="${d.deviceId}" ${selectedMic===d.deviceId?'selected':''}>${d.label||'Mic '+(i+1)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label class="f">Recording Format</label>
+            <select onchange="selectedMime=this.value">
+              ${formats.map(f=>`<option value="${f[0]}" ${selectedMime===f[0]?'selected':''}>${f[1]}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card"><h2>Saved Recitations (${clips.length})</h2>
+      ${clips.length?clips.map(c=>{
+        const url=URL.createObjectURL(c.blob);
+        return `<div class="media-box" style="margin-bottom:10px">
+          <div class="row"><b>${esc(c.label)}</b><span class="mu">${c.date}</span></div>
+          ${c.note?`<div style="font-size:12.5px;background:var(--ac2);color:var(--ac);padding:6px 9px;border-radius:8px;margin-top:6px">📌 ${esc(c.note)}</div>`:''}
+          <audio controls src="${url}" style="width:100%;height:36px;margin-top:8px"></audio>
+          <div class="row" style="margin-top:8px;justify-content:flex-end;gap:6px">
+            <button class="g sm" onclick="editClipNote(${c.id})">✏️ Note</button>
+            <button class="g sm" onclick="shareClip(${c.id})">📤 Share</button>
+            <button class="g sm" onclick="deleteClip(${c.id})">🗑️</button>
+          </div>
+        </div>`;
+      }).join(''):'<div class="mu">No recordings yet. Tap record above or upload an existing recitation.</div>'}
+    </div>`;
+  }
+
+  /* TAB 5: LIBRARY */
+  else if(TAB==='library'){
+    const notes=loadNotes();
+    const vault=await loadVault();
+    const allFolders=['All',...s.folders];
+    const filteredNotes=s.libFilter==='All'?notes:notes.filter(n=>n.cat===s.libFilter);
+    const filteredVault=s.libFilter==='All'?vault:vault.filter(v=>v.folder===s.libFilter);
+    const totalVaultMB=(vault.reduce((a,b)=>a+(b.size||0),0)/(1024*1024)).toFixed(1);
+
+    let h=`<div class="card">
+      <div class="row">
+        <h2>📂 Study Library & Lessons</h2>
+        <div class="row" style="gap:6px">
+          <button class="${s.libSubTab==='notes'?'':'g'} sm" onclick="setLibSubTab('notes')">📝 Lessons (${notes.length})</button>
+          <button class="${s.libSubTab==='vault'?'':'g'} sm" onclick="setLibSubTab('vault')">🎞️ Vault (${vault.length})</button>
+        </div>
+      </div>
+      <div class="cyc" style="margin-top:8px">
+        ${allFolders.map(c=>`<span class="cy ${s.libFilter===c?'on':''}" onclick="setLibFilter(decodeURIComponent('${encodeURIComponent(c)}'))">${esc(c)}</span>`).join('')}
+        <span class="cy" onclick="addFolder()">+ Folder</span>
+      </div>
+    </div>`;
+
+    if(s.libSubTab==='notes'){
+      h+=`<div class="card">
+        <div class="row">
+          <b>${EDIT_NOTE_ID?'✏️ Editing Lesson / Note':'✨ Create Lesson or Rich Note'}</b>
+          <button class="sm" onclick="SHOW_COMPOSER=!SHOW_COMPOSER;EDIT_NOTE_ID=null;render()">${SHOW_COMPOSER?'Close':'+ New Note'}</button>
+        </div>
+        ${SHOW_COMPOSER?`<div style="margin-top:12px">
+          <div class="two">
+            <div><label class="f">Lesson / Note Title</label><input type="text" id="ntTitle" placeholder="e.g., Noon Sakinah"></div>
+            <div><label class="f">Folder</label>
+              <select id="ntCat">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+            </div>
+          </div>
+          <label class="f">Optional Video / Photo / Reference Link</label>
+          <input type="text" id="ntLink" placeholder="https://youtube.com/...">
+
+          <label class="f">Rich Text & Table Editor</label>
+          <div class="rt-bar">
+            <select onchange="execRT('fontName',this.value)">
+              <option value="system-ui">Sans</option>
+              <option value="Georgia,serif">Serif</option>
+              <option value="'Amiri','Traditional Arabic',serif">Arabic / Quranic</option>
+            </select>
+            <select onchange="execRT('fontSize',this.value)">
+              <option value="2">Small</option>
+              <option value="3" selected>Normal</option>
+              <option value="4">Large</option>
+              <option value="5">Heading</option>
+            </select>
+            <button class="g sm" onclick="execRT('bold')"><b>B</b></button>
+            <button class="g sm" onclick="execRT('italic')"><i>I</i></button>
+            <button class="g sm" onclick="execRT('underline')"><u>U</u></button>
+            <button class="g sm" onclick="execRT('insertUnorderedList')">• List</button>
+            <button class="g sm" onclick="insertRTTable()">⊞ Table</button>
+            <button class="g sm" onclick="$('rtImgInp').click()">🖼️ Photo</button>
+            <button class="sm" onclick="polishNoteAI()">✨ Polish</button>
+          </div>
+          <input type="file" id="rtImgInp" accept="image/*" style="display:none" onchange="attachInlinePhoto(this)">
+          <div id="rtEditor" class="rt-area" contenteditable="true" placeholder="Write your lesson or paste verses..."></div>
+          <button style="width:100%;margin-top:10px" onclick="saveRichNote()">💾 Save Lesson / Note</button>
+        </div>`:''}
+      </div>`;
+
+      h+=filteredNotes.length?filteredNotes.map(n=>{
+        const yt=ytEmbedUrl(n.link);
+        const isImg=n.link && /\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i.test(n.link);
+        return `<div class="card">
+          <div class="row"><span class="pill">${esc(n.cat||'Lesson')}</span><span class="mu">${n.date}</span></div>
+          <h2 style="margin:6px 0">${esc(n.title)}</h2>
+          ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
+          ${isImg?`<img src="${n.link}" style="max-width:100%;border-radius:10px;margin:6px 0">`:''}
+          ${n.link&&!yt&&!isImg?`<div style="margin:4px 0"><a href="${n.link}" target="_blank" style="color:var(--ac);font-size:12.5px;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
+          <div style="font-size:13.5px;line-height:1.55;margin-top:8px;overflow-x:auto">${n.html||n.body||''}</div>
+          <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);flex-wrap:wrap;gap:6px">
+            <div class="row" style="gap:5px">
+              <button class="g sm" onclick="editNote(${n.id})">✏️ Edit</button>
+              <button class="g sm" onclick="delNote(${n.id})">🗑️</button>
+            </div>
+            <div class="row" style="gap:5px">
+              <button class="g sm" onclick="exportNoteDoc(${n.id},'pdf')">📄 PDF</button>
+              <button class="g sm" onclick="exportNoteDoc(${n.id},'doc')">📝 Word</button>
+              <button class="g sm" onclick="exportNoteDoc(${n.id},'share')">📤 Share/Drive</button>
+            </div>
+          </div>
+        </div>`;
+      }).join(''):`<div class="card mu">No lessons or notes in this folder yet. Tap <b>+ New Note</b> above to create one!</div>`;
+    }else{
+      h+=`<div class="card">
+        <div class="row">
+          <div><b>🎞️ Offline Media Vault</b><div class="mu">Store photos, videos & audio offline (${totalVaultMB} MB used)</div></div>
+          <button class="sm" onclick="$('vaultInp').click()">+ Upload File</button>
+        </div>
+        <div style="margin-top:8px">
+          <label class="f">Save Uploaded File Into Folder:</label>
+          <select id="vaultFolderSel">${s.folders.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+        </div>
+        <input type="file" id="vaultInp" accept="image/*,video/*,audio/*" style="display:none" onchange="uploadVaultMedia(this)">
+      </div>`;
+
+      h+=filteredVault.length?`<div class="media-grid">`+filteredVault.map(v=>{
+        const url=URL.createObjectURL(v.blob);
+        const tp=v.type||'';
+        let mediaEl='';
+        if(tp.startsWith('image/'))mediaEl=`<img src="${url}" onclick="window.open('${url}','_blank')">`;
+        else if(tp.startsWith('video/'))mediaEl=`<video controls src="${url}"></video>`;
+        else mediaEl=`<audio controls src="${url}" style="width:100%"></audio>`;
+        return `<div class="media-box">
+          <span class="pill">${esc(v.folder||'Media')}</span>
+          <div style="font-weight:700;font-size:13px;margin:4px 0">${esc(v.title)}</div>
+          ${mediaEl}
+          <div class="row" style="margin-top:6px">
+            <span class="mu">${((v.size||0)/(1024*1024)).toFixed(1)} MB</span>
+            <button class="g sm" onclick="deleteVaultItem(${v.id})">🗑️</button>
+          </div>
+        </div>`;
+      }).join('')+`</div>`:`<div class="card mu">No offline media files in this folder yet. Tap <b>+ Upload File</b> to save files for offline study.</div>`;
+    }
+    $('app').innerHTML=h;
+  }
+
+  
+  else if(TAB==='settings'){rSettings(s)}
+}
+
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){D=null;render()}});
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+buildNav();
+render();
