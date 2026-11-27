@@ -1,11 +1,11 @@
 /* My Companion — offline helper.
    Tries the internet first (so updates arrive quickly), but if the connection
    is slow or missing it shows the saved copy after 3 seconds. */
-const C='companion-v21-0';
+const C='companion-v22-0';
 const QC='companion-quran-v1';   // kept across app updates (text is fingerprint-checked)
 const ASSETS=[
   './','./index.html','./styles.css',
-  './data/quran-data.js','./js/util.js','./js/i18n.js','./lang/en.js','./lang/ar.js','./lang/uz.js','./lang/ms.js','./js/quran.js','./js/plan.js','./js/store.js','./js/today.js','./js/tools.js','./js/onboard.js','./js/reader.js','./js/quiz.js','./js/profile.js','./js/app.js',
+  './data/quran-data.js','./data/quran-pages-1421.js','./js/util.js','./js/i18n.js','./lang/en.js','./lang/ar.js','./lang/uz.js','./lang/ms.js','./js/quran.js','./js/plan.js','./js/store.js','./js/today.js','./js/tools.js','./js/onboard.js','./js/reader.js','./js/reader-ui.js','./js/quiz.js','./js/profile.js','./js/app.js',
   './sync.js','./delete-account.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'
 ];
 const NET_TIMEOUT_MS=3000;
