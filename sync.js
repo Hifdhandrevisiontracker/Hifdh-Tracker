@@ -38,7 +38,7 @@ const CLOUD_STATE={
 
 const isAdminUser=()=>Boolean(CLOUD_STATE.user&&CLOUD_STATE.user.uid===ADMIN_UID);
 const isPermErr=e=>Boolean(e&&(e.code==='permission-denied'||/insufficient permissions/i.test(e.message||'')));
-const cleanErr=e=>String((e&&(e.message||e.code))||t('err_generic')).replace(/^Firebase:\s*/,'');
+const cleanErr=e=>String((e&&(e.message||e.code))||'Unknown error').replace(/^Firebase:\s*/,'');
 
 /* --------------------------------------------------------------------------
    Temporary bridge (removed when app.js is rebuilt in Part 2):
@@ -110,11 +110,11 @@ function copyTextSafe(txt,label='Copied ✓'){
 function shareCircleCode(){
   const c=CLOUD_STATE.circle;
   if(!c||!c.id)return;
-  const msg=t('ci_share_msg',{name:c.name,code:c.id})+'\nhttps://hifdhandrevisiontracker.github.io/Hifdh-Tracker/';
+  const msg=`Join my Study Circle "${c.name}" on My Companion! Circle code: ${c.id}\nhttps://hifdhandrevisiontracker.github.io/Hifdh-Tracker/`;
   if(navigator.share){
     navigator.share({title:c.name,text:msg}).catch(()=>{});
   }else{
-    copyTextSafe(c.id,t('ci_code_copied',{code:c.id}));
+    copyTextSafe(c.id,'Circle code copied: '+c.id);
   }
 }
 
@@ -133,10 +133,8 @@ function calcActivityMetrics(daysObj){
   let streak=0;
   let offset=doneToday?0:1;
   while(offset<400){
-    const key=addDays(today,-offset);
-    const d=days[key];
+    const d=days[addDays(today,-offset)];
     if(isValidDay(d)&&allDone(d)){streak++;offset++}
-    else if((d&&d.rest)||(!d&&typeof isRestDay==='function'&&isRestDay(key))){offset++}   // rest days never break a streak
     else break;
   }
   return{activeDays30,streak,doneToday,startedToday};
@@ -176,7 +174,7 @@ async function ensureFb(){
   fbDb=fbMods.getFirestore(fbApp);
   if(LS.getItem('hifdh_auth_redirect')){
     LS.removeItem('hifdh_auth_redirect');
-    fbMods.getRedirectResult(fbAuth).catch(e=>setCloudUi({busy:false,error:t('ac_google_failed',{code:e.code||'error'})},true));
+    fbMods.getRedirectResult(fbAuth).catch(e=>setCloudUi({busy:false,error:'Google sign-in failed ('+(e.code||'error')+'). Use Email & Password instead.'},true));
   }
   if(!unsubAuth){
     unsubAuth=fbMods.onAuthStateChanged(fbAuth,async user=>{
@@ -230,7 +228,7 @@ function stripInlineImages(html){
     if(src.startsWith('data:')){
       const note=document.createElement('span');
       note.className='mu';
-      note.textContent=' ['+t('nt_photo_local')+'] ';
+      note.textContent=' [Photo stored locally on original device] ';
       img.replaceWith(note);
     }
   });
@@ -342,11 +340,11 @@ function askFirstSyncChoice(){
     root.innerHTML=`<div class="modal-bg" style="z-index:110">
       <div class="modal-card" onclick="event.stopPropagation()">
         <div style="font-size:38px;margin-bottom:6px">☁️</div>
-        <div style="font-size:18px;font-weight:800;color:var(--ac);margin-bottom:6px">${esc(t('sc_title'))}</div>
-        <div class="mu" style="margin-bottom:14px">${esc(t('sc_desc'))}</div>
-        <button style="width:100%" onclick="window._syncChoice('merge')">✨ ${esc(t('sc_merge'))}</button>
-        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('local')">📱 ${esc(t('sc_local'))}</button>
-        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('cloud')">☁️ ${esc(t('sc_cloud'))}</button>
+        <div style="font-size:18px;font-weight:800;color:var(--ac);margin-bottom:6px">Cloud Backup Found</div>
+        <div class="mu" style="margin-bottom:14px">Both this phone and your cloud account have Hifdh progress. Which one should be used?</div>
+        <button style="width:100%" onclick="window._syncChoice('merge')">✨ Combine both (most recent wins)</button>
+        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('local')">📱 Keep this phone’s data</button>
+        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('cloud')">☁️ Use the cloud copy</button>
       </div>
     </div>`;
     window._syncChoice=choice=>{
@@ -369,7 +367,7 @@ async function runCloudSync(trigger='auto'){
     user=auth.currentUser;
     if(!user)return;
     if(LS.getItem('hifdh_deleting_uid')===user.uid){
-      setCloudUi({busy:false,status:'error',error:t('ac_delete_unfinished')},true);
+      setCloudUi({busy:false,status:'error',error:'Account deletion is not finished. Go to Profile → Privacy & Account Deletion and tap “Delete Cloud Account” again.'},true);
       return;
     }
     if(trigger==='manual')setCloudUi({busy:true,status:'syncing',error:''},true);
@@ -438,10 +436,10 @@ async function runCloudSync(trigger='auto'){
 
     const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     setCloudUi({busy:false,status:'synced',lastSync:nowTime,error:''},trigger==='manual');
-    if(trigger==='manual')toast(t('ac_synced'));
+    if(trigger==='manual')toast('Synced with cloud ✓');
   }catch(e){
-    setCloudUi({busy:false,status:'error',error:cleanErr(e)||t('pr_sync_error')},trigger==='manual');
-    if(trigger==='manual')toast(t('ac_sync_error',{msg:cleanErr(e)}));
+    setCloudUi({busy:false,status:'error',error:cleanErr(e)||'Sync failed'},trigger==='manual');
+    if(trigger==='manual')toast('Sync error: '+(cleanErr(e)||'offline'));
   }finally{
     isSyncing=false;
     if(syncPending){syncPending=false;scheduleCloudSync()}
@@ -561,7 +559,7 @@ async function createOrJoinCircle(action){
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
-    if(!user){toast(t('ci_signin_first'));return}
+    if(!user){toast('Sign in under Profile first');return}
     const s=loadState();
     const sum=memberSummary(s,user,loadDays());
     let code,name,members;
@@ -578,14 +576,14 @@ async function createOrJoinCircle(action){
           created=true;
         }catch(e){if(!isPermErr(e))throw e}
       }
-      if(!created)throw new Error(t('ci_create_failed'));
+      if(!created)throw new Error('Could not create a circle right now. Please try again.');
       members={[user.uid]:sum};
     }else{
       code=($('circleCodeInp')?$('circleCodeInp').value.trim().toUpperCase():'');
-      if(!/^[A-Z2-9]{6}$/.test(code)){toast(t('ci_enter_code'));return}
+      if(!/^[A-Z2-9]{6}$/.test(code)){toast('Enter the 6-character circle code');return}
       const ref=m.doc(db,'circles',code);
       const cSnap=await m.getDoc(ref);
-      if(!cSnap.exists()){toast(t('ci_not_found'));return}
+      if(!cSnap.exists()){toast('Circle code not found');return}
       const cData=cSnap.data()||{};
       await m.updateDoc(ref,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
       name=cData.name||'Study Circle';
@@ -594,14 +592,14 @@ async function createOrJoinCircle(action){
     s.circleCode=code;saveState(s);if(D)D.state=s;
     LS.setItem('hifdh_circle_sig_'+user.uid,code+JSON.stringify(Object.assign({},sum,{updatedAt:0})));
     setCloudUi({circleCode:code,circle:{id:code,name,members},socialMsg:''},true);
-    toast(action==='create'?t('ci_created',{code}):t('ci_joined',{code}));
+    toast(action==='create'?`Circle ${code} created ✓`:`Joined circle ${code} ✓`);
   }catch(e){
-    toast(t('ci_error',{msg:isPermErr(e)?t('ci_rules'):cleanErr(e)}));
+    toast('Circle error: '+(isPermErr(e)?'Please publish the updated Firestore Rules first.':cleanErr(e)));
   }
 }
 
 async function leaveCircleLocal(){
-  if(!confirm(t('ci_leave_confirm')))return;
+  if(!confirm('Leave this study circle? Your progress will be removed from it. You can rejoin anytime with the code.'))return;
   const code=(loadState().circleCode||CLOUD_STATE.circleCode||'').trim().toUpperCase();
   try{
     if(code&&LS.getItem('hifdh_has_auth')){
@@ -612,12 +610,12 @@ async function leaveCircleLocal(){
       }
     }
   }catch(e){
-    toast(t('ci_leave_failed'));
+    toast('Could not leave the circle. Check your internet and try again.');
     return;
   }
   clearCircleLocal();
   setCloudUi({socialMsg:''},true);
-  toast(t('ci_left'));
+  toast('Left circle');
 }
 
 async function sendNudge(toUid,toName){
@@ -632,9 +630,9 @@ async function sendNudge(toUid,toName){
       fromUid:user.uid,fromName:displayName(loadState(),user).slice(0,30),
       toUid,circleCode:circle.id,day,createdAt:Date.now()
     });
-    toast(t('ci_nudge_sent',{name:toName}));
+    toast('Nudge sent to '+toName+' ✓');
   }catch(e){
-    toast(isPermErr(e)?t('ci_nudge_once',{name:toName}):t('ci_nudge_failed'));
+    toast(isPermErr(e)?`You can nudge ${toName} once a day`:'Could not send nudge');
   }
 }
 
@@ -660,13 +658,13 @@ async function toggleLeaderboardOptIn(checked){
       }
     }catch(e){}
   }
-  toast(s.leaderboardOptIn?t('lb_joined'):t('lb_left'));
+  toast(s.leaderboardOptIn?'Joined Consistency Leaderboard ✓':'Removed from leaderboard');
   if(typeof render==='function')render();
 }
 
 /* --------------------------- Community lessons --------------------------- */
 function openCommunityComposer(docId=null){
-  if(!isAdminUser()){toast(t('cl_admin_only'));return}
+  if(!isAdminUser()){toast('Sign in with your Admin account to publish lessons');return}
   COMMUNITY_EDIT_ID=docId?String(docId):null;
   SHOW_COMM_COMPOSER=true;
   if(typeof render==='function')render();
@@ -690,12 +688,12 @@ function closeCommunityComposer(){
 }
 
 async function publishCommunityLesson(){
-  if(!isAdminUser()){toast(t('cl_admin_only'));return}
+  if(!isAdminUser()){toast('Only the app admin can publish community lessons');return}
   const title=($('commTitle')?$('commTitle').value.trim():'');
   const cat=($('commCat')?$('commCat').value:'Tajweed Lessons');
   const link=($('commLink')?$('commLink').value.trim():'');
   const rawHtml=($('commEditor')?$('commEditor').innerHTML.trim():'');
-  if(!title||!rawHtml){toast(t('cl_need_both'));return}
+  if(!title||!rawHtml){toast('Add both a lesson title and content');return}
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
@@ -710,21 +708,21 @@ async function publishCommunityLesson(){
     },{merge:true});
     SHOW_COMM_COMPOSER=false;
     COMMUNITY_EDIT_ID=null;
-    toast(isEdit?t('cl_updated'):t('cl_published'));
+    toast(isEdit?'Community lesson updated ✓':'Published to Community Lessons ✓');
     await loadCommunityLessons(true);
     if(typeof render==='function')render();
-  }catch(e){toast(t('cl_error',{msg:cleanErr(e)}))}
+  }catch(e){toast('Publish error: '+cleanErr(e))}
 }
 
 async function deleteCommunityLesson(docId){
-  if(!isAdminUser()){toast(t('cl_admin_only'));return}
-  if(!confirm(t('cl_delete_confirm')))return;
+  if(!isAdminUser()){toast('Admin permission required');return}
+  if(!confirm('Delete this community lesson for all users?'))return;
   try{
     const {db,m}=await ensureFb();
     await m.deleteDoc(m.doc(db,'community_lessons',String(docId)));
     setCloudUi({communityLessons:CLOUD_STATE.communityLessons.filter(x=>String(x.docId||x.id)!==String(docId))},true);
-    toast(t('cl_removed'));
-  }catch(e){toast(t('cl_error',{msg:cleanErr(e)}))}
+    toast('Community lesson removed ✓');
+  }catch(e){toast('Delete error: '+cleanErr(e))}
 }
 
 /* ------------------------------ Accounts ------------------------------- */
@@ -733,16 +731,16 @@ async function signInEmail(isSignup){
   const pass=(($('authPass')?$('authPass').value:AUTH_FORM.pass)||'');
   AUTH_FORM.email=email;
   AUTH_FORM.pass=pass;
-  if(!email||pass.length<6){setCloudUi({error:t('ac_need_email_pass')},true);return}
+  if(!email||pass.length<6){setCloudUi({error:'Enter a valid email and a password (6+ characters).'},true);return}
   try{
     setCloudUi({busy:true,error:''},true);
     const {auth,m}=await ensureFb();
     if(isSignup){
       await m.createUserWithEmailAndPassword(auth,email,pass);
-      toast(t('ac_created'));
+      toast('Account created ✓');
     }else{
       await m.signInWithEmailAndPassword(auth,email,pass);
-      toast(t('ac_signed_in'));
+      toast('Signed in ✓');
     }
   }catch(e){
     setCloudUi({busy:false,error:cleanErr(e)},true);
@@ -752,12 +750,12 @@ async function signInEmail(isSignup){
 async function resetPasswordEmail(){
   const email=(($('authEmail')?$('authEmail').value:AUTH_FORM.email)||'').trim();
   AUTH_FORM.email=email;
-  if(!email){setCloudUi({error:t('ac_forgot_need_email')},true);return}
+  if(!email){setCloudUi({error:'Type your email address first, then tap “Forgot password?”.'},true);return}
   try{
     const {auth,m}=await ensureFb();
     await m.sendPasswordResetEmail(auth,email);
     setCloudUi({error:''},true);
-    toast(t('ac_reset_sent'),5000);
+    toast('If this email has an account, a reset link was sent ✓');
   }catch(e){
     setCloudUi({error:cleanErr(e)},true);
   }
@@ -770,14 +768,14 @@ async function signInGoogle(){
     ({auth,m}=await ensureFb());
     provider=new m.GoogleAuthProvider();
     await m.signInWithPopup(auth,provider);
-    toast(t('ac_signed_in'));
+    toast('Signed in with Google ✓');
   }catch(e){
     const code=(e&&e.code)||'';
     if(code==='auth/popup-closed-by-user'||code==='auth/cancelled-popup-request'){setCloudUi({busy:false},true);return}
     if((code==='auth/popup-blocked'||code==='auth/operation-not-supported-in-this-environment')&&m&&provider){
       try{LS.setItem('hifdh_auth_redirect','1');await m.signInWithRedirect(auth,provider);return}catch(_){LS.removeItem('hifdh_auth_redirect')}
     }
-    setCloudUi({busy:false,error:t('ac_google_failed',{code:code||'error'})},true);
+    setCloudUi({busy:false,error:'Google sign-in is not available here ('+(code||'error')+'). Please use Email & Password below.'},true);
   }
 }
 
@@ -789,12 +787,12 @@ async function signOutCloud(){
     LS.removeItem('hifdh_has_auth');
     AUTH_FORM={email:'',pass:'',showPass:false};
     setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
-    toast(t('ac_signed_out'));
+    toast('Signed out (local data kept)');
   }catch(e){setCloudUi({error:cleanErr(e)},true)}
 }
 
 async function deleteCloudAccount(){
-  if(!confirm(t('ac_delete_confirm')))return;
+  if(!confirm('Permanently delete your cloud account and all synced progress & notes? You will also be removed from your Study Circle and the leaderboard. Data on this phone stays unless you also reset the app.'))return;
   let user=null;
   try{
     setCloudUi({busy:true,error:''},true);
@@ -827,10 +825,10 @@ async function deleteCloudAccount(){
     if(typeof D!=='undefined'&&D)D.state=s;
     AUTH_FORM={email:'',pass:'',showPass:false};
     setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
-    toast(t('ac_deleted'));
+    toast('Account & cloud data deleted ✓');
   }catch(e){
     setCloudUi({busy:false,error:(e&&e.code==='auth/requires-recent-login')
-      ?t('ac_delete_relogin')
+      ?'Your cloud data was deleted. For security, sign out, sign back in once, then tap “Delete Cloud Account” again to finish removing the account.'
       :cleanErr(e)},true);
   }
 }
@@ -840,95 +838,101 @@ function accountCardHtml(){
   const u=CLOUD_STATE.user;
   if(!u){
     return `<div class="card">
-      <div class="row"><h2 style="margin:0">☁️ ${esc(t('ac_title'))}</h2><span class="pill">${esc(t('ac_optional'))}</span></div>
-      <div class="mu" style="margin:6px 0 10px">${esc(t('ac_desc'))}</div>
-      ${CLOUD_STATE.error?`<div class="ai-status err" role="alert" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
-      <button style="width:100%" ${CLOUD_STATE.busy?'disabled':''} onclick="signInGoogle()">${esc(t('ac_google'))}</button>
-      <div class="mu" style="text-align:center;margin:10px 0 6px">— ${esc(t('ac_or_email'))} —</div>
-      <input type="email" id="authEmail" aria-label="${esc(t('ac_email'))}" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(t('ac_email'))}" value="${esc(AUTH_FORM.email)}" oninput="AUTH_FORM.email=this.value">
+      <div class="row"><h2 style="margin:0">☁️ Cloud Sync &amp; Account</h2><span class="pill">Optional</span></div>
+      <div class="mu" style="margin:6px 0 10px">Sign in to back up progress, join a Study Circle, and sync across devices. Audio, video &amp; inline photos stay private on your phone.</div>
+      ${CLOUD_STATE.error?`<div class="ai-status err" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
+      <button style="width:100%" ${CLOUD_STATE.busy?'disabled':''} onclick="signInGoogle()">Continue with Google</button>
+      <div class="mu" style="text-align:center;margin:10px 0 6px">— or use Email &amp; Password —</div>
+      <input type="email" id="authEmail" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Email address" value="${esc(AUTH_FORM.email)}" oninput="AUTH_FORM.email=this.value">
       <div class="row" style="gap:6px;margin-top:8px">
-        <input type="${AUTH_FORM.showPass?'text':'password'}" id="authPass" aria-label="${esc(t('ac_password'))}" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(t('ac_password'))}" value="${esc(AUTH_FORM.pass)}" oninput="AUTH_FORM.pass=this.value" style="flex:1">
-        <button type="button" class="g sm" onclick="toggleShowPass()" aria-label="${esc(t('ac_show_pass'))}">${AUTH_FORM.showPass?'🙈':'👁️'}</button>
+        <input type="${AUTH_FORM.showPass?'text':'password'}" id="authPass" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Password (6+ characters)" value="${esc(AUTH_FORM.pass)}" oninput="AUTH_FORM.pass=this.value" style="flex:1">
+        <button type="button" class="g sm" onclick="toggleShowPass()" title="Show or hide password">${AUTH_FORM.showPass?'🙈':'👁️'}</button>
       </div>
       <div class="two" style="margin-top:8px">
-        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(false)">${esc(t('ac_sign_in'))}</button>
-        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(true)">${esc(t('ac_create'))}</button>
+        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(false)">Sign In</button>
+        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(true)">Create Account</button>
       </div>
-      <div style="text-align:center;margin-top:10px"><button type="button" class="linkbtn" onclick="resetPasswordEmail()">${esc(t('ac_forgot'))}</button></div>
+      <div style="text-align:center;margin-top:10px"><a href="javascript:void(0)" onclick="resetPasswordEmail()" style="font-size:.8rem">Forgot password?</a></div>
     </div>`;
   }
-  const stLabel=CLOUD_STATE.status==='syncing'?t('pr_syncing'):(CLOUD_STATE.status==='synced'?t('pr_synced',{time:CLOUD_STATE.lastSync}):(CLOUD_STATE.status==='error'?t('pr_sync_error'):t('pr_connected')));
+  const stLabel=CLOUD_STATE.status==='syncing'?'Syncing…':(CLOUD_STATE.status==='synced'?`Synced ${CLOUD_STATE.lastSync}`:(CLOUD_STATE.status==='error'?'Sync error':'Connected'));
   return `<div class="card">
-    <div class="row"><h2 style="margin:0">☁️ ${esc(t('ac_active'))}</h2><span class="pill">${esc(stLabel)}</span></div>
-    <div class="mu" style="margin:6px 0 10px">${esc(t('pv_signed_as',{who:u.email||u.name||''}))}${isAdminUser()?` · <span class="pill">${esc(t('pr_admin'))}</span>`:''}</div>
-    ${CLOUD_STATE.error?`<div class="ai-status err" role="alert" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
+    <div class="row"><h2 style="margin:0">☁️ Cloud Sync Active</h2><span class="pill">${esc(stLabel)}</span></div>
+    <div class="mu" style="margin:6px 0 10px">Signed in as <b>${esc(u.email||u.name||'Member')}</b>${isAdminUser()?' · <span class="pill">Admin</span>':''}</div>
+    ${CLOUD_STATE.error?`<div class="ai-status err" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
     <div class="two">
-      <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 ${esc(t('pr_sync_now'))}</button>
-      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="copyTextSafe(CLOUD_STATE.user.uid,t('pv_uid_copied'))">${esc(t('pv_copy_uid'))}</button>
+      <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 Sync Now</button>
+      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="copyTextSafe('${esc(u.uid)}','User UID copied ✓')">Copy UID</button>
     </div>
   </div>`;
 }
 
 function circleCardHtml(){
   if(!CLOUD_STATE.user){
-    return `<div class="card empty-card">
-      <div class="rest-ico">🤝</div><h2>${esc(t('ci_title'))}</h2>
-      <div class="mu" style="margin:6px 0 12px">${esc(t('ci_signin_desc'))}</div>
-      <button class="sm" onclick="setTab('settings')">${esc(t('ci_go_profile'))}</button>
+    return `<div class="card">
+      <div class="row"><h2 style="margin:0">🤝 Study Circle</h2><span class="pill">Sign in</span></div>
+      <div class="mu" style="margin-top:6px">Sign in under <b>Profile</b> to create or join a private Study Circle, track progress together, and send gentle nudges.</div>
+      <button class="g sm" style="margin-top:10px" onclick="setTab('settings')">Go to Profile →</button>
     </div>`;
   }
   let nudgeBanner='';
   if(CLOUD_STATE.nudges&&CLOUD_STATE.nudges.length){
-    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box nudge-box">
-      <div class="row"><b>🔔 ${esc(t('ci_nudged_you',{name:n.fromName||t('ci_partner')}))}</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">${esc(t('ci_dismiss'))}</button></div>
-      <div style="font-size:.86rem;margin-top:4px">${esc(t('ci_nudge_text'))}</div>
+    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box" style="margin-bottom:10px;background:var(--ac2);border-color:var(--ac)">
+      <div class="row"><b>🔔 ${esc(n.fromName||'Partner')} nudged you</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">Dismiss</button></div>
+      <div style="font-size:.84rem;margin-top:4px">${esc(NUDGE_TEXT)}</div>
     </div>`).join('');
   }
   if(!CLOUD_STATE.circle){
     return `${nudgeBanner}<div class="card">
-      <div class="row"><h2 style="margin:0">🤝 ${esc(t('ci_title'))}</h2><span class="pill">${esc(t('ci_private'))}</span></div>
-      <div class="mu" style="margin:6px 0 12px">${esc(t('ci_desc'))}</div>
-      <label class="f" style="margin-top:0" for="circleNameInp">${esc(t('ci_create_lbl'))}</label>
+      <div class="row"><h2 style="margin:0">🤝 Study Circle</h2><span class="pill">Private Group</span></div>
+      <div class="mu" style="margin:6px 0 12px">Start a circle with friends or enter a 6-character code to see each other’s daily consistency, Juz progress, and send gentle nudges.</div>
+      <label class="f" style="margin-top:0">Create a new circle</label>
       <div class="row" style="gap:8px">
-        <input type="text" id="circleNameInp" dir="auto" placeholder="${esc(t('ci_name_ph'))}" maxlength="40" style="flex:1">
-        <button class="sm" onclick="createOrJoinCircle('create')">${esc(t('ci_create'))}</button>
+        <input type="text" id="circleNameInp" placeholder="e.g., Hifdh Leaders" maxlength="40" style="flex:1">
+        <button class="sm" onclick="createOrJoinCircle('create')">Create</button>
       </div>
-      <label class="f" for="circleCodeInp">${esc(t('ci_join_lbl'))}</label>
+      <label class="f">Or join with an invite code</label>
       <div class="row" style="gap:8px">
-        <input type="text" id="circleCodeInp" placeholder="ABC234" maxlength="6" autocapitalize="characters" style="flex:1;text-transform:uppercase;letter-spacing:.08em">
-        <button class="g sm" onclick="createOrJoinCircle('join')">${esc(t('ci_join'))}</button>
+        <input type="text" id="circleCodeInp" placeholder="6-CHAR CODE" maxlength="6" autocapitalize="characters" style="flex:1;text-transform:uppercase;letter-spacing:.08em">
+        <button class="g sm" onclick="createOrJoinCircle('join')">Join</button>
       </div>
     </div>`;
   }
   const todayStr=T();
   const members=Object.entries(CLOUD_STATE.circle.members||{}).sort((a,b)=>
-    (Number(b[1].activeDays30)||0)-(Number(a[1].activeDays30)||0)||(Number(b[1].streak)||0)-(Number(a[1].streak)||0)||(Number(b[1].pages)||0)-(Number(a[1].pages)||0));
+    (Number(b[1].activeDays30)||0)-(Number(a[1].activeDays30)||0) ||
+    (Number(b[1].streak)||0)-(Number(a[1].streak)||0) ||
+    (Number(b[1].pages)||0)-(Number(a[1].pages)||0)
+  );
   return `${nudgeBanner}<div class="card">
     <div class="row">
-      <div style="min-width:0"><h2 style="margin:0" dir="auto">${esc(CLOUD_STATE.circle.name)}</h2>
-        <div class="mu">${esc(tn('ci_members',members.length))} · ${esc(t('ci_code'))}: <b dir="ltr">${esc(CLOUD_STATE.circle.id)}</b></div></div>
-      <button class="g sm" onclick="shareCircleCode()">📤 ${esc(t('lib_share'))}</button>
+      <div>
+        <h2 style="margin:0">${esc(CLOUD_STATE.circle.name)}</h2>
+        <div class="mu">${members.length} member${members.length===1?'':'s'} · Code: <b>${esc(CLOUD_STATE.circle.id)}</b></div>
+      </div>
+      <button class="g sm" onclick="shareCircleCode()">📤 Share</button>
     </div>
     <div style="margin-top:12px">${members.map(([uid,mInfo])=>{
       const isMe=uid===CLOUD_STATE.user.uid;
       const fresh=!mInfo.todayDate||mInfo.todayDate===todayStr;
-      const todayBadge=(mInfo.doneToday&&fresh)?t('ci_done_today'):((mInfo.startedToday&&fresh)?t('ci_in_progress'):t('ci_not_yet'));
+      const todayBadge=(mInfo.doneToday&&fresh)?'Done today ✓':((mInfo.startedToday&&fresh)?'In progress':'Not yet today');
+      const daysTxt=mInfo.activeDays30!=null?`${Number(mInfo.activeDays30)||0}/30d active`:`🔥 ${Number(mInfo.streak)||0}d streak`;
       const avText=(typeof initials==='function')?initials(mInfo.name||'M'):'M';
       return `<div class="sr">
         <div class="row" style="justify-content:flex-start;gap:10px;min-width:0;flex:1">
-          <div class="member-av" aria-hidden="true">${esc(avText)}</div>
+          <div class="member-av">${esc(avText)}</div>
           <div style="min-width:0">
-            <div><b dir="auto">${esc(mInfo.name||t('ci_member'))}</b>${isMe?` <span class="pill">${esc(t('ci_you'))}</span>`:''}</div>
-            <div class="mu">${esc(todayBadge)} · 🔥 ${esc(tn('td_streak',Number(mInfo.streak)||0))} · ${esc(t('st_active_n',{n:Number(mInfo.activeDays30)||0}))}</div>
-            <div class="mu">${esc(t('juz_n',{n:(Number(mInfo.juz)||0)+'/30'}))} · ${esc(tn('amt_pages',Number(mInfo.pages)||0))}</div>
+            <div><b>${esc(mInfo.name||'Member')}</b>${isMe?' <span class="pill">You</span>':''}</div>
+            <div class="mu">${esc(todayBadge)} · 🔥 ${Number(mInfo.streak)||0}d · ${esc(daysTxt)}</div>
+            <div class="mu">Juz ${Number(mInfo.juz)||0}/30 · ${Number(mInfo.pages)||0} pages</div>
           </div>
         </div>
-        ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}',decodeURIComponent('${encAttr(mInfo.name||t('ci_partner'))}'))">👋 ${esc(t('ci_nudge'))}</button>`:''}
+        ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}',decodeURIComponent('${encAttr(mInfo.name||'Partner')}'))">👋 Nudge</button>`:''}
       </div>`;
     }).join('')}</div>
     <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)">
-      <button class="g sm" onclick="runCloudSync('manual')">🔄 ${esc(t('ci_refresh'))}</button>
-      <button class="g sm" style="color:var(--danger)" onclick="leaveCircleLocal()">${esc(t('ci_leave'))}</button>
+      <button class="g sm" onclick="runCloudSync('manual')">🔄 Refresh</button>
+      <button class="g sm" style="color:var(--danger)" onclick="leaveCircleLocal()">Leave Circle</button>
     </div>
   </div>`;
 }
@@ -939,74 +943,79 @@ function leaderboardCardHtml(s){
   const todayStr=T();
   const signedIn=Boolean(CLOUD_STATE.user);
   return `<div class="card">
-    <div class="row"><h2 style="margin:0">🔥 ${esc(t('lb_title'))}</h2><span class="pill">${esc(t('lb_activity_only'))}</span></div>
-    <div class="mu" style="margin:6px 0 10px">${esc(t('lb_desc'))}</div>
+    <div class="row"><h2 style="margin:0">🔥 Consistency Board</h2><span class="pill">Activity Only</span></div>
+    <div class="mu" style="margin:6px 0 10px">Ranked purely by daily steadiness and streaks—memorized page totals are never shown here.</div>
     <label class="row" style="justify-content:flex-start;gap:10px;margin-bottom:12px;cursor:pointer">
       <input type="checkbox" ${optedIn?'checked':''} ${signedIn?'':'disabled'} onchange="toggleLeaderboardOptIn(this.checked)">
-      <span style="font-size:.88rem;font-weight:650">${esc(t('lb_opt_in'))}</span>
+      <span style="font-size:.86rem;font-weight:650">Show my consistency &amp; streak on the board</span>
     </label>
-    ${!signedIn?`<div class="mu">${esc(t('lb_signin'))}</div>`:(
+    ${!signedIn?'<div class="mu">Sign in under <b>Profile</b> to join and view the consistency board.</div>':(
       rows.length?rows.map((r,i)=>{
         const isMe=CLOUD_STATE.user&&r.uid===CLOUD_STATE.user.uid;
         const rkCls=i===0?'rank-1':(i===1?'rank-2':(i===2?'rank-3':''));
         const doneToday=r.doneToday&&(!r.todayDate||r.todayDate===todayStr);
+        const daysActive=Number(r.activeDays30)||0;
         return `<div class="sr">
           <div class="row" style="justify-content:flex-start;gap:10px;min-width:0">
             <div class="rank-badge ${rkCls}">${i+1}</div>
             <div style="min-width:0">
-              <div><b dir="auto">${esc(r.name||t('ci_member'))}</b>${isMe?` <span class="pill">${esc(t('ci_you'))}</span>`:''}</div>
-              <div class="mu">${esc(t('st_active_n',{n:Number(r.activeDays30)||0}))}${doneToday?' · '+esc(t('ci_done_today')):''}</div>
+              <div><b>${esc(r.name||'Student')}</b>${isMe?' <span class="pill">You</span>':''}</div>
+              <div class="mu">${daysActive}/30 days active${doneToday?' · Done today ✓':''}</div>
             </div>
           </div>
-          <span class="pill">🔥 ${esc(tn('td_streak',Number(r.streak)||0))}</span>
+          <span class="pill">🔥 ${Number(r.streak)||0}d</span>
         </div>`;
-      }).join(''):`<div class="mu">${esc(t('lb_empty'))}</div>`
+      }).join(''):'<div class="mu">No entries yet. Opt in above and tap Refresh to appear first!</div>'
     )}
-    ${signedIn?`<div style="margin-top:10px;text-align:end"><button class="g sm" onclick="runCloudSync('manual')">🔄 ${esc(t('ci_refresh'))}</button></div>`:''}
+    ${signedIn?`<div style="margin-top:10px;text-align:right"><button class="g sm" onclick="runCloudSync('manual')">🔄 Refresh</button></div>`:''}
   </div>`;
 }
 
 function communityLessonsHtml(s){
   const list=CLOUD_STATE.communityLessons||[];
   const adminHere=isAdminUser();
-  const fl=f=>(typeof folderLabel==='function')?folderLabel(f):f;
   let h='';
   if(adminHere){
     h+=`<div class="card">
       <div class="row">
-        <div><b>📢 ${esc(t('cl_admin'))}</b><div class="mu">${esc(t('cl_admin_desc'))}</div></div>
-        <button class="sm" onclick="${SHOW_COMM_COMPOSER?'closeCommunityComposer()':'openCommunityComposer()'}">${SHOW_COMM_COMPOSER?esc(t('btn_close')):'+ '+esc(t('lib_new_lesson'))}</button>
+        <div>
+          <b>📢 Community Lessons (Admin)</b>
+          <div class="mu">Published lessons appear for all My Companion users.</div>
+        </div>
+        <button class="sm" onclick="${SHOW_COMM_COMPOSER?'closeCommunityComposer()':'openCommunityComposer()'}">${SHOW_COMM_COMPOSER?'Close':'+ New Lesson'}</button>
       </div>
       ${SHOW_COMM_COMPOSER?`<div style="margin-top:12px">
         <div class="two">
-          <div><label class="f" for="commTitle">${esc(t('nt_title'))}</label><input type="text" id="commTitle" dir="auto" maxlength="140" placeholder="${esc(t('cl_title_ph'))}"></div>
-          <div><label class="f" for="commCat">${esc(t('lib_topic'))}</label>
-            <select id="commCat">${(s.folders||['Tajweed Lessons','Mutashabihat','Tafsir & Reflections']).map(f=>`<option value="${esc(f)}">${esc(fl(f))}</option>`).join('')}</select></div>
+          <div><label class="f">Lesson Title</label><input type="text" id="commTitle" maxlength="140" placeholder="e.g., Juz 30 Muraja’ah Tips"></div>
+          <div><label class="f">Topic</label>
+            <select id="commCat">${(s.folders||['Tajweed Lessons','Mutashabihat','Tafsir & Reflections']).map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+          </div>
         </div>
-        <label class="f" for="commLink">${esc(t('nt_link'))}</label>
-        <input type="text" id="commLink" inputmode="url" placeholder="https://youtube.com/...">
-        <label class="f">${esc(t('cl_content'))}</label>
-        <div id="commEditor" class="rt-area" dir="auto" style="border-radius:12px" contenteditable="true" role="textbox" aria-multiline="true" placeholder="${esc(t('cl_content_ph'))}"></div>
-        <button class="bigbtn" onclick="publishCommunityLesson()">${COMMUNITY_EDIT_ID?'💾 '+esc(t('cl_update')):'🚀 '+esc(t('cl_publish'))}</button>
+        <label class="f">Optional Video / Reference Link</label>
+        <input type="text" id="commLink" placeholder="https://youtube.com/...">
+        <label class="f">Lesson Content</label>
+        <div id="commEditor" class="rt-area" style="border-radius:12px" contenteditable="true" placeholder="Write a public lesson for all users..."></div>
+        <button class="bigbtn" onclick="publishCommunityLesson()">${COMMUNITY_EDIT_ID?'💾 Update Lesson':'🚀 Publish to Community'}</button>
       </div>`:''}
     </div>`;
   }
   if(!list.length){
-    h+=`<div class="card empty-card"><div class="rest-ico">📚</div><div class="mu">${esc(t('cl_empty'))}</div></div>`;
+    h+=`<div class="card mu">No community lessons published yet.${adminHere?' Tap <b>+ New Lesson</b> above to publish your first one!':''}</div>`;
     return h;
   }
   h+=list.map(n=>{
     const docKey=String(n.docId||n.id);
-    const yt=ytEmbedUrl(n.link), safeLink=safeExternalUrl(n.link);
+    const yt=ytEmbedUrl(n.link);
+    const safeLink=safeExternalUrl(n.link);
     return `<div class="card">
-      <div class="row"><span class="pill">${esc(fl(n.cat||'Lesson'))}</span><span class="mu">${esc(n.date?fmt(n.date):'')}</span></div>
-      <h2 style="margin:6px 0" dir="auto">${esc(n.title)}</h2>
-      ${yt?`<iframe src="${yt}" title="${esc(n.title)}" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px;margin:6px 0" allowfullscreen loading="lazy"></iframe>`:''}
-      ${safeLink&&!yt?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="font-size:.86rem">🔗 ${esc(t('lib_open_link'))}</a></div>`:''}
-      <div class="note-reader" dir="auto" style="font-size:.92rem;line-height:1.6;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||'')}</div>
+      <div class="row"><span class="pill">${esc(n.cat||'Community Lesson')}</span><span class="mu">${esc(n.date||'')}</span></div>
+      <h2 style="margin:6px 0">${esc(n.title)}</h2>
+      ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
+      ${safeLink&&!yt?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:.82rem;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
+      <div class="note-reader" style="font-size:.88rem;line-height:1.55;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||'')}</div>
       ${adminHere?`<div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);justify-content:flex-end;gap:6px">
-        <button class="g sm" onclick="openCommunityComposer('${esc(docKey)}')">✏️ ${esc(t('btn_edit'))}</button>
-        <button class="g sm" style="color:var(--danger)" onclick="deleteCommunityLesson('${esc(docKey)}')">🗑️ ${esc(t('btn_delete'))}</button>
+        <button class="g sm" onclick="openCommunityComposer('${esc(docKey)}')">✏️ Edit</button>
+        <button class="g sm" style="color:var(--danger)" onclick="deleteCommunityLesson('${esc(docKey)}')">🗑️ Delete</button>
       </div>`:''}
     </div>`;
   }).join('');
