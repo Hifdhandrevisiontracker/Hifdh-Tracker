@@ -1,7 +1,7 @@
 /* My Companion — offline helper.
    Tries the internet first (so updates arrive quickly), but if the connection
    is slow or missing it shows the saved copy after 3 seconds. */
-const C='companion-v20-0';
+const C='companion-v21-0';
 const QC='companion-quran-v1';   // kept across app updates (text is fingerprint-checked)
 const ASSETS=[
   './','./index.html','./styles.css',

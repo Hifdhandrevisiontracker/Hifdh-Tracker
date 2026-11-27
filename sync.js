@@ -212,8 +212,25 @@ function cleanDays(obj){
 }
 /* Firestore refuses a document over 1 MB, and values it can't store (undefined, NaN).
    Build a clean copy, and if it is still too big, shrink it step by step. */
+/* Firestore cannot store a list inside a list (e.g. [[1,2],[3,4]]), which some
+   revision plans use. Each inner list is wrapped as {__a:[...]} before upload
+   and unwrapped again after download, so the data comes back exactly the same. */
+function wrapNested(v,inArr){
+  if(Array.isArray(v)){const arr=v.map(x=>wrapNested(x,true));return inArr?{__a:arr}:arr}
+  if(v&&typeof v==='object'){const o={};for(const k in v)o[k]=wrapNested(v[k],false);return o}
+  return v;
+}
+function unwrapNested(v){
+  if(Array.isArray(v))return v.map(unwrapNested);
+  if(v&&typeof v==='object'){
+    if(Array.isArray(v.__a)&&Object.keys(v).length===1)return v.__a.map(unwrapNested);
+    const o={};for(const k in v)o[k]=unwrapNested(v[k]);return o;
+  }
+  return v;
+}
+function fromCloudSafe(data){return unwrapNested(data||{})}
 function cloudSafeDoc(state,days,deleted){
-  const clean=v=>JSON.parse(JSON.stringify(v,(k,x)=>(typeof x==='number'&&!isFinite(x))?null:x));
+  const clean=v=>wrapNested(JSON.parse(JSON.stringify(v,(k,x)=>(typeof x==='number'&&!isFinite(x))?null:x)),false);
   const LIMIT=900000; // stay safely under Firestore's 1 MB
   let st=clean(state), dy=clean(trimDays(days)), del=clean(deleted||{});
   const size=()=>new Blob([JSON.stringify({state:st,days:dy,deletedNotes:del})]).size;
@@ -393,7 +410,7 @@ async function runCloudSync(trigger='auto'){
     const startSnap=snapshotLocal();
     const userRef=m.doc(db,'users',user.uid);
     const snap=await m.getDoc(userRef);
-    const cData=snap.exists()?(snap.data()||{}):{};
+    const cData=fromCloudSafe(snap.exists()?(snap.data()||{}):{});
     const cloudS=(cData.state&&typeof cData.state==='object')?cData.state:null;
     const cloudDays=cleanDays(cData.days);
     const cloudDeleted=(cData.deletedNotes&&typeof cData.deletedNotes==='object')?cData.deletedNotes:{};
