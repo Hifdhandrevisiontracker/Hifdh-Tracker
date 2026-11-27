@@ -702,3 +702,28 @@ button.pl-btn{min-height:30px;padding:6px 10px;font-size:.76rem;border-radius:99
 button.lang-opt{display:block;width:100%;color:var(--tx);font-weight:inherit;line-height:1.3}
 button.lang-opt:active{transform:scale(.98)}
 .ob-bismillah{font-family:var(--quran)}
+
+/* ------------- Step 12: text size also scales icons and controls -------------
+   Text already follows --ui-scale (rem units). These items used fixed pixels,
+   so at larger sizes they looked too small next to the text. */
+:root{--sc:var(--ui-scale,1)}
+.chk{width:calc(var(--chk-sz) * var(--sc));height:calc(var(--chk-sz) * var(--sc))}
+.tool-card-ico{width:calc(52px * var(--sc));height:calc(52px * var(--sc))}
+.tool-card-ico svg{width:calc(26px * var(--sc));height:calc(26px * var(--sc))}
+.list-ico{width:calc(38px * var(--sc));height:calc(38px * var(--sc))}
+.list-ico svg{width:calc(19px * var(--sc));height:calc(19px * var(--sc))}
+.ring-wrap{width:calc(66px * var(--sc));height:calc(66px * var(--sc))}
+.avatar-lg{width:calc(64px * var(--sc));height:calc(64px * var(--sc))}
+.bnav button svg{width:calc(22px * var(--sc));height:calc(22px * var(--sc))}
+/* Menu labels grow a little, but never so much that "Community" gets cut off */
+.bnav button{font-size:min(.68rem,12.5px)}
+
+/* Appearance page: text-size steps instead of a slider */
+.size-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.size-step{flex-direction:column;gap:2px;min-height:64px;background:var(--card2);color:var(--tx);border:1.5px solid var(--bd);padding:8px 4px}
+.size-step b{font-family:var(--serif);line-height:1}
+.size-step span{font-size:.72rem;font-weight:650;color:var(--mu)}
+.size-step.on{border-color:var(--ac);background:var(--ac2)}
+.size-step.on span{color:var(--ac)}
+.size-preview{margin-top:12px;padding:12px;border-radius:var(--r-md);background:var(--card2);font-size:.95rem;line-height:1.5}
+.sync-err{color:var(--danger)}

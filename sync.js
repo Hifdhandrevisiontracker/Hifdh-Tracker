@@ -173,7 +173,10 @@ async function ensureFb(){
   fbMods={...appM,...authM,...fsM};
   fbApp=fbMods.getApps().length?fbMods.getApp():fbMods.initializeApp(FIREBASE_CFG);
   fbAuth=fbMods.getAuth(fbApp);
-  fbDb=fbMods.getFirestore(fbApp);
+  // ignoreUndefinedProperties: an empty (undefined) field anywhere in the saved
+  // data must never make the whole sync fail.
+  try{fbDb=fbMods.initializeFirestore(fbApp,{ignoreUndefinedProperties:true})}
+  catch(e){fbDb=fbMods.getFirestore(fbApp)}
   if(LS.getItem('hifdh_auth_redirect')){
     LS.removeItem('hifdh_auth_redirect');
     fbMods.getRedirectResult(fbAuth).catch(e=>setCloudUi({busy:false,error:t('ac_google_failed',{code:e.code||'error'})},true));
@@ -206,6 +209,17 @@ function cleanDays(obj){
     if(/^\d{4}-\d{2}-\d{2}$/.test(k)&&isValidDay(obj[k]))out[k]=obj[k];
   });
   return out;
+}
+/* Firestore refuses a document over 1 MB, and values it can't store (undefined, NaN).
+   Build a clean copy, and if it is still too big, shrink it step by step. */
+function cloudSafeDoc(state,days,deleted){
+  const clean=v=>JSON.parse(JSON.stringify(v,(k,x)=>(typeof x==='number'&&!isFinite(x))?null:x));
+  const LIMIT=900000; // stay safely under Firestore's 1 MB
+  let st=clean(state), dy=clean(trimDays(days)), del=clean(deleted||{});
+  const size=()=>new Blob([JSON.stringify({state:st,days:dy,deletedNotes:del})]).size;
+  if(size()>LIMIT&&st.avatar){st.avatar=''}                       // profile photo is the usual cause
+  for(const lim of [120,60,30]){if(size()>LIMIT)dy=trimDays(dy,lim)}
+  return {state:st,days:dy,deletedNotes:del,updatedAt:Date.now()};
 }
 function trimDays(days,limit=CLOUD_DAYS_LIMIT){
   const out={};
@@ -250,6 +264,7 @@ function mergeStates(localS,cloudS){
   const win=lt>=ct?localS:cloudS;
   const out=Object.assign({},DEFAULTS,win);
   out.aiKey=localS.aiKey||'';                               // never comes from the cloud
+  if(!out.avatar&&localS.avatar)out.avatar=localS.avatar;     // a photo too big for the cloud stays on this phone
   out.onboarded=Boolean(localS.onboarded||cloudS.onboarded);
   out.seenIntro=Boolean(localS.seenIntro||cloudS.seenIntro);
   out.folders=Array.from(new Set([...(Array.isArray(cloudS.folders)?cloudS.folders:[]),...(Array.isArray(localS.folders)?localS.folders:[])]));
@@ -418,7 +433,7 @@ async function runCloudSync(trigger='auto'){
 
     const syncState=Object.assign({},finalState);
     delete syncState.aiKey;
-    await m.setDoc(userRef,{state:syncState,days:trimDays(finalDays),deletedNotes:finalDeleted,updatedAt:Date.now()});
+    await m.setDoc(userRef,cloudSafeDoc(syncState,finalDays,finalDeleted));
 
     LS.setItem(firstKey,'1');
     if(snapshotLocal()===startSnap){
