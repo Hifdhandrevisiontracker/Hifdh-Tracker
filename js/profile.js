@@ -1,7 +1,7 @@
 /* ==========================================================================
    My Companion — Community, Profile & settings screens (Step 8)
    ========================================================================== */
-const APP_VERSION='2.0';
+const APP_VERSION='2.1';
 
 function subHeader(title,tag,back='settings'){
   setHdr(`<div class="sub-hdr">
@@ -9,10 +9,10 @@ function subHeader(title,tag,back='settings'){
     <div><h1 class="brand" style="font-size:1.45rem">${esc(title)}</h1>${tag?`<div class="tagline">${esc(tag)}</div>`:''}</div>
   </div>`);
 }
-function listRow(onclick,ico,title,sub){
+function listRow(onclick,ico,title,sub,subCls){
   return `<button type="button" class="list-row" onclick="${onclick}">
     ${ico?`<div class="list-ico">${ic(ico)}</div>`:''}
-    <div class="list-body"><div class="list-title">${esc(title)}</div>${sub?`<div class="list-sub">${esc(sub)}</div>`:''}</div>
+    <div class="list-body"><div class="list-title">${esc(title)}</div>${sub?`<div class="list-sub ${subCls||''}">${esc(sub)}</div>`:''}</div>
     <span class="chev" aria-hidden="true">›</span>
   </button>`;
 }
@@ -37,6 +37,9 @@ function rSettings(s){
   const methodLabel={tikrar:t('m_tikrar'),ottoman:t('m_ottoman'),simple:t('m_simple'),custom:t('m_custom')}[s.method]||t('m_simple');
   const scalePct=Math.round((Number(s.uiScale)||1)*100);
   const aiStatus=s.aiKey?(s.aiKey.startsWith('AIza')?t('ai_status_set'):t('ai_status_bad')):t('ai_status_off');
+  const langMeta=LANGS.find(l=>l.code===LANG)||LANGS[0];
+  const langNow=langMeta.native+(LANG==='uz'&&s.uzOld?' · '+t('set_uz_old_short'):'');
+  const lookNow=[t(s.theme==='dark'?'set_theme_dark':(s.theme==='light'?'set_theme_light':'set_theme_auto')),t('sz_'+uiSizeKey(s.uiScale))].join(' · ');
   const syncLabel=u?(CLOUD_STATE.status==='synced'?t('pr_synced',{time:CLOUD_STATE.lastSync}):(CLOUD_STATE.status==='syncing'?t('pr_syncing'):(CLOUD_STATE.status==='error'?t('pr_sync_error'):t('pr_connected')))):t('pr_offline');
 
   setHdr(`<div class="row">
@@ -64,33 +67,18 @@ function rSettings(s){
       ${listRow("setTab('plan')",'lib',t('pr_my_plan'),`${modeLabel} · ${methodLabel} · ${t('pr_days_wk',{n:s.studyDaysPerWeek||6})}`)}
     </div>
 
-    ${LANG_PREVIEW?languageCardHtml(s):''}
-
-    <div class="sec">${esc(t('pr_sec_look'))}</div>
+    <div class="sec">${esc(t('pr_sec_settings'))}</div>
     <div class="list-card">
-      <div class="list-row static">
-        <div class="list-body"><div class="list-title">${esc(t('pr_theme'))}</div><div class="list-sub">${esc(t('set_theme_sub'))}</div></div>
-        <div class="switch-pill" role="radiogroup" aria-label="${esc(t('pr_theme'))}">
-          ${['light','dark','system'].map(th=>`<span role="radio" tabindex="0" aria-checked="${s.theme===th}" class="${s.theme===th?'on':''}" onclick="setThemeMode('${th}')">${esc(t(th==='system'?'set_theme_auto':'set_theme_'+th))}</span>`).join('')}
-        </div>
-      </div>
-      <div class="list-row static">
-        <div class="list-body"><div class="list-title">${esc(t('pr_color'))}</div></div>
-        <div class="swatches" role="radiogroup" aria-label="${esc(t('pr_color'))}">${cols.map(c=>`<button type="button" class="swatch ${s.color===c[0]?'on':''}" role="radio" aria-checked="${s.color===c[0]}" aria-label="${esc(t(c[2]))}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></button>`).join('')}</div>
-      </div>
-      <div class="list-row static" style="display:block">
-        <div class="row"><div class="list-title">${esc(t('pr_size'))}</div><span class="pill" id="scaleValLbl">${scalePct}%</span></div>
-        <div class="slider-row">
-          <span style="font-size:.8rem;font-weight:700;color:var(--mu)" aria-hidden="true">A</span>
-          <input type="range" class="size-slider" min="85" max="125" step="1" value="${scalePct}" aria-label="${esc(t('pr_size'))}" oninput="previewUiScale(this.value)" onchange="commitUiScale(this.value)">
-          <span style="font-size:1.15rem;font-weight:700;color:var(--mu)" aria-hidden="true">A</span>
-        </div>
-      </div>
+      ${listRow("setTab('language')",'globe',t('set_language'),langNow)}
+      ${listRow("setTab('appearance')",'palette',t('pr_sec_look'),lookNow)}
     </div>
 
     <div class="sec">${esc(t('pr_sec_data'))}</div>
     <div class="list-card">
-      ${u?listRow("runCloudSync('manual')",'loop',t('pr_sync_now'),CLOUD_STATE.status==='synced'?t('pr_last_synced',{time:CLOUD_STATE.lastSync}):t('pr_sync_sub')):''}
+      ${u?listRow("runCloudSync('manual')",'loop',t('pr_sync_now'),
+        CLOUD_STATE.status==='synced'?t('pr_last_synced',{time:CLOUD_STATE.lastSync})
+        :(CLOUD_STATE.status==='error'&&CLOUD_STATE.error?t('pr_sync_error')+': '+CLOUD_STATE.error:t('pr_sync_sub')),
+        CLOUD_STATE.status==='error'?'sync-err':''):''}
       ${listRow("setTab('backup')",'download',t('pr_backup'),t('pr_backup_sub',{date:s.lastBackup?fmt(s.lastBackup):t('pr_never')}))}
       ${listRow("setTab('ai')",'spark',t('pr_ai'),aiStatus)}
       ${listRow("setTab('privacy')",'shield',t('pr_privacy'),t('pr_privacy_sub'))}
@@ -234,4 +222,54 @@ function rAboutPage(){
     <div style="font-size:.84rem;opacity:.92;margin-top:4px">${esc(t('pv_support_desc'))}</div>
     <div><a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">🚀 ${esc(t('pv_channel'))}</a></div>
   </div>`;
+}
+
+/* ------------------------------ Language page ----------------------------- */
+function rLanguagePage(s){
+  subHeader(t('set_language'),t('lg_tag'));
+  $('app').innerHTML=languageCardHtml(s).replace(/^\s*<div class="sec">[^<]*<\/div>/,'');
+}
+
+/* ----------------------------- Appearance page ---------------------------- */
+const UI_SIZES=[['s',0.9],['m',1],['l',1.12],['xl',1.25]];
+function uiSizeKey(v){
+  const x=Number(v)||1;let best=UI_SIZES[1];
+  UI_SIZES.forEach(o=>{if(Math.abs(o[1]-x)<Math.abs(best[1]-x))best=o});
+  return best[0];
+}
+function setUiSize(key){
+  const o=UI_SIZES.find(x=>x[0]===key);if(!o)return;
+  ensureData();const s=loadState();s.uiScale=o[1];s.uiText=key==='xl'?'l':key;
+  saveState(s);applyTheme(s);D.state=s;render();
+}
+function rAppearancePage(s){
+  const cols=[['emerald','#1f6b52','col_emerald'],['blue','#1d4ed8','col_blue'],['gold','#9a6200','col_gold'],['plum','#6d28d9','col_plum']];
+  const cur=uiSizeKey(s.uiScale);
+  subHeader(t('pr_sec_look'),t('ap_tag'));
+  $('app').innerHTML=`<div class="list-card">
+      <div class="list-row static">
+        <div class="list-body"><div class="list-title">${esc(t('pr_theme'))}</div><div class="list-sub">${esc(t('set_theme_sub'))}</div></div>
+      </div>
+      <div class="list-row static" style="display:block;padding-top:0">
+        <div class="switch-pill" role="radiogroup" aria-label="${esc(t('pr_theme'))}" style="width:100%;display:flex">
+          ${['light','dark','system'].map(th=>`<span role="radio" tabindex="0" style="flex:1;text-align:center" aria-checked="${s.theme===th}" class="${s.theme===th?'on':''}" onclick="setThemeMode('${th}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setThemeMode('${th}')}">${esc(t(th==='system'?'set_theme_auto':'set_theme_'+th))}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="list-card">
+      <div class="list-row static">
+        <div class="list-body"><div class="list-title">${esc(t('pr_color'))}</div></div>
+        <div class="swatches" role="radiogroup" aria-label="${esc(t('pr_color'))}">${cols.map(c=>`<button type="button" class="swatch ${s.color===c[0]?'on':''}" role="radio" aria-checked="${s.color===c[0]}" aria-label="${esc(t(c[2]))}" style="background:${c[1]}" onclick="setColor('${c[0]}')"></button>`).join('')}</div>
+      </div>
+    </div>
+    <div class="list-card">
+      <div class="list-row static" style="display:block">
+        <div class="list-title">${esc(t('pr_size'))}</div>
+        <div class="size-steps" role="radiogroup" aria-label="${esc(t('pr_size'))}">
+          ${UI_SIZES.map(([k,v])=>`<button type="button" role="radio" aria-checked="${cur===k}" class="size-step ${cur===k?'on':''}" onclick="setUiSize('${k}')">
+            <b style="font-size:${({s:14,m:18,l:22,xl:26})[k]}px">A</b><span>${esc(t('sz_'+k))}</span></button>`).join('')}
+        </div>
+        <div class="size-preview">${esc(t('sz_preview'))}</div>
+      </div>
+    </div>`;
 }

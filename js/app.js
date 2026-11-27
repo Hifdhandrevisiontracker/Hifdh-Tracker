@@ -72,7 +72,7 @@ function commitUiScale(pct){
 
 const navKey=t=>{
   if(['tasbih','recite','library','quran','quiz'].includes(t))return 'tools';
-  if(['plan','ai','backup','profile_edit','privacy','about'].includes(t))return 'settings';
+  if(['plan','ai','backup','profile_edit','privacy','about','language','appearance'].includes(t))return 'settings';
   return t;
 };
 function setTab(t){
@@ -543,6 +543,8 @@ const ICO={
   download:'<path d="M12 3v12M7 10l5 5 5-5M5 20h14"/>',
   quiz:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6v.6M12 17h.01"/>',
   book:'<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/><path d="M12 6v8M8 10h8"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  palette:'<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.8 1.7-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.2-9-7.2z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/>',
   edit:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'
 };
 const ic=n=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICO[n]||''}</svg>`;
@@ -921,6 +923,8 @@ async function render(){
   else if(TAB==='backup'){rBackupPage(s)}
   else if(TAB==='privacy'){rPrivacyPage()}
   else if(TAB==='about'){rAboutPage()}
+  else if(TAB==='language'){rLanguagePage(s)}
+  else if(TAB==='appearance'){rAppearancePage(s)}
   else if(TAB==='journey'){rStats(s,st)}
   else if(TAB==='quran'){rQuran()}
   else if(TAB==='quiz'){rQuiz()}
