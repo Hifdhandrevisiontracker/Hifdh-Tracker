@@ -1,3 +1,13 @@
+/* ==========================================================================
+   My Companion — Cloud sync (Firebase)
+   Phase 1 · Part 1 rewrite
+   - "Newest change wins" merging (undo / corrections / weak marks now stick)
+   - No lost edits while a sync is running
+   - Deleted notes stay deleted on every device
+   - Lighter syncs (only uploads what changed)
+   - Safer circles, nudges, leaderboard (match firestore.rules)
+   ========================================================================== */
+
 const FIREBASE_CFG={
   apiKey:"AIzaSyBcQJHJgGut33yxJFrqLPnITmdI7LgyTSw",
   authDomain:"my-companion-app-c0f8b.firebaseapp.com",
@@ -9,7 +19,15 @@ const FIREBASE_CFG={
 
 const ADMIN_UID='bIv6XebWtLh6qXMKEIBppcSCsUZ2';
 const FB_VER='11.6.0';
-let fbMods=null, fbApp=null, fbAuth=null, fbDb=null, unsubAuth=null, syncTimer=null, isSyncing=false;
+const NUDGE_TEXT='Assalamu Alaikum! Gentle reminder for today’s Qur’an session.';
+const CLOUD_DAYS_LIMIT=200;          // days of history kept in the cloud (local keeps 400)
+const SYNC_DEBOUNCE_MS=8000;         // wait after the last change before syncing
+const SOCIAL_REFRESH_MS=60000;       // circle / leaderboard / lessons refresh at most once a minute
+const DAY_MS=86400000;
+
+let fbMods=null, fbApp=null, fbAuth=null, fbDb=null, unsubAuth=null;
+let syncTimer=null, isSyncing=false, syncPending=false, pendingFull=false;
+let lastSocialAt=0, lastLessonsAt=0;
 let AUTH_FORM={email:'',pass:'',showPass:false};
 let SHOW_COMM_COMPOSER=false, COMMUNITY_EDIT_ID=null;
 
@@ -19,13 +37,49 @@ const CLOUD_STATE={
 };
 
 const isAdminUser=()=>Boolean(CLOUD_STATE.user&&CLOUD_STATE.user.uid===ADMIN_UID);
+const isPermErr=e=>Boolean(e&&(e.code==='permission-denied'||/insufficient permissions/i.test(e.message||'')));
+const cleanErr=e=>String((e&&(e.message||e.code))||t('err_generic')).replace(/^Firebase:\s*/,'');
 
+/* --------------------------------------------------------------------------
+   Temporary bridge (removed when app.js is rebuilt in Part 2):
+   stamps a "last changed" time on today's day record whenever the user
+   ticks or unticks, so sync knows which device's version is newer.
+   -------------------------------------------------------------------------- */
+(function stampDayEdits(){
+  if(typeof api!=='object'||!api||api.__stamped)return;
+  api.__stamped=true;
+  const origGet=api.getData, origTick=api.tick, origSub=api.tickSub;
+  const stamp=today=>{const d=loadDays();if(d[today]){d[today].mt=Date.now();sv('hifdh_days',d)}};
+  api.getData=function(today){
+    const before=loadDays()[today];
+    const mt=before&&before.mt;
+    const r=origGet.call(api,today);
+    if(mt){
+      const d=loadDays();
+      if(d[today]&&!d[today].mt){d[today].mt=mt;sv('hifdh_days',d);if(r&&r.day)r.day.mt=mt}
+    }
+    return r;
+  };
+  api.tick=function(today,key){
+    const r=origTick.call(api,today,key);
+    if(!(r&&r.error))stamp(today);
+    return r;
+  };
+  api.tickSub=function(today,subKey,force){
+    const r=origSub.call(api,today,subKey,force);
+    stamp(today);
+    return r;
+  };
+})();
+
+/* ------------------------------ UI helpers ------------------------------ */
 function setCloudUi(patch,forceRender=false){
   Object.assign(CLOUD_STATE,patch);
   if(typeof render!=='function')return;
   if(!forceRender){
     const ae=document.activeElement;
-    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable))return;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable))return;
+    if(typeof SHOW_COMPOSER!=='undefined'&&SHOW_COMPOSER)return; // never wipe a note being written
   }
   render();
 }
@@ -37,8 +91,10 @@ function toggleShowPass(){
 
 function genCircleCode(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const buf=new Uint32Array(6);
+  (window.crypto||{}).getRandomValues?crypto.getRandomValues(buf):buf.forEach((_,i)=>buf[i]=Math.floor(Math.random()*1e9));
   let out='';
-  for(let i=0;i<6;i++)out+=chars[Math.floor(Math.random()*chars.length)];
+  for(let i=0;i<6;i++)out+=chars[buf[i]%chars.length];
   return out;
 }
 
@@ -54,35 +110,58 @@ function copyTextSafe(txt,label='Copied ✓'){
 function shareCircleCode(){
   const c=CLOUD_STATE.circle;
   if(!c||!c.id)return;
-  const msg=`Join my Study Circle "${c.name}" on My Companion! Circle code: ${c.id}\nhttps://hifdhandrevisiontracker.github.io/Hifdh-Tracker/`;
+  const msg=t('ci_share_msg',{name:c.name,code:c.id})+'\nhttps://hifdhandrevisiontracker.github.io/Hifdh-Tracker/';
   if(navigator.share){
-    navigator.share({title:c.name,text:msg}).catch(()=>copyTextSafe(c.id,'Circle code copied: '+c.id));
+    navigator.share({title:c.name,text:msg}).catch(()=>{});
   }else{
-    copyTextSafe(c.id,'Circle code copied: '+c.id);
+    copyTextSafe(c.id,t('ci_code_copied',{code:c.id}));
   }
 }
 
+/* --------------------------- Activity metrics --------------------------- */
 function calcActivityMetrics(daysObj){
   const days=daysObj||loadDays();
   const today=T();
   let activeDays30=0;
   for(let i=0;i<30;i++){
     const d=days[addDays(today,-i)];
-    if(d&&anyDone(d))activeDays30++;
+    if(isValidDay(d)&&anyDone(d))activeDays30++;
   }
   const todayObj=days[today];
-  const doneToday=Boolean(todayObj&&allDone(todayObj));
-  const startedToday=Boolean(todayObj&&anyDone(todayObj));
+  const doneToday=Boolean(isValidDay(todayObj)&&allDone(todayObj));
+  const startedToday=Boolean(isValidDay(todayObj)&&anyDone(todayObj));
   let streak=0;
   let offset=doneToday?0:1;
   while(offset<400){
-    const d=days[addDays(today,-offset)];
-    if(d&&allDone(d)){streak++;offset++}
+    const key=addDays(today,-offset);
+    const d=days[key];
+    if(isValidDay(d)&&allDone(d)){streak++;offset++}
+    else if((d&&d.rest)||(!d&&typeof isRestDay==='function'&&isRestDay(key))){offset++}   // rest days never break a streak
     else break;
   }
   return{activeDays30,streak,doneToday,startedToday};
 }
 
+function displayName(s,user){
+  return String(s.name||user.displayName||user.name||'Member').trim().slice(0,32)||'Member';
+}
+
+function memberSummary(s,user,daysObj){
+  const act=calcActivityMetrics(daysObj);
+  return{
+    name:displayName(s,user),
+    pages:Math.max(0,Math.min(TOTAL,Math.round((memCount(s)||0)*10)/10)),
+    juz:Math.max(0,Math.min(30,completedJuzCount(s)|0)),
+    streak:act.streak,
+    activeDays30:act.activeDays30,
+    doneToday:act.doneToday,
+    startedToday:act.startedToday,
+    todayDate:T(),
+    updatedAt:Date.now()
+  };
+}
+
+/* ------------------------------ Firebase ------------------------------- */
 async function ensureFb(){
   if(fbAuth&&fbDb)return{auth:fbAuth,db:fbDb,m:fbMods};
   const base=`https://www.gstatic.com/firebasejs/${FB_VER}`;
@@ -95,20 +174,51 @@ async function ensureFb(){
   fbApp=fbMods.getApps().length?fbMods.getApp():fbMods.initializeApp(FIREBASE_CFG);
   fbAuth=fbMods.getAuth(fbApp);
   fbDb=fbMods.getFirestore(fbApp);
+  if(LS.getItem('hifdh_auth_redirect')){
+    LS.removeItem('hifdh_auth_redirect');
+    fbMods.getRedirectResult(fbAuth).catch(e=>setCloudUi({busy:false,error:t('ac_google_failed',{code:e.code||'error'})},true));
+  }
   if(!unsubAuth){
     unsubAuth=fbMods.onAuthStateChanged(fbAuth,async user=>{
       if(user){
         LS.setItem('hifdh_has_auth','1');
         AUTH_FORM={email:'',pass:'',showPass:false};
         setCloudUi({user:{uid:user.uid,email:user.email||'',name:user.displayName||''},busy:false,error:''},true);
-        await runCloudSync('auto');
+        await runCloudSync('start');
       }else{
         LS.removeItem('hifdh_has_auth');
+        clearTimeout(syncTimer);syncTimer=null;
         setCloudUi({user:null,status:'offline',lastSync:'',busy:false,circleCode:'',circle:null,nudges:[],leaderboard:[]});
       }
     });
   }
   return{auth:fbAuth,db:fbDb,m:fbMods};
+}
+
+/* --------------------------- Data validation ---------------------------- */
+function isValidDay(d){
+  return Boolean(d&&typeof d==='object'&&Array.isArray(d.r)&&Array.isArray(d.u));
+}
+function cleanDays(obj){
+  const out={};
+  if(!obj||typeof obj!=='object')return out;
+  Object.keys(obj).forEach(k=>{
+    if(/^\d{4}-\d{2}-\d{2}$/.test(k)&&isValidDay(obj[k]))out[k]=obj[k];
+  });
+  return out;
+}
+function trimDays(days,limit=CLOUD_DAYS_LIMIT){
+  const out={};
+  Object.keys(days).sort().reverse().slice(0,limit).forEach(k=>{out[k]=days[k]});
+  return out;
+}
+function snapshotLocal(){
+  return ['hifdh_state','hifdh_days','hifdh_notes','hifdh_deleted_notes'].map(k=>LS.getItem(k)).join('\u0001');
+}
+function notesSig(notes,deleted){
+  const a=(notes||[]).map(n=>String(n.id)+':'+(Number(n.updatedAt)||0)).sort().join(',');
+  const b=(deleted||[]).map(String).sort().join(',');
+  return a+'|'+b;
 }
 
 function stripInlineImages(html){
@@ -120,7 +230,7 @@ function stripInlineImages(html){
     if(src.startsWith('data:')){
       const note=document.createElement('span');
       note.className='mu';
-      note.textContent=' [Photo stored locally on original device] ';
+      note.textContent=' ['+t('nt_photo_local')+'] ';
       img.replaceWith(note);
     }
   });
@@ -128,225 +238,404 @@ function stripInlineImages(html){
 }
 
 function hasLocalProgress(s,days,notes){
-  return (s.onboarded&&(s.frontier>0||memCount(s)>0||Object.keys(days).length>1||notes.length>0));
+  return Boolean(s.onboarded&&(s.frontier>0||memCount(s)>0||Object.keys(days).length>1||notes.length>0));
 }
 
-function mergePstStrings(pA,pB){
-  const a=(typeof pA==='string'&&pA.length===TOTAL)?pA:'0'.repeat(TOTAL);
-  const b=(typeof pB==='string'&&pB.length===TOTAL)?pB:'0'.repeat(TOTAL);
-  const rank={0:0,w:1,s:2};
-  let out='';
-  for(let i=0;i<TOTAL;i++){
-    const ca=a[i]||'0', cb=b[i]||'0';
-    out+=(rank[ca]||0)>=(rank[cb]||0)?ca:cb;
-  }
+/* ------------------------------- Merging -------------------------------- */
+/* The whole study state follows "newest change wins": whichever device
+   changed it last is kept. This is what lets undo, corrections, weak marks
+   and lowering pages actually stick. */
+function mergeStates(localS,cloudS){
+  const lt=Number(localS.updatedAt)||0, ct=Number(cloudS.updatedAt)||0;
+  const win=lt>=ct?localS:cloudS;
+  const out=Object.assign({},DEFAULTS,win);
+  out.aiKey=localS.aiKey||'';                               // never comes from the cloud
+  out.onboarded=Boolean(localS.onboarded||cloudS.onboarded);
+  out.seenIntro=Boolean(localS.seenIntro||cloudS.seenIntro);
+  out.folders=Array.from(new Set([...(Array.isArray(cloudS.folders)?cloudS.folders:[]),...(Array.isArray(localS.folders)?localS.folders:[])]));
+  if(!out.folders.length)out.folders=DEFAULTS.folders.slice();
+  out.updatedAt=Math.max(lt,ct);
   return out;
 }
 
+/* Each day: the version changed most recently wins. Days from before this
+   update have no change-time, so the one with more ticks wins (old rule). */
+function dayScore(d){return (d.u?d.u.length:0)+(allDone(d)?10:0)}
 function mergeDays(localDays,cloudDays){
-  const merged=Object.assign({},cloudDays||{},localDays||{});
-  const allKeys=new Set([...Object.keys(cloudDays||{}),...Object.keys(localDays||{})]);
-  allKeys.forEach(k=>{
-    const ld0=(localDays||{})[k], cd0=(cloudDays||{})[k];
-    if(!ld0){merged[k]=cd0;return}
-    if(!cd0){merged[k]=ld0;return}
-    const lScore=(ld0.u?ld0.u.length:0)+(allDone(ld0)?10:0);
-    const cScore=(cd0.u?cd0.u.length:0)+(allDone(cd0)?10:0);
-    merged[k]=lScore>=cScore?ld0:cd0;
+  const out={};
+  const keys=new Set([...Object.keys(cloudDays||{}),...Object.keys(localDays||{})]);
+  keys.forEach(k=>{
+    const l=(localDays||{})[k], c=(cloudDays||{})[k];
+    if(!l){out[k]=c;return}
+    if(!c){out[k]=l;return}
+    const lm=Number(l.mt)||0, cm=Number(c.mt)||0;
+    if(lm||cm){out[k]=lm>=cm?l:c;return}
+    out[k]=dayScore(l)>=dayScore(c)?l:c;
   });
-  return merged;
+  return out;
 }
 
-function mergeStates(localS,cloudS){
-  const base=Object.assign({},DEFAULTS,cloudS||{},localS||{});
-  const useLocalPlan=(localS.updatedAt||0)>=(cloudS.updatedAt||0);
-  const planSrc=useLocalPlan?localS:cloudS;
-  [
-    'mode','method','order','newPerDay','revPerDay','sabakPages','chunks','afterLast',
-    'theme','color','uiText','uiCard','uiScale','studyDaysPerWeek','planCommittedAt',
-    'leaderboardOptIn','circleCode'
-  ].forEach(k=>{
-    if(planSrc&&planSrc[k]!==undefined)base[k]=planSrc[k];
-  });
-  if(!base.circleCode)base.circleCode=localS.circleCode||cloudS.circleCode||'';
-  base.onboarded=Boolean(localS.onboarded||cloudS.onboarded);
-  base.seenIntro=Boolean(localS.seenIntro||cloudS.seenIntro);
-  base.frontier=Math.max(Number(localS.frontier)||0,Number(cloudS.frontier)||0);
-  base.pst=mergePstStrings(localS.pst,cloudS.pst);
-  base.tasbihTotal=Math.max(Number(localS.tasbihTotal)||0,Number(cloudS.tasbihTotal)||0);
-  base.folders=Array.from(new Set([...(cloudS.folders||[]),...(localS.folders||[])]));
-  base.name=localS.name||cloudS.name||'';
-  base.email=localS.email||cloudS.email||'';
-  base.updatedAt=Math.max(Number(localS.updatedAt)||0,Number(cloudS.updatedAt)||0,Date.now());
-  return base;
+function pruneDeleted(map){
+  const cutoff=Date.now()-365*DAY_MS;
+  const entries=Object.entries(map||{}).filter(([,ts])=>Number(ts)>=cutoff).sort((a,b)=>b[1]-a[1]).slice(0,1000);
+  return Object.fromEntries(entries);
+}
+
+async function syncNotes(db,m,user,mode,cloudDeleted){
+  const localNotes=loadNotes();
+  const deleted=Object.assign({},cloudDeleted||{});
+  if(mode!=='cloud'){
+    ld('hifdh_deleted_notes',[]).forEach(id=>{if(!deleted[String(id)])deleted[String(id)]=Date.now()});
+  }
+  const col=m.collection(db,'users',user.uid,'notes');
+  const snap=await m.getDocs(col);
+  const cloudMap=new Map();
+  snap.forEach(d=>cloudMap.set(String(d.id),d.data()));
+
+  for(const id of Object.keys(deleted)){
+    if(cloudMap.has(id)){
+      await m.deleteDoc(m.doc(db,'users',user.uid,'notes',id));
+      cloudMap.delete(id);
+    }
+  }
+
+  const merged=[];
+  if(mode==='cloud'){
+    cloudMap.forEach(cn=>merged.push(cn));
+  }else{
+    const seen=new Set();
+    for(const ln of localNotes){
+      const id=String(ln.id);
+      if(deleted[id])continue;
+      seen.add(id);
+      const cn=cloudMap.get(id);
+      const lU=Number(ln.updatedAt||ln.id)||0;
+      const cU=cn?(Number(cn.updatedAt||cn.id)||0):-1;
+      if(!cn||lU>cU||mode==='local'){
+        if(!cn||lU!==cU||mode==='local'){
+          await m.setDoc(m.doc(db,'users',user.uid,'notes',id),{
+            id:ln.id,date:ln.date||T(),cat:ln.cat||'Lesson',title:ln.title||'Untitled',
+            link:ln.link||'',html:stripInlineImages(ln.html||esc(ln.body||'')),updatedAt:lU||Date.now()
+          });
+        }
+        merged.push(ln);
+      }else if(lU===cU){
+        merged.push(ln);                      // same version: keep local copy (it still has its photos)
+      }else{
+        merged.push(cn);                      // edited on another device more recently
+      }
+    }
+    for(const [id,cn] of cloudMap){
+      if(seen.has(id))continue;
+      if(mode==='local'){await m.deleteDoc(m.doc(db,'users',user.uid,'notes',id))}
+      else merged.push(cn);
+    }
+  }
+  merged.sort((a,b)=>(Number(b.updatedAt||b.id)||0)-(Number(a.updatedAt||a.id)||0));
+  return{merged,deleted:pruneDeleted(deleted)};
 }
 
 function askFirstSyncChoice(){
   return new Promise(resolve=>{
-    $('modalRoot').innerHTML=`<div class="modal-bg">
+    let root=document.getElementById('syncChoiceRoot');
+    if(!root){root=document.createElement('div');root.id='syncChoiceRoot';document.body.appendChild(root)}
+    root.innerHTML=`<div class="modal-bg" style="z-index:110">
       <div class="modal-card" onclick="event.stopPropagation()">
         <div style="font-size:38px;margin-bottom:6px">☁️</div>
-        <div style="font-size:18px;font-weight:800;color:var(--ac);margin-bottom:6px">Cloud Backup Found</div>
-        <div class="mu" style="margin-bottom:14px">Both this phone and your cloud account have Hifdh progress. How would you like to sync?</div>
-        <button style="width:100%" onclick="window._syncChoice('merge')">✨ Merge Both (Recommended)</button>
-        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('local')">📱 Keep This Phone’s Data</button>
-        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('cloud')">☁️ Use Cloud Copy</button>
+        <div style="font-size:18px;font-weight:800;color:var(--ac);margin-bottom:6px">${esc(t('sc_title'))}</div>
+        <div class="mu" style="margin-bottom:14px">${esc(t('sc_desc'))}</div>
+        <button style="width:100%" onclick="window._syncChoice('merge')">✨ ${esc(t('sc_merge'))}</button>
+        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('local')">📱 ${esc(t('sc_local'))}</button>
+        <button class="g" style="width:100%;margin-top:8px" onclick="window._syncChoice('cloud')">☁️ ${esc(t('sc_cloud'))}</button>
       </div>
     </div>`;
     window._syncChoice=choice=>{
       delete window._syncChoice;
-      closeModal();
+      root.innerHTML='';
       resolve(choice);
     };
   });
 }
 
-function memberSummary(s,user,daysObj){
-  const act=calcActivityMetrics(daysObj);
-  return{
-    name:(s.name||user.displayName||user.name||(user.email||'').split('@')[0]||'Student').slice(0,32),
-    pages:Math.round((memCount(s)||0)*10)/10,
-    juz:completedJuzCount(s),
-    streak:act.streak,
-    activeDays30:act.activeDays30,
-    doneToday:act.doneToday,
-    startedToday:act.startedToday,
-    todayDate:T(),
-    updatedAt:Date.now()
-  };
+/* ------------------------------ Main sync ------------------------------- */
+/* trigger: 'auto' = light sync after a change · 'start' / 'manual' = full sync */
+async function runCloudSync(trigger='auto'){
+  if(isSyncing){syncPending=true;if(trigger!=='auto')pendingFull=true;return}
+  const full=trigger!=='auto'||pendingFull;
+  isSyncing=true;pendingFull=false;
+  let user=null;
+  try{
+    const {auth,db,m}=await ensureFb();
+    user=auth.currentUser;
+    if(!user)return;
+    if(LS.getItem('hifdh_deleting_uid')===user.uid){
+      setCloudUi({busy:false,status:'error',error:t('ac_delete_unfinished')},true);
+      return;
+    }
+    if(trigger==='manual')setCloudUi({busy:true,status:'syncing',error:''},true);
+    else CLOUD_STATE.status='syncing';
+
+    const startSnap=snapshotLocal();
+    const userRef=m.doc(db,'users',user.uid);
+    const snap=await m.getDoc(userRef);
+    const cData=snap.exists()?(snap.data()||{}):{};
+    const cloudS=(cData.state&&typeof cData.state==='object')?cData.state:null;
+    const cloudDays=cleanDays(cData.days);
+    const cloudDeleted=(cData.deletedNotes&&typeof cData.deletedNotes==='object')?cData.deletedNotes:{};
+
+    const localS=loadState();
+    const localDays=cleanDays(loadDays());
+    const localNotes=loadNotes();
+    const firstKey='hifdh_first_sync_'+user.uid;
+    const isFirst=!LS.getItem(firstKey);
+
+    let mode='merge';
+    if(cloudS&&isFirst){
+      // New device for this account: if this phone has nothing yet, just take the cloud copy.
+      mode=hasLocalProgress(localS,localDays,localNotes)?await askFirstSyncChoice():'cloud';
+    }
+
+    let finalState,finalDays;
+    if(!cloudS){
+      finalState=Object.assign({},localS);finalDays=localDays;
+    }else if(mode==='cloud'){
+      finalState=Object.assign({},DEFAULTS,cloudS,{aiKey:localS.aiKey||''});finalDays=cloudDays;
+    }else if(mode==='local'){
+      finalState=Object.assign({},localS,{updatedAt:Date.now()});finalDays=localDays;
+    }else{
+      finalState=mergeStates(localS,cloudS);finalDays=mergeDays(localDays,cloudDays);
+    }
+
+    const sigKey='hifdh_notes_sig_'+user.uid;
+    const localDelList=ld('hifdh_deleted_notes',[]);
+    const needNotes=full||mode!=='merge'||notesSig(localNotes,localDelList)!==LS.getItem(sigKey);
+    let finalNotes=localNotes.filter(n=>!cloudDeleted[String(n.id)]);
+    let finalDeleted=pruneDeleted(cloudDeleted);
+    if(needNotes){
+      const r=await syncNotes(db,m,user,mode,cloudDeleted);
+      finalNotes=r.merged;finalDeleted=r.deleted;
+    }
+
+    const syncState=Object.assign({},finalState);
+    delete syncState.aiKey;
+    await m.setDoc(userRef,{state:syncState,days:trimDays(finalDays),deletedNotes:finalDeleted,updatedAt:Date.now()});
+
+    LS.setItem(firstKey,'1');
+    if(snapshotLocal()===startSnap){
+      sv('hifdh_state',finalState);
+      sv('hifdh_days',finalDays);
+      sv('hifdh_notes',finalNotes);
+      sv('hifdh_deleted_notes',[]);
+      if(needNotes)LS.setItem(sigKey,notesSig(finalNotes,[]));
+      try{D=api.getData(T())}catch(e){}
+    }else{
+      // The user changed something while we were syncing: keep their change, sync again shortly.
+      syncPending=true;
+    }
+
+    await pushSocial(db,m,user,full).catch(()=>{});
+    if(full)await refreshSocial(db,m,user).catch(()=>{});
+
+    const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    setCloudUi({busy:false,status:'synced',lastSync:nowTime,error:''},trigger==='manual');
+    if(trigger==='manual')toast(t('ac_synced'));
+  }catch(e){
+    setCloudUi({busy:false,status:'error',error:cleanErr(e)||t('pr_sync_error')},trigger==='manual');
+    if(trigger==='manual')toast(t('ac_sync_error',{msg:cleanErr(e)}));
+  }finally{
+    isSyncing=false;
+    if(syncPending){syncPending=false;scheduleCloudSync()}
+  }
 }
 
-async function syncCircleAndNudges(db,m,user,s,daysObj){
+function scheduleCloudSync(){
+  if(!LS.getItem('hifdh_has_auth'))return;
+  if(isSyncing){syncPending=true;return}
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>{syncTimer=null;runCloudSync('auto')},SYNC_DEBOUNCE_MS);
+}
+
+// If the app is being closed / sent to background, sync right away instead of waiting.
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&syncTimer){clearTimeout(syncTimer);syncTimer=null;runCloudSync('auto')}
+});
+
+/* ------------------------- Circle & leaderboard ------------------------- */
+function clearCircleLocal(){
+  const s=loadState();
+  if(s.circleCode){s.circleCode='';saveState(s);if(typeof D!=='undefined'&&D)D.state=s}
+  LS.removeItem('hifdh_circle_code');
+  setCloudUi({circleCode:'',circle:null});
+}
+
+async function pushSocial(db,m,user,full){
+  const s=loadState(), days=loadDays();
   const code=(s.circleCode||'').trim().toUpperCase();
   if(code){
-    const cRef=m.doc(db,'circles',code);
-    const cSnap=await m.getDoc(cRef);
-    if(cSnap.exists()){
-      const cData=cSnap.data()||{};
-      const sum=memberSummary(s,user,daysObj);
-      await m.updateDoc(cRef,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
-      const membersObj=Object.assign({},cData.members||{},{[user.uid]:sum});
-      LS.setItem('hifdh_circle_code',code);
-      setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj}});
-    }else{
-      LS.removeItem('hifdh_circle_code');
-      setCloudUi({circleCode:'',circle:null});
+    const sum=memberSummary(s,user,days);
+    const sig=JSON.stringify(Object.assign({},sum,{updatedAt:0}));
+    const k='hifdh_circle_sig_'+user.uid;
+    if(full||LS.getItem(k)!==code+sig){
+      try{
+        await m.updateDoc(m.doc(db,'circles',code),{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
+        LS.setItem(k,code+sig);
+      }catch(e){
+        if(e&&e.code==='not-found')clearCircleLocal();
+      }
     }
-  }else{
-    LS.removeItem('hifdh_circle_code');
-    setCloudUi({circleCode:'',circle:null});
   }
-  const q=m.query(m.collection(db,'nudges'),m.where('toUid','==',user.uid));
-  const nSnap=await m.getDocs(q);
-  const items=[];
-  nSnap.forEach(d=>items.push(Object.assign({id:d.id},d.data())));
-  items.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  setCloudUi({nudges:items.slice(0,15)});
+  const lbRef=m.doc(db,'leaderboard',user.uid);
+  const pubKey='hifdh_lb_pub_'+user.uid;
+  if(s.leaderboardOptIn){
+    const act=calcActivityMetrics(days);
+    const row={uid:user.uid,name:displayName(s,user),activeDays30:act.activeDays30,streak:act.streak,doneToday:act.doneToday,todayDate:T(),updatedAt:Date.now()};
+    const sig=JSON.stringify(Object.assign({},row,{updatedAt:0}));
+    if(full||LS.getItem(pubKey)!==sig){
+      await m.setDoc(lbRef,row);
+      LS.setItem(pubKey,sig);
+    }
+  }else if(full||LS.getItem(pubKey)){
+    await m.deleteDoc(lbRef).catch(()=>{});
+    LS.removeItem(pubKey);
+  }
 }
 
-async function syncLeaderboard(db,m,user,s,daysObj){
-  const lbRef=m.doc(db,'leaderboard',user.uid);
-  if(s.leaderboardOptIn){
-    const act=calcActivityMetrics(daysObj);
-    const name=(s.name||user.displayName||user.name||(user.email||'').split('@')[0]||'Student').slice(0,32);
-    // Consistency-only: no memorized page or Juz totals published
-    await m.setDoc(lbRef,{
-      uid:user.uid,
-      name,
-      activeDays30:act.activeDays30,
-      streak:act.streak,
-      doneToday:act.doneToday,
-      todayDate:T(),
-      updatedAt:Date.now()
-    });
-  }else{
-    await m.deleteDoc(lbRef).catch(()=>{});
+async function refreshSocial(db,m,user){
+  lastSocialAt=Date.now();
+  const s=loadState();
+  const code=(s.circleCode||'').trim().toUpperCase();
+  let circle=null;
+  if(code){
+    const cs=await m.getDoc(m.doc(db,'circles',code)).catch(()=>null);
+    if(cs&&cs.exists()){
+      const cd=cs.data()||{};
+      circle={id:code,name:cd.name||'Study Circle',members:cd.members||{},createdBy:cd.createdBy||''};
+      if(!circle.members[user.uid])circle=null;   // no longer a member
+    }
+    if(cs&&!circle)clearCircleLocal();
   }
-  const q=m.query(m.collection(db,'leaderboard'),m.limit(50));
-  const snap=await m.getDocs(q).catch(()=>null);
-  if(snap){
-    const rows=[];
-    snap.forEach(d=>rows.push(d.data()));
+  const nq=m.query(m.collection(db,'nudges'),m.where('toUid','==',user.uid));
+  const nSnap=await m.getDocs(nq).catch(()=>null);
+  const nudges=[];
+  if(nSnap)nSnap.forEach(d=>nudges.push(Object.assign({id:d.id},d.data())));
+  nudges.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+
+  const lq=m.query(m.collection(db,'leaderboard'),m.orderBy('activeDays30','desc'),m.limit(50));
+  const lSnap=await m.getDocs(lq).catch(()=>null);
+  let rows=CLOUD_STATE.leaderboard;
+  if(lSnap){
+    rows=[];
+    lSnap.forEach(d=>rows.push(d.data()));
     rows.sort((a,b)=>
       (Number(b.activeDays30)||0)-(Number(a.activeDays30)||0) ||
       (Number(b.streak)||0)-(Number(a.streak)||0) ||
       (Number(b.updatedAt)||0)-(Number(a.updatedAt)||0)
     );
-    setCloudUi({leaderboard:rows.slice(0,25)});
+    rows=rows.slice(0,25);
   }
+  setCloudUi({circleCode:circle?code:'',circle,nudges:nudges.slice(0,15),leaderboard:rows});
+  await loadCommunityLessons(true);
 }
 
-async function loadCommunityLessons(){
-  try{
-    const {db,m}=await ensureFb();
-    const snap=await m.getDocs(m.collection(db,'community_lessons'));
-    const list=[];
-    snap.forEach(d=>list.push(Object.assign({docId:d.id},d.data())));
-    list.sort((a,b)=>(b.updatedAt||b.id||0)-(a.updatedAt||a.id||0));
-    setCloudUi({communityLessons:list});
-  }catch(e){}
+async function loadCommunityLessons(force=false){
+  if(force||Date.now()-lastLessonsAt>=SOCIAL_REFRESH_MS){
+    lastLessonsAt=Date.now();
+    try{
+      const {db,m}=await ensureFb();
+      const snap=await m.getDocs(m.collection(db,'community_lessons'));
+      const list=[];
+      snap.forEach(d=>list.push(Object.assign({docId:d.id},d.data())));
+      list.sort((a,b)=>(Number(b.updatedAt||b.id)||0)-(Number(a.updatedAt||a.id)||0));
+      setCloudUi({communityLessons:list});
+    }catch(e){}
+  }
+  if(!force&&CLOUD_STATE.user&&Date.now()-lastSocialAt>=SOCIAL_REFRESH_MS){
+    try{
+      const {auth,db,m}=await ensureFb();
+      if(auth.currentUser)await refreshSocial(db,m,auth.currentUser);
+    }catch(e){}
+  }
 }
 
 async function createOrJoinCircle(action){
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
-    if(!user){toast('Sign in under Profile first');return}
+    if(!user){toast(t('ci_signin_first'));return}
     const s=loadState();
     const sum=memberSummary(s,user,loadDays());
+    let code,name,members;
     if(action==='create'){
-      const title=($('circleNameInp')?$('circleNameInp').value.trim():'')||'Hifdh Circle';
-      const code=genCircleCode();
-      await m.setDoc(m.doc(db,'circles',code),{
-        name:title.slice(0,40),code,createdBy:user.uid,createdAt:Date.now(),updatedAt:Date.now(),
-        members:{[user.uid]:sum}
-      });
-      s.circleCode=code;saveState(s);LS.setItem('hifdh_circle_code',code);
-      setCloudUi({circleCode:code,circle:{id:code,name:title,members:{[user.uid]:sum}},socialMsg:'Circle created! Share code '+code},true);
-      toast('Circle '+code+' created ✓');
+      name=(($('circleNameInp')?$('circleNameInp').value.trim():'')||'Hifdh Circle').slice(0,40);
+      let created=false;
+      for(let i=0;i<6&&!created;i++){
+        code=genCircleCode();
+        const ref=m.doc(db,'circles',code);
+        const ex=await m.getDoc(ref);
+        if(ex.exists())continue;
+        try{
+          await m.setDoc(ref,{name,code,createdBy:user.uid,createdAt:Date.now(),updatedAt:Date.now(),members:{[user.uid]:sum}});
+          created=true;
+        }catch(e){if(!isPermErr(e))throw e}
+      }
+      if(!created)throw new Error(t('ci_create_failed'));
+      members={[user.uid]:sum};
     }else{
-      const code=($('circleCodeInp')?$('circleCodeInp').value.trim().toUpperCase():'');
-      if(!code){toast('Enter a 6-character circle code');return}
-      const cRef=m.doc(db,'circles',code);
-      const cSnap=await m.getDoc(cRef);
-      if(!cSnap.exists()){toast('Circle code not found');return}
+      code=($('circleCodeInp')?$('circleCodeInp').value.trim().toUpperCase():'');
+      if(!/^[A-Z2-9]{6}$/.test(code)){toast(t('ci_enter_code'));return}
+      const ref=m.doc(db,'circles',code);
+      const cSnap=await m.getDoc(ref);
+      if(!cSnap.exists()){toast(t('ci_not_found'));return}
       const cData=cSnap.data()||{};
-      await m.updateDoc(cRef,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
-      s.circleCode=code;saveState(s);LS.setItem('hifdh_circle_code',code);
-      const membersObj=Object.assign({},cData.members||{},{[user.uid]:sum});
-      setCloudUi({circleCode:code,circle:{id:code,name:cData.name||'Study Circle',members:membersObj},socialMsg:'Joined '+code+'!'},true);
-      toast('Joined circle '+code+' ✓');
+      await m.updateDoc(ref,{[`members.${user.uid}`]:sum,updatedAt:Date.now()});
+      name=cData.name||'Study Circle';
+      members=Object.assign({},cData.members||{},{[user.uid]:sum});
     }
+    s.circleCode=code;saveState(s);if(D)D.state=s;
+    LS.setItem('hifdh_circle_sig_'+user.uid,code+JSON.stringify(Object.assign({},sum,{updatedAt:0})));
+    setCloudUi({circleCode:code,circle:{id:code,name,members},socialMsg:''},true);
+    toast(action==='create'?t('ci_created',{code}):t('ci_joined',{code}));
   }catch(e){
-    const msg=(e&&(e.code==='permission-denied'||/insufficient permissions/i.test(e.message||'')))
-      ?'Publish the updated Firestore Rules in Firebase Console first.'
-      :(e.message||e.code||'Unknown error');
-    toast('Circle error: '+msg);
+    toast(t('ci_error',{msg:isPermErr(e)?t('ci_rules'):cleanErr(e)}));
   }
 }
 
-function leaveCircleLocal(){
-  if(!confirm('Leave this study circle? You can rejoin anytime with the code.'))return;
-  const s=loadState();s.circleCode='';saveState(s);
-  LS.removeItem('hifdh_circle_code');
-  setCloudUi({circleCode:'',circle:null,socialMsg:''},true);
-  toast('Left circle');
+async function leaveCircleLocal(){
+  if(!confirm(t('ci_leave_confirm')))return;
+  const code=(loadState().circleCode||CLOUD_STATE.circleCode||'').trim().toUpperCase();
+  try{
+    if(code&&LS.getItem('hifdh_has_auth')){
+      const {auth,db,m}=await ensureFb();
+      if(auth.currentUser){
+        await m.updateDoc(m.doc(db,'circles',code),{[`members.${auth.currentUser.uid}`]:m.deleteField(),updatedAt:Date.now()})
+          .catch(e=>{if(!(e&&e.code==='not-found'))throw e});
+      }
+    }
+  }catch(e){
+    toast(t('ci_leave_failed'));
+    return;
+  }
+  clearCircleLocal();
+  setCloudUi({socialMsg:''},true);
+  toast(t('ci_left'));
 }
 
 async function sendNudge(toUid,toName){
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
-    if(!user||!toUid||toUid===user.uid)return;
-    const s=loadState();
-    const fromName=(s.name||user.displayName||(user.email||'').split('@')[0]||'Partner').slice(0,30);
-    await m.addDoc(m.collection(db,'nudges'),{
-      fromUid:user.uid,fromName,toUid,
-      text:'Assalamu Alaikum! Gentle reminder for today’s Qur’an session.',
-      createdAt:Date.now()
+    const circle=CLOUD_STATE.circle;
+    if(!user||!circle||!toUid||toUid===user.uid)return;
+    const day=Math.floor(Date.now()/DAY_MS);
+    const id=`${user.uid}_${toUid}_${day}`;
+    await m.setDoc(m.doc(db,'nudges',id),{
+      fromUid:user.uid,fromName:displayName(loadState(),user).slice(0,30),
+      toUid,circleCode:circle.id,day,createdAt:Date.now()
     });
-    toast('Nudge sent to '+toName+' ✓');
-  }catch(e){toast('Could not send nudge')}
+    toast(t('ci_nudge_sent',{name:toName}));
+  }catch(e){
+    toast(isPermErr(e)?t('ci_nudge_once',{name:toName}):t('ci_nudge_failed'));
+  }
 }
 
 async function dismissNudge(nudgeId){
@@ -357,8 +646,27 @@ async function dismissNudge(nudgeId){
   }catch(e){}
 }
 
+async function toggleLeaderboardOptIn(checked){
+  const s=loadState();
+  s.leaderboardOptIn=Boolean(checked);
+  saveState(s);
+  if(typeof D!=='undefined'&&D)D.state=s;
+  if(LS.getItem('hifdh_has_auth')){
+    try{
+      const {auth,db,m}=await ensureFb();
+      if(auth.currentUser){
+        await pushSocial(db,m,auth.currentUser,true);
+        await refreshSocial(db,m,auth.currentUser);
+      }
+    }catch(e){}
+  }
+  toast(s.leaderboardOptIn?t('lb_joined'):t('lb_left'));
+  if(typeof render==='function')render();
+}
+
+/* --------------------------- Community lessons --------------------------- */
 function openCommunityComposer(docId=null){
-  if(!isAdminUser()){toast('Sign in with your Admin account to publish lessons');return}
+  if(!isAdminUser()){toast(t('cl_admin_only'));return}
   COMMUNITY_EDIT_ID=docId?String(docId):null;
   SHOW_COMM_COMPOSER=true;
   if(typeof render==='function')render();
@@ -382,341 +690,245 @@ function closeCommunityComposer(){
 }
 
 async function publishCommunityLesson(){
-  if(!isAdminUser()){toast('Only the app admin can publish community lessons');return}
+  if(!isAdminUser()){toast(t('cl_admin_only'));return}
   const title=($('commTitle')?$('commTitle').value.trim():'');
   const cat=($('commCat')?$('commCat').value:'Tajweed Lessons');
   const link=($('commLink')?$('commLink').value.trim():'');
   const rawHtml=($('commEditor')?$('commEditor').innerHTML.trim():'');
-  if(!title||!rawHtml){toast('Add both a lesson title and content');return}
+  if(!title||!rawHtml){toast(t('cl_need_both'));return}
   try{
     const {auth,db,m}=await ensureFb();
     const user=auth.currentUser;
     const isEdit=Boolean(COMMUNITY_EDIT_ID);
     const id=isEdit?COMMUNITY_EDIT_ID:String(Date.now());
-    const docData={
+    await m.setDoc(m.doc(db,'community_lessons',id),{
       id:isEdit?(Number(id)||id):Number(id),
-      date:T(),cat,title,link,
+      date:T(),cat,title:title.slice(0,140),link:safeExternalUrl(link)||'',
       html:stripInlineImages(sanitizeHtml(rawHtml)),
       authorUid:user.uid,
       updatedAt:Date.now()
-    };
-    await m.setDoc(m.doc(db,'community_lessons',id),docData,{merge:true});
+    },{merge:true});
     SHOW_COMM_COMPOSER=false;
     COMMUNITY_EDIT_ID=null;
-    toast(isEdit?'Community lesson updated ✓':'Published to Community Lessons ✓');
-    await loadCommunityLessons();
+    toast(isEdit?t('cl_updated'):t('cl_published'));
+    await loadCommunityLessons(true);
     if(typeof render==='function')render();
-  }catch(e){toast('Publish error: '+(e.message||e.code))}
+  }catch(e){toast(t('cl_error',{msg:cleanErr(e)}))}
 }
 
 async function deleteCommunityLesson(docId){
-  if(!isAdminUser()){toast('Admin permission required');return}
-  if(!confirm('Delete this community lesson for all users?'))return;
+  if(!isAdminUser()){toast(t('cl_admin_only'));return}
+  if(!confirm(t('cl_delete_confirm')))return;
   try{
     const {db,m}=await ensureFb();
     await m.deleteDoc(m.doc(db,'community_lessons',String(docId)));
     setCloudUi({communityLessons:CLOUD_STATE.communityLessons.filter(x=>String(x.docId||x.id)!==String(docId))},true);
-    toast('Community lesson removed ✓');
-  }catch(e){toast('Delete error: '+(e.message||e.code))}
+    toast(t('cl_removed'));
+  }catch(e){toast(t('cl_error',{msg:cleanErr(e)}))}
 }
 
-async function toggleLeaderboardOptIn(checked){
-  const s=loadState();
-  s.leaderboardOptIn=Boolean(checked);
-  saveState(s);
-  if(D)D.state=s;
-  if(LS.getItem('hifdh_has_auth')){
-    try{
-      const {auth,db,m}=await ensureFb();
-      if(auth.currentUser)await syncLeaderboard(db,m,auth.currentUser,s,loadDays());
-    }catch(e){}
-  }
-  toast(s.leaderboardOptIn?'Joined Consistency Leaderboard ✓':'Removed from leaderboard');
-  if(typeof render==='function')render();
-}
-
-async function runCloudSync(trigger='auto'){
-  if(isSyncing)return;
-  isSyncing=true;
-  try{
-    const {auth,db,m}=await ensureFb();
-    const user=auth.currentUser;
-    if(!user)return;
-    setCloudUi({busy:true,status:'syncing',error:''},trigger==='manual');
-
-    const userRef=m.doc(db,'users',user.uid);
-    const snap=await m.getDoc(userRef);
-    const localS=loadState();
-    const localDays=loadDays();
-    const localNotes=loadNotes();
-    const firstKey='hifdh_first_sync_'+user.uid;
-    const isFirstForAccount=!LS.getItem(firstKey);
-
-    let finalState=localS, finalDays=localDays, mode='merge';
-    if(snap.exists()){
-      const cData=snap.data()||{};
-      const cloudS=cData.state||null;
-      const cloudDays=cData.days||{};
-      if(isFirstForAccount && cloudS && hasLocalProgress(localS,localDays,localNotes)){
-        mode=await askFirstSyncChoice();
-      }
-      if(mode==='cloud' && cloudS){
-        finalState=Object.assign({},DEFAULTS,cloudS,{aiKey:localS.aiKey||''});
-        finalDays=cloudDays;
-      }else if(mode==='local'){
-        finalState=Object.assign({},localS,{updatedAt:Date.now()});
-        finalDays=localDays;
-      }else{
-        finalState=cloudS?mergeStates(localS,cloudS):Object.assign({},localS,{updatedAt:Date.now()});
-        finalDays=mergeDays(localDays,cloudDays);
-      }
-    }else{
-      finalState=Object.assign({},localS,{updatedAt:Date.now()});
-    }
-
-    const syncState=Object.assign({},finalState);
-    delete syncState.aiKey;
-    await m.setDoc(userRef,{state:syncState,days:finalDays,updatedAt:Date.now()},{merge:true});
-
-    const notesCol=m.collection(db,'users',user.uid,'notes');
-    const cNotesSnap=await m.getDocs(notesCol);
-    const cloudNotesMap=new Map();
-    cNotesSnap.forEach(d=>cloudNotesMap.set(String(d.id),d.data()));
-    const deletedIds=new Set(ld('hifdh_deleted_notes',[]));
-
-    if(mode!=='cloud'){
-      for(const delId of deletedIds){
-        if(cloudNotesMap.has(String(delId))){
-          await m.deleteDoc(m.doc(db,'users',user.uid,'notes',String(delId)));
-          cloudNotesMap.delete(String(delId));
-        }
-      }
-    }
-    sv('hifdh_deleted_notes',[]);
-
-    let mergedNotes=[];
-    if(mode==='cloud'){
-      mergedNotes=Array.from(cloudNotesMap.values());
-    }else{
-      const localNotesMap=new Map(localNotes.map(n=>[String(n.id),n]));
-      for(const [id,ln] of localNotesMap){
-        const cn=cloudNotesMap.get(id);
-        const lUpd=ln.updatedAt||ln.id||0;
-        const cUpd=cn?(cn.updatedAt||cn.id||0):0;
-        if(!cn || mode==='local' || (mode==='merge'&&lUpd>=cUpd)){
-          const cleanDoc={
-            id:ln.id,date:ln.date||T(),cat:ln.cat||'Lesson',title:ln.title||'Untitled',
-            link:ln.link||'',html:stripInlineImages(ln.html||esc(ln.body||'')),updatedAt:lUpd||Date.now()
-          };
-          await m.setDoc(m.doc(db,'users',user.uid,'notes',id),cleanDoc);
-          mergedNotes.push(ln);
-        }else{
-          mergedNotes.push(cn);
-        }
-        cloudNotesMap.delete(id);
-      }
-      if(mode!=='local'){
-        for(const [id,cn] of cloudNotesMap){
-          if(!deletedIds.has(Number(id))&&!deletedIds.has(id))mergedNotes.push(cn);
-        }
-      }
-    }
-    mergedNotes.sort((a,b)=>(b.updatedAt||b.id||0)-(a.updatedAt||a.id||0));
-
-    sv('hifdh_state',finalState);
-    sv('hifdh_days',finalDays);
-    sv('hifdh_notes',mergedNotes);
-    LS.setItem(firstKey,'1');
-    DR=null;
-    D=api.getData(T());
-
-    await syncCircleAndNudges(db,m,user,finalState,finalDays).catch(()=>{});
-    await syncLeaderboard(db,m,user,finalState,finalDays).catch(()=>{});
-    await loadCommunityLessons().catch(()=>{});
-
-    const nowTime=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    setCloudUi({busy:false,status:'synced',lastSync:nowTime,error:''},trigger==='manual');
-    if(trigger==='manual')toast('Synced with cloud ✓');
-  }catch(e){
-    setCloudUi({busy:false,status:'error',error:e.message||'Sync failed'},trigger==='manual');
-    if(trigger==='manual')toast('Sync error: '+(e.message||'offline'));
-  }finally{
-    isSyncing=false;
-  }
-}
-
-function scheduleCloudSync(){
-  if(!LS.getItem('hifdh_has_auth'))return;
-  clearTimeout(syncTimer);
-  syncTimer=setTimeout(()=>runCloudSync('auto'),2500);
-}
-
+/* ------------------------------ Accounts ------------------------------- */
 async function signInEmail(isSignup){
   const email=(($('authEmail')?$('authEmail').value:AUTH_FORM.email)||'').trim();
   const pass=(($('authPass')?$('authPass').value:AUTH_FORM.pass)||'');
   AUTH_FORM.email=email;
   AUTH_FORM.pass=pass;
-  if(!email||pass.length<6){setCloudUi({error:'Enter a valid email and a password (6+ characters).'},true);return}
+  if(!email||pass.length<6){setCloudUi({error:t('ac_need_email_pass')},true);return}
   try{
     setCloudUi({busy:true,error:''},true);
     const {auth,m}=await ensureFb();
     if(isSignup){
       await m.createUserWithEmailAndPassword(auth,email,pass);
-      toast('Account created ✓');
+      toast(t('ac_created'));
     }else{
       await m.signInWithEmailAndPassword(auth,email,pass);
-      toast('Signed in ✓');
+      toast(t('ac_signed_in'));
     }
   }catch(e){
-    setCloudUi({busy:false,error:e.message.replace('Firebase: ','')},true);
+    setCloudUi({busy:false,error:cleanErr(e)},true);
+  }
+}
+
+async function resetPasswordEmail(){
+  const email=(($('authEmail')?$('authEmail').value:AUTH_FORM.email)||'').trim();
+  AUTH_FORM.email=email;
+  if(!email){setCloudUi({error:t('ac_forgot_need_email')},true);return}
+  try{
+    const {auth,m}=await ensureFb();
+    await m.sendPasswordResetEmail(auth,email);
+    setCloudUi({error:''},true);
+    toast(t('ac_reset_sent'),5000);
+  }catch(e){
+    setCloudUi({error:cleanErr(e)},true);
   }
 }
 
 async function signInGoogle(){
+  let auth,m,provider;
   try{
     setCloudUi({busy:true,error:''},true);
-    const {auth,m}=await ensureFb();
-    const provider=new m.GoogleAuthProvider();
+    ({auth,m}=await ensureFb());
+    provider=new m.GoogleAuthProvider();
     await m.signInWithPopup(auth,provider);
-    toast('Signed in with Google ✓');
+    toast(t('ac_signed_in'));
   }catch(e){
-    setCloudUi({busy:false,error:'Google sign-in unavailable here ('+e.code+'). Use Email & Password below.'},true);
+    const code=(e&&e.code)||'';
+    if(code==='auth/popup-closed-by-user'||code==='auth/cancelled-popup-request'){setCloudUi({busy:false},true);return}
+    if((code==='auth/popup-blocked'||code==='auth/operation-not-supported-in-this-environment')&&m&&provider){
+      try{LS.setItem('hifdh_auth_redirect','1');await m.signInWithRedirect(auth,provider);return}catch(_){LS.removeItem('hifdh_auth_redirect')}
+    }
+    setCloudUi({busy:false,error:t('ac_google_failed',{code:code||'error'})},true);
   }
 }
 
 async function signOutCloud(){
   try{
     const {auth,m}=await ensureFb();
+    clearTimeout(syncTimer);syncTimer=null;
     await m.signOut(auth);
     LS.removeItem('hifdh_has_auth');
     AUTH_FORM={email:'',pass:'',showPass:false};
     setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
-    toast('Signed out (local data kept)');
-  }catch(e){setCloudUi({error:e.message},true)}
+    toast(t('ac_signed_out'));
+  }catch(e){setCloudUi({error:cleanErr(e)},true)}
 }
 
 async function deleteCloudAccount(){
-  if(!confirm('Permanently delete your cloud account and all synced progress & notes? Local files on this phone will stay unless you also reset the app.'))return;
+  if(!confirm(t('ac_delete_confirm')))return;
+  let user=null;
   try{
     setCloudUi({busy:true,error:''},true);
     const {auth,db,m}=await ensureFb();
-    const user=auth.currentUser;
-    if(!user)return;
+    user=auth.currentUser;
+    if(!user){setCloudUi({busy:false},true);return}
+    LS.setItem('hifdh_deleting_uid',user.uid);       // stops any sync from re-uploading data
+    clearTimeout(syncTimer);syncTimer=null;
+
     const notesSnap=await m.getDocs(m.collection(db,'users',user.uid,'notes'));
     for(const d of notesSnap.docs)await m.deleteDoc(d.ref);
     await m.deleteDoc(m.doc(db,'leaderboard',user.uid)).catch(()=>{});
+    const code=(loadState().circleCode||'').trim().toUpperCase();
+    if(code){
+      await m.updateDoc(m.doc(db,'circles',code),{[`members.${user.uid}`]:m.deleteField(),updatedAt:Date.now()}).catch(()=>{});
+    }
+    for(const field of ['toUid','fromUid']){
+      const ns=await m.getDocs(m.query(m.collection(db,'nudges'),m.where(field,'==',user.uid))).catch(()=>null);
+      if(ns)for(const d of ns.docs)await m.deleteDoc(d.ref).catch(()=>{});
+    }
     await m.deleteDoc(m.doc(db,'users',user.uid));
-    LS.removeItem('hifdh_first_sync_'+user.uid);
+
+    await m.deleteUser(user);
+
+    ['hifdh_first_sync_','hifdh_notes_sig_','hifdh_circle_sig_','hifdh_lb_pub_'].forEach(p=>LS.removeItem(p+user.uid));
+    LS.removeItem('hifdh_deleting_uid');
     LS.removeItem('hifdh_has_auth');
     LS.removeItem('hifdh_circle_code');
-    await m.deleteUser(user);
+    const s=loadState();s.circleCode='';s.leaderboardOptIn=false;sv('hifdh_state',s);
+    if(typeof D!=='undefined'&&D)D.state=s;
     AUTH_FORM={email:'',pass:'',showPass:false};
     setCloudUi({user:null,status:'offline',lastSync:'',busy:false,error:'',circleCode:'',circle:null,nudges:[],leaderboard:[]},true);
-    toast('Account & cloud data deleted ✓');
+    toast(t('ac_deleted'));
   }catch(e){
-    setCloudUi({busy:false,error:e.code==='auth/requires-recent-login'?'For security, sign out and sign back in once, then tap Delete Account again.':e.message},true);
+    setCloudUi({busy:false,error:(e&&e.code==='auth/requires-recent-login')
+      ?t('ac_delete_relogin')
+      :cleanErr(e)},true);
   }
 }
 
+/* ------------------------------- Screens -------------------------------- */
 function accountCardHtml(){
   const u=CLOUD_STATE.user;
   if(!u){
     return `<div class="card">
-      <div class="row"><h2 style="margin:0">☁️ Cloud Sync &amp; Account</h2><span class="pill">Optional</span></div>
-      <div class="mu" style="margin:6px 0 10px">Sign in to back up progress, join a Study Circle, and sync across devices. Audio, video &amp; inline photos stay private on your phone.</div>
-      ${CLOUD_STATE.error?`<div class="ai-status err" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
-      <button style="width:100%" ${CLOUD_STATE.busy?'disabled':''} onclick="signInGoogle()">Continue with Google</button>
-      <div class="mu" style="text-align:center;margin:10px 0 6px">— or use Email &amp; Password —</div>
-      <input type="email" id="authEmail" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Email address" value="${esc(AUTH_FORM.email)}" oninput="AUTH_FORM.email=this.value">
+      <div class="row"><h2 style="margin:0">☁️ ${esc(t('ac_title'))}</h2><span class="pill">${esc(t('ac_optional'))}</span></div>
+      <div class="mu" style="margin:6px 0 10px">${esc(t('ac_desc'))}</div>
+      ${CLOUD_STATE.error?`<div class="ai-status err" role="alert" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
+      <button style="width:100%" ${CLOUD_STATE.busy?'disabled':''} onclick="signInGoogle()">${esc(t('ac_google'))}</button>
+      <div class="mu" style="text-align:center;margin:10px 0 6px">— ${esc(t('ac_or_email'))} —</div>
+      <input type="email" id="authEmail" aria-label="${esc(t('ac_email'))}" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(t('ac_email'))}" value="${esc(AUTH_FORM.email)}" oninput="AUTH_FORM.email=this.value">
       <div class="row" style="gap:6px;margin-top:8px">
-        <input type="${AUTH_FORM.showPass?'text':'password'}" id="authPass" inputmode="text" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Password (6+ chars, letters &amp; numbers)" value="${esc(AUTH_FORM.pass)}" oninput="AUTH_FORM.pass=this.value" style="flex:1">
-        <button type="button" class="g sm" onclick="toggleShowPass()" title="Show or hide password">${AUTH_FORM.showPass?'🙈':'👁️'}</button>
+        <input type="${AUTH_FORM.showPass?'text':'password'}" id="authPass" aria-label="${esc(t('ac_password'))}" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(t('ac_password'))}" value="${esc(AUTH_FORM.pass)}" oninput="AUTH_FORM.pass=this.value" style="flex:1">
+        <button type="button" class="g sm" onclick="toggleShowPass()" aria-label="${esc(t('ac_show_pass'))}">${AUTH_FORM.showPass?'🙈':'👁️'}</button>
       </div>
       <div class="two" style="margin-top:8px">
-        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(false)">Sign In</button>
-        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(true)">Create Account</button>
+        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(false)">${esc(t('ac_sign_in'))}</button>
+        <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="signInEmail(true)">${esc(t('ac_create'))}</button>
       </div>
+      <div style="text-align:center;margin-top:10px"><button type="button" class="linkbtn" onclick="resetPasswordEmail()">${esc(t('ac_forgot'))}</button></div>
     </div>`;
   }
-  const stLabel=CLOUD_STATE.status==='syncing'?'Syncing…':(CLOUD_STATE.status==='synced'?`Synced ${CLOUD_STATE.lastSync}`:(CLOUD_STATE.status==='error'?'Sync error':'Connected'));
+  const stLabel=CLOUD_STATE.status==='syncing'?t('pr_syncing'):(CLOUD_STATE.status==='synced'?t('pr_synced',{time:CLOUD_STATE.lastSync}):(CLOUD_STATE.status==='error'?t('pr_sync_error'):t('pr_connected')));
   return `<div class="card">
-    <div class="row"><h2 style="margin:0">☁️ Cloud Sync Active</h2><span class="pill">${esc(stLabel)}</span></div>
-    <div class="mu" style="margin:6px 0 10px">Signed in as <b>${esc(u.email||u.name||'Member')}</b>${isAdminUser()?' · <span class="pill">Admin</span>':''}</div>
-    ${CLOUD_STATE.error?`<div class="ai-status err" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
+    <div class="row"><h2 style="margin:0">☁️ ${esc(t('ac_active'))}</h2><span class="pill">${esc(stLabel)}</span></div>
+    <div class="mu" style="margin:6px 0 10px">${esc(t('pv_signed_as',{who:u.email||u.name||''}))}${isAdminUser()?` · <span class="pill">${esc(t('pr_admin'))}</span>`:''}</div>
+    ${CLOUD_STATE.error?`<div class="ai-status err" role="alert" style="margin-bottom:10px">${esc(CLOUD_STATE.error)}</div>`:''}
     <div class="two">
-      <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 Sync Now</button>
-      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="copyTextSafe('${esc(u.uid)}','User UID copied ✓')">Copy UID</button>
+      <button ${CLOUD_STATE.busy?'disabled':''} onclick="runCloudSync('manual')">🔄 ${esc(t('pr_sync_now'))}</button>
+      <button class="g" ${CLOUD_STATE.busy?'disabled':''} onclick="copyTextSafe(CLOUD_STATE.user.uid,t('pv_uid_copied'))">${esc(t('pv_copy_uid'))}</button>
     </div>
   </div>`;
 }
 
 function circleCardHtml(){
   if(!CLOUD_STATE.user){
-    return `<div class="card">
-      <div class="row"><h2 style="margin:0">🤝 Study Circle</h2><span class="pill">Sign in</span></div>
-      <div class="mu" style="margin-top:6px">Sign in under <b>Profile</b> to create or join a private Study Circle, track progress together, and send gentle nudges.</div>
-      <button class="g sm" style="margin-top:10px" onclick="setTab('settings')">Go to Profile →</button>
+    return `<div class="card empty-card">
+      <div class="rest-ico">🤝</div><h2>${esc(t('ci_title'))}</h2>
+      <div class="mu" style="margin:6px 0 12px">${esc(t('ci_signin_desc'))}</div>
+      <button class="sm" onclick="setTab('settings')">${esc(t('ci_go_profile'))}</button>
     </div>`;
   }
   let nudgeBanner='';
   if(CLOUD_STATE.nudges&&CLOUD_STATE.nudges.length){
-    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box" style="margin-bottom:10px;background:var(--ac2);border-color:var(--ac)">
-      <div class="row"><b>🔔 ${esc(n.fromName||'Partner')} nudged you</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">Dismiss</button></div>
-      <div style="font-size:.84rem;margin-top:4px">${esc(n.text||'Time for today’s Qur’an session!')}</div>
+    nudgeBanner=CLOUD_STATE.nudges.map(n=>`<div class="media-box nudge-box">
+      <div class="row"><b>🔔 ${esc(t('ci_nudged_you',{name:n.fromName||t('ci_partner')}))}</b><button class="g sm" onclick="dismissNudge('${esc(n.id)}')">${esc(t('ci_dismiss'))}</button></div>
+      <div style="font-size:.86rem;margin-top:4px">${esc(t('ci_nudge_text'))}</div>
     </div>`).join('');
   }
   if(!CLOUD_STATE.circle){
     return `${nudgeBanner}<div class="card">
-      <div class="row"><h2 style="margin:0">🤝 Study Circle</h2><span class="pill">Private Group</span></div>
-      <div class="mu" style="margin:6px 0 12px">Start a circle with friends or enter a 6-character code to see each other’s daily consistency, Juz progress, and send gentle nudges.</div>
-      <label class="f" style="margin-top:0">Create a new circle</label>
+      <div class="row"><h2 style="margin:0">🤝 ${esc(t('ci_title'))}</h2><span class="pill">${esc(t('ci_private'))}</span></div>
+      <div class="mu" style="margin:6px 0 12px">${esc(t('ci_desc'))}</div>
+      <label class="f" style="margin-top:0" for="circleNameInp">${esc(t('ci_create_lbl'))}</label>
       <div class="row" style="gap:8px">
-        <input type="text" id="circleNameInp" placeholder="e.g., Hifdh Leaders" style="flex:1">
-        <button class="sm" onclick="createOrJoinCircle('create')">Create</button>
+        <input type="text" id="circleNameInp" dir="auto" placeholder="${esc(t('ci_name_ph'))}" maxlength="40" style="flex:1">
+        <button class="sm" onclick="createOrJoinCircle('create')">${esc(t('ci_create'))}</button>
       </div>
-      <label class="f">Or join with an invite code</label>
+      <label class="f" for="circleCodeInp">${esc(t('ci_join_lbl'))}</label>
       <div class="row" style="gap:8px">
-        <input type="text" id="circleCodeInp" placeholder="6-CHAR CODE" maxlength="6" style="flex:1;text-transform:uppercase;letter-spacing:.08em">
-        <button class="g sm" onclick="createOrJoinCircle('join')">Join</button>
+        <input type="text" id="circleCodeInp" placeholder="ABC234" maxlength="6" autocapitalize="characters" style="flex:1;text-transform:uppercase;letter-spacing:.08em">
+        <button class="g sm" onclick="createOrJoinCircle('join')">${esc(t('ci_join'))}</button>
       </div>
     </div>`;
   }
   const todayStr=T();
   const members=Object.entries(CLOUD_STATE.circle.members||{}).sort((a,b)=>
-    (Number(b[1].activeDays30)||0)-(Number(a[1].activeDays30)||0) ||
-    (Number(b[1].streak)||0)-(Number(a[1].streak)||0) ||
-    (Number(b[1].pages)||0)-(Number(a[1].pages)||0)
-  );
+    (Number(b[1].activeDays30)||0)-(Number(a[1].activeDays30)||0)||(Number(b[1].streak)||0)-(Number(a[1].streak)||0)||(Number(b[1].pages)||0)-(Number(a[1].pages)||0));
   return `${nudgeBanner}<div class="card">
     <div class="row">
-      <div>
-        <h2 style="margin:0">${esc(CLOUD_STATE.circle.name)}</h2>
-        <div class="mu">${members.length} member${members.length===1?'':'s'} · Code: <b>${esc(CLOUD_STATE.circle.id)}</b></div>
-      </div>
-      <button class="g sm" onclick="shareCircleCode()">📤 Share</button>
+      <div style="min-width:0"><h2 style="margin:0" dir="auto">${esc(CLOUD_STATE.circle.name)}</h2>
+        <div class="mu">${esc(tn('ci_members',members.length))} · ${esc(t('ci_code'))}: <b dir="ltr">${esc(CLOUD_STATE.circle.id)}</b></div></div>
+      <button class="g sm" onclick="shareCircleCode()">📤 ${esc(t('lib_share'))}</button>
     </div>
     <div style="margin-top:12px">${members.map(([uid,mInfo])=>{
       const isMe=uid===CLOUD_STATE.user.uid;
-      const doneToday=mInfo.doneToday && (!mInfo.todayDate || mInfo.todayDate===todayStr);
-      const startedToday=mInfo.startedToday && (!mInfo.todayDate || mInfo.todayDate===todayStr);
-      const todayBadge=doneToday?'Done today ✓':(startedToday?'In progress':'Not yet today');
-      const daysTxt=mInfo.activeDays30!=null?`${mInfo.activeDays30}/30d active`:`🔥 ${mInfo.streak||0}d streak`;
+      const fresh=!mInfo.todayDate||mInfo.todayDate===todayStr;
+      const todayBadge=(mInfo.doneToday&&fresh)?t('ci_done_today'):((mInfo.startedToday&&fresh)?t('ci_in_progress'):t('ci_not_yet'));
       const avText=(typeof initials==='function')?initials(mInfo.name||'M'):'M';
       return `<div class="sr">
         <div class="row" style="justify-content:flex-start;gap:10px;min-width:0;flex:1">
-          <div class="member-av">${esc(avText)}</div>
+          <div class="member-av" aria-hidden="true">${esc(avText)}</div>
           <div style="min-width:0">
-            <div><b>${esc(mInfo.name||'Member')}</b>${isMe?' <span class="pill">You</span>':''}</div>
-            <div class="mu">${esc(todayBadge)} · 🔥 ${mInfo.streak||0}d · ${esc(daysTxt)}</div>
-            <div class="mu">Juz ${mInfo.juz||0}/30 · ${mInfo.pages||0} pages</div>
+            <div><b dir="auto">${esc(mInfo.name||t('ci_member'))}</b>${isMe?` <span class="pill">${esc(t('ci_you'))}</span>`:''}</div>
+            <div class="mu">${esc(todayBadge)} · 🔥 ${esc(tn('td_streak',Number(mInfo.streak)||0))} · ${esc(t('st_active_n',{n:Number(mInfo.activeDays30)||0}))}</div>
+            <div class="mu">${esc(t('juz_n',{n:(Number(mInfo.juz)||0)+'/30'}))} · ${esc(tn('amt_pages',Number(mInfo.pages)||0))}</div>
           </div>
         </div>
-        ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}',decodeURIComponent('${encAttr(mInfo.name||'Partner')}'))">👋 Nudge</button>`:''}
+        ${!isMe?`<button class="g sm" onclick="sendNudge('${esc(uid)}',decodeURIComponent('${encAttr(mInfo.name||t('ci_partner'))}'))">👋 ${esc(t('ci_nudge'))}</button>`:''}
       </div>`;
     }).join('')}</div>
     <div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd)">
-      <button class="g sm" onclick="runCloudSync('manual')">🔄 Refresh</button>
-      <button class="g sm" style="color:var(--danger)" onclick="leaveCircleLocal()">Leave Circle</button>
+      <button class="g sm" onclick="runCloudSync('manual')">🔄 ${esc(t('ci_refresh'))}</button>
+      <button class="g sm" style="color:var(--danger)" onclick="leaveCircleLocal()">${esc(t('ci_leave'))}</button>
     </div>
   </div>`;
 }
@@ -727,86 +939,82 @@ function leaderboardCardHtml(s){
   const todayStr=T();
   const signedIn=Boolean(CLOUD_STATE.user);
   return `<div class="card">
-    <div class="row"><h2 style="margin:0">🔥 Consistency Board</h2><span class="pill">Activity Only</span></div>
-    <div class="mu" style="margin:6px 0 10px">Ranked purely by daily steadiness and streaks—memorized page totals are never shown here.</div>
+    <div class="row"><h2 style="margin:0">🔥 ${esc(t('lb_title'))}</h2><span class="pill">${esc(t('lb_activity_only'))}</span></div>
+    <div class="mu" style="margin:6px 0 10px">${esc(t('lb_desc'))}</div>
     <label class="row" style="justify-content:flex-start;gap:10px;margin-bottom:12px;cursor:pointer">
-      <input type="checkbox" ${optedIn?'checked':''} onchange="toggleLeaderboardOptIn(this.checked)">
-      <span style="font-size:.86rem;font-weight:650">Show my consistency &amp; streak on the board</span>
+      <input type="checkbox" ${optedIn?'checked':''} ${signedIn?'':'disabled'} onchange="toggleLeaderboardOptIn(this.checked)">
+      <span style="font-size:.88rem;font-weight:650">${esc(t('lb_opt_in'))}</span>
     </label>
-    ${!signedIn?'<div class="mu">Sign in under <b>Profile</b> to join and view the consistency board.</div>':(
+    ${!signedIn?`<div class="mu">${esc(t('lb_signin'))}</div>`:(
       rows.length?rows.map((r,i)=>{
         const isMe=CLOUD_STATE.user&&r.uid===CLOUD_STATE.user.uid;
         const rkCls=i===0?'rank-1':(i===1?'rank-2':(i===2?'rank-3':''));
-        const doneToday=r.doneToday && (!r.todayDate || r.todayDate===todayStr);
-        const daysActive=Number(r.activeDays30)||0;
+        const doneToday=r.doneToday&&(!r.todayDate||r.todayDate===todayStr);
         return `<div class="sr">
           <div class="row" style="justify-content:flex-start;gap:10px;min-width:0">
             <div class="rank-badge ${rkCls}">${i+1}</div>
             <div style="min-width:0">
-              <div><b>${esc(r.name||'Student')}</b>${isMe?' <span class="pill">You</span>':''}</div>
-              <div class="mu">${daysActive}/30 days active${doneToday?' · Done today ✓':''}</div>
+              <div><b dir="auto">${esc(r.name||t('ci_member'))}</b>${isMe?` <span class="pill">${esc(t('ci_you'))}</span>`:''}</div>
+              <div class="mu">${esc(t('st_active_n',{n:Number(r.activeDays30)||0}))}${doneToday?' · '+esc(t('ci_done_today')):''}</div>
             </div>
           </div>
-          <span class="pill">🔥 ${Number(r.streak)||0}d</span>
+          <span class="pill">🔥 ${esc(tn('td_streak',Number(r.streak)||0))}</span>
         </div>`;
-      }).join(''):'<div class="mu">No entries yet. Opt in above and tap Refresh to appear first!</div>'
+      }).join(''):`<div class="mu">${esc(t('lb_empty'))}</div>`
     )}
-    ${signedIn?`<div style="margin-top:10px;text-align:right"><button class="g sm" onclick="runCloudSync('manual')">🔄 Refresh</button></div>`:''}
+    ${signedIn?`<div style="margin-top:10px;text-align:end"><button class="g sm" onclick="runCloudSync('manual')">🔄 ${esc(t('ci_refresh'))}</button></div>`:''}
   </div>`;
 }
 
 function communityLessonsHtml(s){
   const list=CLOUD_STATE.communityLessons||[];
   const adminHere=isAdminUser();
+  const fl=f=>(typeof folderLabel==='function')?folderLabel(f):f;
   let h='';
   if(adminHere){
     h+=`<div class="card">
       <div class="row">
-        <div>
-          <b>📢 Community Lessons (Admin)</b>
-          <div class="mu">Published lessons appear for all My Companion users.</div>
-        </div>
-        <button class="sm" onclick="${SHOW_COMM_COMPOSER?'closeCommunityComposer()':'openCommunityComposer()'}">${SHOW_COMM_COMPOSER?'Close':'+ New Lesson'}</button>
+        <div><b>📢 ${esc(t('cl_admin'))}</b><div class="mu">${esc(t('cl_admin_desc'))}</div></div>
+        <button class="sm" onclick="${SHOW_COMM_COMPOSER?'closeCommunityComposer()':'openCommunityComposer()'}">${SHOW_COMM_COMPOSER?esc(t('btn_close')):'+ '+esc(t('lib_new_lesson'))}</button>
       </div>
       ${SHOW_COMM_COMPOSER?`<div style="margin-top:12px">
         <div class="two">
-          <div><label class="f">Lesson Title</label><input type="text" id="commTitle" placeholder="e.g., Juz 30 Muraja’ah Tips"></div>
-          <div><label class="f">Topic</label>
-            <select id="commCat">${(s.folders||['Tajweed Lessons','Mutashabihat','Tafsir & Reflections']).map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
-          </div>
+          <div><label class="f" for="commTitle">${esc(t('nt_title'))}</label><input type="text" id="commTitle" dir="auto" maxlength="140" placeholder="${esc(t('cl_title_ph'))}"></div>
+          <div><label class="f" for="commCat">${esc(t('lib_topic'))}</label>
+            <select id="commCat">${(s.folders||['Tajweed Lessons','Mutashabihat','Tafsir & Reflections']).map(f=>`<option value="${esc(f)}">${esc(fl(f))}</option>`).join('')}</select></div>
         </div>
-        <label class="f">Optional Video / Reference Link</label>
-        <input type="text" id="commLink" placeholder="https://youtube.com/...">
-        <label class="f">Lesson Content</label>
-        <div id="commEditor" class="rt-area" style="border-radius:12px" contenteditable="true" placeholder="Write a public lesson for all users..."></div>
-        <button class="bigbtn" onclick="publishCommunityLesson()">${COMMUNITY_EDIT_ID?'💾 Update Lesson':'🚀 Publish to Community'}</button>
+        <label class="f" for="commLink">${esc(t('nt_link'))}</label>
+        <input type="text" id="commLink" inputmode="url" placeholder="https://youtube.com/...">
+        <label class="f">${esc(t('cl_content'))}</label>
+        <div id="commEditor" class="rt-area" dir="auto" style="border-radius:12px" contenteditable="true" role="textbox" aria-multiline="true" placeholder="${esc(t('cl_content_ph'))}"></div>
+        <button class="bigbtn" onclick="publishCommunityLesson()">${COMMUNITY_EDIT_ID?'💾 '+esc(t('cl_update')):'🚀 '+esc(t('cl_publish'))}</button>
       </div>`:''}
     </div>`;
   }
   if(!list.length){
-    h+=`<div class="card mu">No community lessons published yet.${adminHere?' Tap <b>+ New Lesson</b> above to publish your first one!':''}</div>`;
+    h+=`<div class="card empty-card"><div class="rest-ico">📚</div><div class="mu">${esc(t('cl_empty'))}</div></div>`;
     return h;
   }
   h+=list.map(n=>{
     const docKey=String(n.docId||n.id);
-    const yt=ytEmbedUrl(n.link);
-    const safeLink=safeExternalUrl(n.link);
+    const yt=ytEmbedUrl(n.link), safeLink=safeExternalUrl(n.link);
     return `<div class="card">
-      <div class="row"><span class="pill">${esc(n.cat||'Community Lesson')}</span><span class="mu">${esc(n.date||'')}</span></div>
-      <h2 style="margin:6px 0">${esc(n.title)}</h2>
-      ${yt?`<iframe src="${yt}" style="width:100%;height:200px;border:0;border-radius:12px;margin:6px 0" allowfullscreen></iframe>`:''}
-      ${safeLink&&!yt?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac);font-size:.82rem;font-weight:700">🔗 Open Resource Link ↗</a></div>`:''}
-      <div class="note-reader" style="font-size:.88rem;line-height:1.55;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||'')}</div>
+      <div class="row"><span class="pill">${esc(fl(n.cat||'Lesson'))}</span><span class="mu">${esc(n.date?fmt(n.date):'')}</span></div>
+      <h2 style="margin:6px 0" dir="auto">${esc(n.title)}</h2>
+      ${yt?`<iframe src="${yt}" title="${esc(n.title)}" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px;margin:6px 0" allowfullscreen loading="lazy"></iframe>`:''}
+      ${safeLink&&!yt?`<div style="margin:4px 0"><a href="${esc(safeLink)}" target="_blank" rel="noopener noreferrer" style="font-size:.86rem">🔗 ${esc(t('lib_open_link'))}</a></div>`:''}
+      <div class="note-reader" dir="auto" style="font-size:.92rem;line-height:1.6;margin-top:8px;overflow-x:auto">${sanitizeHtml(n.html||'')}</div>
       ${adminHere?`<div class="row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd);justify-content:flex-end;gap:6px">
-        <button class="g sm" onclick="openCommunityComposer('${esc(docKey)}')">✏️ Edit</button>
-        <button class="g sm" style="color:var(--danger)" onclick="deleteCommunityLesson('${esc(docKey)}')">🗑️ Delete</button>
+        <button class="g sm" onclick="openCommunityComposer('${esc(docKey)}')">✏️ ${esc(t('btn_edit'))}</button>
+        <button class="g sm" style="color:var(--danger)" onclick="deleteCommunityLesson('${esc(docKey)}')">🗑️ ${esc(t('btn_delete'))}</button>
       </div>`:''}
     </div>`;
   }).join('');
   return h;
 }
 
-if(LS.getItem('hifdh_has_auth')){
+/* -------------------------------- Start --------------------------------- */
+if(LS.getItem('hifdh_has_auth')||LS.getItem('hifdh_auth_redirect')){
   ensureFb().catch(()=>{});
 }
 loadCommunityLessons();

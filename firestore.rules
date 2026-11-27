@@ -1,0 +1,106 @@
+rules_version = '2';
+
+// My Companion — Firestore Security Rules (Phase 1 · Part 1)
+// Paste into Firebase Console → Firestore Database → Rules → Publish.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+
+    // One member's public summary inside a circle
+    function validMember(m) {
+      return m is map
+        && m.keys().hasOnly(['name','pages','juz','streak','activeDays30','doneToday','startedToday','todayDate','updatedAt'])
+        && m.name is string && m.name.size() <= 32
+        && m.pages is number && m.pages >= 0 && m.pages <= 604
+        && m.juz is int && m.juz >= 0 && m.juz <= 30
+        && m.streak is int && m.streak >= 0 && m.streak <= 400
+        && m.activeDays30 is int && m.activeDays30 >= 0 && m.activeDays30 <= 30;
+    }
+
+    // ---------- Private user data: only the owner ----------
+    match /users/{uid} {
+      allow read, write: if signedIn() && me() == uid;
+      match /notes/{noteId} {
+        allow read, write: if signedIn() && me() == uid;
+      }
+    }
+
+    // ---------- Study circles ----------
+    match /circles/{code} {
+      // Open one circle by its code; listing all circles is blocked.
+      allow get: if signedIn();
+      allow list: if false;
+
+      // Create only a brand-new code, with yourself as the only member.
+      allow create: if signedIn()
+        && code.matches('^[A-Z2-9]{6}$')
+        && request.resource.data.keys().hasOnly(['name','code','createdBy','createdAt','updatedAt','members'])
+        && request.resource.data.code == code
+        && request.resource.data.createdBy == me()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 40
+        && request.resource.data.members is map
+        && request.resource.data.members.keys().hasOnly([me()])
+        && validMember(request.resource.data.members[me()]);
+
+      // Join, update or leave: you may only change YOUR OWN entry.
+      // Name and creator can never be changed.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members','updatedAt'])
+        && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([me()])
+        && request.resource.data.members.size() <= 100
+        && (!(me() in request.resource.data.members) || validMember(request.resource.data.members[me()]));
+
+      allow delete: if signedIn() && resource.data.createdBy == me();
+    }
+
+    // ---------- Nudges ----------
+    // Only between members of the same circle, fixed message (no free text),
+    // and at most one per person per day (document id = from_to_day).
+    match /nudges/{nudgeId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['fromUid','fromName','toUid','circleCode','day','createdAt'])
+        && request.resource.data.fromUid == me()
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != me()
+        && request.resource.data.fromName is string
+        && request.resource.data.fromName.size() >= 1 && request.resource.data.fromName.size() <= 30
+        && request.resource.data.day is int
+        && request.resource.data.day >= int(request.time.toMillis() / 86400000) - 1
+        && request.resource.data.day <= int(request.time.toMillis() / 86400000) + 1
+        && nudgeId == me() + '_' + request.resource.data.toUid + '_' + string(request.resource.data.day)
+        && request.resource.data.circleCode is string
+        && exists(/databases/$(database)/documents/circles/$(request.resource.data.circleCode))
+        && me() in get(/databases/$(database)/documents/circles/$(request.resource.data.circleCode)).data.members
+        && request.resource.data.toUid in get(/databases/$(database)/documents/circles/$(request.resource.data.circleCode)).data.members;
+
+      allow read, delete: if signedIn()
+        && (resource.data.toUid == me() || resource.data.fromUid == me());
+    }
+
+    // ---------- Community lessons: everyone reads, only the admin writes ----------
+    match /community_lessons/{lessonId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn() && me() == 'bIv6XebWtLh6qXMKEIBppcSCsUZ2';
+    }
+
+    // ---------- Consistency leaderboard ----------
+    match /leaderboard/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && me() == uid
+        && request.resource.data.keys().hasOnly(['uid','name','activeDays30','streak','doneToday','todayDate','updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1 && request.resource.data.name.size() <= 32
+        && request.resource.data.activeDays30 is int
+        && request.resource.data.activeDays30 >= 0 && request.resource.data.activeDays30 <= 30
+        && request.resource.data.streak is int
+        && request.resource.data.streak >= 0 && request.resource.data.streak <= 400
+        && request.resource.data.doneToday is bool;
+      allow delete: if signedIn() && me() == uid;
+    }
+  }
+}

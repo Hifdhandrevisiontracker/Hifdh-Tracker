@@ -3,32 +3,85 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Account & Data Deletion — My Companion</title>
+<title>Privacy Policy &amp; Account Deletion — My Companion</title>
+<meta name="description" content="Privacy policy and account deletion instructions for My Companion, a free Qur'an hifdh and revision app.">
 <style>
-  body{font-family:system-ui,-apple-system,sans-serif;background:#eef3f0;color:#16201c;margin:0;padding:24px 16px}
-  .box{max-width:540px;margin:auto;background:#fff;border-radius:20px;padding:24px;box-shadow:0 6px 22px rgba(20,60,45,.07);line-height:1.6}
+  :root{color-scheme:light dark}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#eef3f0;color:#16201c;margin:0;padding:24px 16px}
+  .box{max-width:640px;margin:auto;background:#fff;border-radius:20px;padding:24px;box-shadow:0 6px 22px rgba(20,60,45,.07);line-height:1.65}
   h1{color:#1f5f4a;font-size:22px;margin-top:0}
-  h2{font-size:16px;margin-top:18px}
+  h2{font-size:17px;margin-top:26px;color:#1f5f4a}
   a{color:#1f5f4a;font-weight:600}
+  li{margin-bottom:6px}
+  .muted{color:#5b6b64;font-size:14px}
+  nav a{display:inline-block;margin:0 12px 6px 0}
+  @media (prefers-color-scheme:dark){
+    body{background:#0f1513;color:#e4ece8}.box{background:#18201d;box-shadow:none}
+    h1,h2,a{color:#7fd1b0}.muted{color:#9fb0a8}
+  }
 </style>
 </head>
 <body>
 <div class="box">
-  <h1>My Companion — Account &amp; Data Deletion</h1>
-  <p>My Companion works completely offline without an account. If you created an optional cloud sync account, you can permanently delete your account and all associated cloud data at any time.</p>
-  <h2>Option 1: Delete Immediately Inside the App</h2>
-  <ol>
-    <li>Open <a href="./index.html">My Companion</a> and go to <b>Settings</b>.</li>
-    <li>In the <b>Cloud Sync Active</b> card at the top, tap <b>Delete cloud account</b> and confirm.</li>
-    <li>Your Firebase Authentication account, synced progress document, and synced text notes are permanently erased immediately.</li>
-  </ol>
-  <h2>Option 2: Request Deletion Without Reinstalling</h2>
-  <p>If you uninstalled the app and cannot sign in, contact the developer via our official support channel at <a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">t.me/MyCompanionApp</a> with the email address registered to your account, and your account and cloud records will be deleted within 7 days.</p>
-  <h2>What Data Is Deleted vs. Kept</h2>
+  <h1>My Companion — Privacy Policy &amp; Account Deletion</h1>
+  <p class="muted">Last updated: 27 November 2026</p>
+  <nav><a href="#privacy">Privacy policy</a><a href="#delete">Delete your account</a><a href="#contact">Contact</a></nav>
+
+  <h2 id="privacy">1. The short version</h2>
+  <p>My Companion is a free app for Qur'an memorisation (hifdh) and revision. It has no ads, does not sell data, and works fully without an account. An account is only needed if you choose cloud backup or the Community features.</p>
+
+  <h2>2. Data saved on your phone</h2>
+  <p>Without an account, everything stays on your device: your plan, daily progress, notes, profile name and photo, voice recordings, Library media and settings. We cannot see any of it. If you add an optional Gemini AI key, it is also kept only on your phone and is never uploaded to our cloud.</p>
+
+  <h2>3. Data saved in the cloud (only if you sign in)</h2>
+  <p>If you sign in with Google or email, we use Google Firebase (Authentication and Cloud Firestore) to keep a private copy so you can use another phone. This copy contains:</p>
   <ul>
-    <li><b>Deleted from cloud:</b> Authentication user record, synced study plan, daily task history, and synced text notes.</li>
-    <li><b>Local device data:</b> Audio recordings, media vault files, and inline photos are stored only on your phone and are never uploaded to our servers. You can clear them anytime via <b>Settings → Reset everything</b> or by clearing browser/app storage.</li>
+    <li>your sign-in email address and account ID;</li>
+    <li>your study plan, settings, daily progress and profile name/photo;</li>
+    <li>your text notes (photos inside notes are <b>not</b> uploaded).</li>
   </ul>
+  <p><b>Never uploaded:</b> voice recordings, Library media files, photos inside notes, and your AI key.</p>
+  <p>Only you can read your private cloud data. Firebase is operated by Google; see <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer">Firebase privacy information</a>.</p>
+
+  <h2>4. What other users can see</h2>
+  <p>Nothing, unless you choose to join:</p>
+  <ul>
+    <li><b>Study Circle</b> — members of your circle see your name, whether you finished today, your streak, active days, juz count and pages memorised.</li>
+    <li><b>Consistency Board</b> (opt-in) — your name, streak, active days in the last 30 days and whether you finished today. It never shows how much you have memorised.</li>
+    <li><b>Nudges</b> — when you nudge a circle member, they see your name.</li>
+  </ul>
+  <p>You can leave a circle or turn off the board at any time in the app.</p>
+
+  <h2>5. Other services</h2>
+  <ul>
+    <li><b>Gemini AI (optional)</b> — if you add your own key and use “polish note”, that note's text is sent to Google's Gemini service using your key.</li>
+    <li><b>Video links</b> — YouTube links in notes or lessons are shown with YouTube's player, which has its own privacy policy.</li>
+    <li><b>Qur'an text &amp; translations</b> — the Qur'an text, translations and page/juz/surah data come from <a href="https://tanzil.net" target="_blank" rel="noopener noreferrer">Tanzil.net</a> and are part of the app (downloaded from this site the first time you open the reader). No data is sent to Tanzil.</li>
+  </ul>
+  <p>The app uses no advertising or tracking tools.</p>
+
+  <h2>6. Children</h2>
+  <p>Young students can use the app without an account. If a child wants cloud backup or Community features, a parent or teacher should help set it up.</p>
+
+  <h2 id="delete">7. Delete your account and cloud data</h2>
+  <p><b>Inside the app (immediate):</b></p>
+  <ol>
+    <li>Open <a href="./index.html">My Companion</a> and sign in.</li>
+    <li>Go to <b>Profile → Privacy &amp; account</b>.</li>
+    <li>Tap <b>Delete cloud account</b> and confirm.</li>
+  </ol>
+  <p>This permanently deletes your sign-in account, your private cloud copy (plan, progress, notes), your Consistency Board entry, your place in any Study Circle and your nudges. Data on your phone is kept until you remove it yourself.</p>
+  <p class="muted">For security, Google may ask you to sign in again before the account itself can be removed. The app will tell you if this is needed.</p>
+
+  <p><b>If you can no longer sign in:</b> message us on <a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">t.me/MyCompanionApp</a> with the email address of your account. We will delete the account and its cloud data within 7 days and confirm when it is done.</p>
+
+  <p><b>Data on your phone:</b> go to <b>Profile → Backup &amp; tools → Reset app</b>, or clear the site's data in your browser settings. This removes everything on that device, including recordings and Library media.</p>
+
+  <h2>8. Changes</h2>
+  <p>If this policy changes, we will update this page and the date above.</p>
+
+  <h2 id="contact">9. Contact</h2>
+  <p>Questions or requests: <a href="https://t.me/MyCompanionApp" target="_blank" rel="noopener noreferrer">t.me/MyCompanionApp</a></p>
 </div>
 </body>
 </html>
