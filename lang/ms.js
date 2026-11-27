@@ -324,3 +324,10 @@ Object.assign(I18N.ms,{
   qz_review:'Untuk diulang', qz_none_review:'Tiada yang perlu diulang — semua betul!', qz_no_answers:'Tiada soalan yang dijawab.',
   qz_again:'Cuba lagi', qz_new:'Kuiz baharu'
 });
+
+/* Step 12 — Settings pages */
+Object.assign(I18N.ms,{
+  pr_sec_settings:'Tetapan', lg_tag:'Pilih bahasa aplikasi', ap_tag:'Tema, warna dan saiz teks', set_uz_old_short:'ejaan lama',
+  sz_s:'Kecil', sz_m:'Biasa', sz_l:'Besar', sz_xl:'Sangat besar',
+  sz_preview:'Beginilah rupa teks. Bismillah — mari mulakan ulangan hari ini.'
+});

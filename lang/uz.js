@@ -325,3 +325,10 @@ Object.assign(I18N.uz,{
   qz_review:'Takrorlaş kerak', qz_none_review:'Takrorlaşga heç narsa yöq — hammasi töğri!', qz_no_answers:'Heç bir savolga javob berilmadi.',
   qz_again:'Yana uriniş', qz_new:'Yangi sinov'
 });
+
+/* Step 12 — Settings pages (yangi alifbo) */
+Object.assign(I18N.uz,{
+  pr_sec_settings:'Sozlamalar', lg_tag:'Ilova tilini tanlang', ap_tag:'Mavzu, rang va matn ölçami', set_uz_old_short:'eski imlo',
+  sz_s:'Kiçik', sz_m:'Oddiy', sz_l:'Katta', sz_xl:'Juda katta',
+  sz_preview:'Matn şunday körinadi. Bismillah — bugungi takrorlaşni boşlaymiz.'
+});

@@ -327,3 +327,10 @@ Object.assign(I18N.ar,{
   qz_review:'للمراجعة', qz_none_review:'لا شيء للمراجعة — كلها صحيحة!', qz_no_answers:'لم تتم الإجابة عن أي سؤال.',
   qz_again:'أعد المحاولة', qz_new:'اختبار جديد'
 });
+
+/* Step 12 — Settings pages */
+Object.assign(I18N.ar,{
+  pr_sec_settings:'الإعدادات', lg_tag:'اختر لغة التطبيق', ap_tag:'السمة واللون وحجم الخط', set_uz_old_short:'الإملاء القديم',
+  sz_s:'صغير', sz_m:'عادي', sz_l:'كبير', sz_xl:'كبير جدًا',
+  sz_preview:'هكذا سيظهر النص. بسم الله — لنبدأ مراجعة اليوم.'
+});

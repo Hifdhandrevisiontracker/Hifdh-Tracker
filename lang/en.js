@@ -342,3 +342,10 @@ Object.assign(I18N.en,{
   qz_review:'To revise', qz_none_review:'Nothing to revise — all correct!', qz_no_answers:'No questions were answered.',
   qz_again:'Try again', qz_new:'New quiz'
 });
+
+/* Step 12 — Settings pages */
+Object.assign(I18N.en,{
+  pr_sec_settings:'Settings', lg_tag:'Choose the app’s language', ap_tag:'Theme, colour and text size', set_uz_old_short:'old spelling',
+  sz_s:'Small', sz_m:'Normal', sz_l:'Large', sz_xl:'Extra large',
+  sz_preview:'This is how text will look. Bismillah — let’s begin today’s revision.'
+});
