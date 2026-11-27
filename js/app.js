@@ -71,13 +71,14 @@ function commitUiScale(pct){
 }
 
 const navKey=t=>{
-  if(['tasbih','recite','library','quran','quiz'].includes(t))return 'tools';
+  if(['tasbih','recite','library','quiz','community'].includes(t))return 'tools';
   if(['plan','ai','backup','profile_edit','privacy','about','language','appearance'].includes(t))return 'settings';
   return t;
 };
 function setTab(t){
   if(t!==TAB&&TAB==='recite'&&isRecording&&typeof stopRecording==='function')stopRecording();
   if(t!==TAB&&(TAB==='recite'||TAB==='library')){ACTIVE_URLS.forEach(e=>URL.revokeObjectURL(e.url));ACTIVE_URLS.clear()}
+  if(t==='quran'&&typeof RD_OPENING!=='undefined'&&!RD_OPENING)RD_RET=null;   // came from the tab bar
   TAB=t;T_MENU=false;DR=null;VIEW_NOTE_ID=null;AI_TEST_MSG=null;
   if(t==='community'&&typeof loadCommunityLessons==='function')loadCommunityLessons();
   const activeKey=navKey(t);
@@ -552,15 +553,32 @@ function toast(t,ms=2700){const e=$('toast');if(!e)return;e.textContent=t;e.clas
 
 const NAV=[
   ['today','home','nav_today'],
+  ['quran','book','nav_quran'],
   ['journey','stats','nav_stats'],
-  ['community','users','nav_community'],
   ['tools','tools','nav_tools'],
   ['settings','user','nav_profile']
 ];
 function buildNav(){
   const activeKey=navKey(TAB);
   $('bottomNav').innerHTML=NAV.map(n=>`<button id="nav-${n[0]}" class="${n[0]===activeKey?'active':''}" onclick="setTab('${n[0]}')">${ic(n[1])}<span>${esc(t(n[2]))}</span></button>`).join('');
+  updateNavBadge();
 }
+/* A small dot on Tools when someone has nudged you (Community now lives inside Tools) */
+function updateNavBadge(){
+  const b=$('nav-tools');if(!b)return;
+  let n=0;try{n=(typeof CLOUD_STATE!=='undefined'&&CLOUD_STATE.nudges)?CLOUD_STATE.nudges.length:0}catch(e){}
+  let d=b.querySelector('.nd');
+  if(n&&!d){d=document.createElement('i');d.className='nd';d.setAttribute('aria-hidden','true');b.appendChild(d)}
+  else if(!n&&d)d.remove();
+}
+/* One-time note after the update: Qur'an has its own tab, Community moved to Tools */
+function qTabTipHtml(){
+  if(ld('hifdh_tip_qtab',0)===1)return '';
+  return `<div class="tip-card" id="qTip" role="note"><span class="tip-ico" aria-hidden="true">📖</span>
+    <div style="flex:1;min-width:0;font-size:.88rem;font-weight:650">${esc(t('rv_tip'))}</div>
+    <button class="sm" onclick="dismissQTip()">${esc(t('rv_got_it'))}</button></div>`;
+}
+function dismissQTip(){sv('hifdh_tip_qtab',1);const e=$('qTip');if(e)e.remove()}
 function setHdr(h){$('hdr').innerHTML=h}
 function skipIntro(){const s=loadState();s.seenIntro=true;saveState(s);DR=null;D=null;render()}
 
@@ -912,8 +930,10 @@ async function render(){
   OB=null;
 
   $('bottomNav').style.display='flex';
+  updateNavBadge();
+  if(TAB!=='quran')rdLeave();
 
-  if(TAB==='today'){rToday(s,st,day)}
+  if(TAB==='today'){rToday(s,st,day);const tip=qTabTipHtml();if(tip)$('app').insertAdjacentHTML('afterbegin',tip)}
   else if(TAB==='community'){rCommunity(s)}
   else if(TAB==='tools'){rTools(s)}
   else if(TAB==='settings'){rSettings(s)}
@@ -949,5 +969,6 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(
     if(want&&ok.includes(want)&&loadState().onboarded)TAB=want;
   }catch(e){}
 })();
+if(!loadState().onboarded)sv('hifdh_tip_qtab',1);   // brand-new users never saw the old layout
 buildNav();
 render();

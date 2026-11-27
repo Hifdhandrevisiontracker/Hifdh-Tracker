@@ -474,8 +474,9 @@ function rTools(s){
     <div class="tool-card-body"><b>${esc(title)}</b><div class="mu">${esc(sub)}</div><div style="margin-top:6px"><span class="pill">${esc(pill)}</span></div></div>
     <span class="chev" aria-hidden="true">›</span>
   </button>`;
-  $('app').innerHTML=card('quran','book',t('rd_title'),t('tl_quran_sub'),t('tl_quran_pill'))
-    +card('quiz','quiz',t('qz_title'),t('tl_quiz_sub'),qzToolPill())
+  const nudges=(typeof CLOUD_STATE!=='undefined'&&CLOUD_STATE.nudges)?CLOUD_STATE.nudges.length:0;
+  $('app').innerHTML=card('quiz','quiz',t('qz_title'),t('tl_quiz_sub'),qzToolPill())
+    +card('community','users',t('nav_community'),t('tl_comm_sub'),nudges?t('tl_comm_pill_nudge',{n:nudges}):t('tl_comm_pill'))
     +card('tasbih','tasbih',t('tb_title'),t('tl_tasbih_sub'),t('tb_target',{n:s.tasbihTarget||40}))
     +card('recite','mic',t('rc_title'),t('tl_recite_sub'),t('tl_recite_pill'))
     +card('library','lib',t('lib_title'),t('tl_lib_sub'),t('tl_lib_pill',{n:notesCount,c:commCount}));

@@ -1,7 +1,7 @@
 /* ==========================================================================
    My Companion — Community, Profile & settings screens (Step 8)
    ========================================================================== */
-const APP_VERSION='2.1';
+const APP_VERSION='2.2';
 
 function subHeader(title,tag,back='settings'){
   setHdr(`<div class="sub-hdr">
@@ -19,7 +19,7 @@ function listRow(onclick,ico,title,sub,subCls){
 
 /* -------------------------------- Community ------------------------------- */
 function rCommunity(s){
-  setHdr(`<h1 class="brand">${esc(t('cm_title'))}</h1><div class="tagline">${esc(t('cm_tag'))}</div>`);
+  subHeader(t('cm_title'),t('cm_tag'),'tools');
   let body='';
   if(COMM_SUBTAB==='circle')body=(typeof circleCardHtml==='function')?circleCardHtml():`<div class="card mu">${esc(t('lib_loading'))}</div>`;
   else if(COMM_SUBTAB==='board')body=(typeof leaderboardCardHtml==='function')?leaderboardCardHtml(s):`<div class="card mu">${esc(t('lib_loading'))}</div>`;
@@ -213,6 +213,7 @@ function rAboutPage(){
     <h2>${esc(t('ab_credits'))}</h2>
     <ul class="pv-list">
       <li><b>${esc(t('ab_quran_data'))}</b> — ${esc(t('ab_tanzil'))} <a href="https://tanzil.net" target="_blank" rel="noopener noreferrer">tanzil.net ↗</a></li>
+      <li><b>${esc(t('ab_mushaf'))}</b> — ${esc(t('ab_mushaf_src'))} <a href="https://qul.tarteel.ai" target="_blank" rel="noopener noreferrer">qul.tarteel.ai ↗</a></li>
       <li><b>${esc(t('ab_tikrar'))}</b> — <a href="https://www.tikrar.net" target="_blank" rel="noopener noreferrer">tikrar.net ↗</a></li>
     </ul>
     <div class="mu" style="margin-top:8px">${esc(t('ab_free'))}</div>
