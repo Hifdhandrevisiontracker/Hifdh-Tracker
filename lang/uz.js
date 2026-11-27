@@ -332,3 +332,37 @@ Object.assign(I18N.uz,{
   sz_s:'Kiçik', sz_m:'Oddiy', sz_l:'Katta', sz_xl:'Juda katta',
   sz_preview:'Matn şunday körinadi. Bismillah — bugungi takrorlaşni boşlaymiz.'
 });
+
+/* ---- Step 13: Qur'an tab ---- */
+Object.assign(I18N.uz,{
+  nav_quran:'Qur’on',
+  tl_comm_sub:'Takrorlaş halqasi, reyting va umumiy darslar', tl_comm_pill:'Birga öqiymiz', tl_comm_pill_nudge:'🔔 {n} ta yangi eslatma',
+  rv_tip:'Qur’on endi öz bölimiga ega. Jamoa «Vositalar»ga köçdi.', rv_got_it:'Tuşundim',
+  rv_search:'Qidiriş', rv_bookmarks:'Belgilar', rv_menu:'Yana',
+  rv_menu_goto_sub:'Sura, pora yoki sahifa', rv_menu_set_sub:'Yozuv, tarjimalar, sahifa çevirişi', rv_on:'Yoniq', rv_off:'Öçiq', rv_night:'Tungi rejim',
+  rv_sources:'Matn manbalari', rv_sources_sub:'Matn va şriftlar qayerdan olingan',
+  rv_ab_bookmark:'Belgilaş', rv_ab_bookmarked:'Belgilangan', rv_ab_note:'Eslatma', rv_ab_share:'Ulaşiş', rv_ab_tr:'Tarjima',
+  rv_bm_added:'Belgi qöşildi', rv_bm_removed:'Belgi öçirildi', rv_bm_empty:'Hali belgi yöq. Oyat ustiga bosing, keyin «Belgilaş».',
+  rv_note_title:'Qur’on {ref}', rv_copied:'Nusxalandi', rv_share_fail:'Ulaşib bölmadi',
+  rv_prev_ayah:'Oldingi oyat', rv_next_ayah:'Keyingi oyat',
+  rv_tr_none:'Heç qanday tarjima tanlanmagan. Öqiş sozlamalarida tanlaşingiz mumkin.', rv_tr_choose:'Tarjimalarni tanlaş',
+  rv_tr_disclaimer:'Tarjima faqat ma’noni yetkazadi. U Qur’on emas va arabça matnning örnini bosmaydi.',
+  rv_search_ph:'Arabça sözlar, 2:255 yoki sura nomi',
+  rv_search_hint:'Arabça sözlarni harakatsiz yozing, masalan: الصبر. Shuningdek 2:255 kabi oyat yoki Yusuf kabi sura nomini yozişingiz mumkin.',
+  rv_search_none:'Natija yöq', rv_search_count_one:'{n} ta natija', rv_search_count_other:'{n} ta natija', rv_search_more:'dastlabki {n} tasi körsatilmoqda',
+  rv_set_title:'Öqiş sozlamalari', rv_set_script:'Qur’on yozuvi', rv_set_view:'Körinişi', rv_set_tr:'Tarjimalar', rv_set_turn:'Sahifa çevirişi', rv_set_size:'Matn ölçami',
+  rv_view_page:'Sahifa', rv_view_page_sub:'Ekraningizga siğadigan bir tugal sahifa', rv_view_list:'Tarjimali röyxat', rv_view_list_sub:'Oyatma-oyat, tanlagan tarjimalaringiz bilan',
+  rv_turn_mushaf:'Qur’on kabi: keyingi sahifa uçun ongga suring', rv_turn_book:'Kitob kabi: keyingi sahifa uçun çapga suring',
+  rv_size_note:'Röyxat körinişi uçun. Mushaf sahifalari doim ekranga siğadi.', rv_done:'Tayyor',
+  rds_dk:'Mushaf (Madina, 15 qator)', rds_dk_sub:'Bosma Madina mushafi, 1421-h, bilan bir xil',
+  rds_ar:'Usmoniy', rds_ar_sub:'Tanzil loyihasining Usmoniy yozuvi',
+  rds_min:'Usmoniy, kam belgili', rds_min_sub:'Kiçik belgilari kamroq Usmoniy yozuv',
+  rds_simple:'Oddiy', rds_simple_sub:'Zamonaviy imlo, öqişga eng oson',
+  rds_indopak:'Hind-Pokiston', rds_indopak_sub:'Janubiy Osiyoda işlatiladigan yozuv',
+  rv_font_fail:'Mushaf şrifti yuklanmadi. Örniga Usmoniy matn körsatilmoqda.',
+  rv_src_dk:'Mushaf sahifalari, Hind-Pokiston yozuvi va özbekça (lotin) tarjima: Tarteel’ning Qur’on Universal Kutubxonasi. Şriftlar: DigitalKhatt (SIL Open Font License).',
+  rv_src_tanzil:'Usmoniy, oddiy va qidiriş matnlari hamda Saheeh International, Basmeih va Sodik (kirill) tarjimalari: Tanzil loyihasi (CC BY 3.0).',
+  rv_src_qul:'Qur’on Universal Kutubxonasi:',
+  rv_src_note:'Qur’on matni va tarjimalar naşr etilgani kabi körsatiladi va heç qaçon özgartirilmaydi.',
+  ab_mushaf:'Mushaf sahifalari va şriftlar', ab_mushaf_src:'Digital Khatt 1421-h Madina sahifalari, Hind-Pokiston yozuvi va özbekça (lotin) tarjima: Tarteel’ning Qur’on Universal Kutubxonasi. Şriftlar: DigitalKhatt, SIL Open Font License.'
+});

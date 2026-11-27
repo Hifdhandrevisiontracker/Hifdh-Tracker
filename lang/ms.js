@@ -331,3 +331,37 @@ Object.assign(I18N.ms,{
   sz_s:'Kecil', sz_m:'Biasa', sz_l:'Besar', sz_xl:'Sangat besar',
   sz_preview:'Beginilah rupa teks. Bismillah — mari mulakan ulangan hari ini.'
 });
+
+/* ---- Step 13: Qur'an tab ---- */
+Object.assign(I18N.ms,{
+  nav_quran:'Al-Quran',
+  tl_comm_sub:'Halaqah ulang kaji, papan pendahulu dan pelajaran bersama', tl_comm_pill:'Belajar bersama', tl_comm_pill_nudge:'🔔 {n} peringatan baharu',
+  rv_tip:'Al-Quran kini ada tab sendiri. Komuniti dipindahkan ke Alatan.', rv_got_it:'Faham',
+  rv_search:'Carian', rv_bookmarks:'Penanda', rv_menu:'Lagi',
+  rv_menu_goto_sub:'Surah, juz atau muka surat', rv_menu_set_sub:'Tulisan, terjemahan, cara menukar muka', rv_on:'Hidup', rv_off:'Mati', rv_night:'Mod malam',
+  rv_sources:'Sumber teks', rv_sources_sub:'Dari mana teks dan fon diambil',
+  rv_ab_bookmark:'Tandakan', rv_ab_bookmarked:'Ditandakan', rv_ab_note:'Nota', rv_ab_share:'Kongsi', rv_ab_tr:'Terjemahan',
+  rv_bm_added:'Penanda ditambah', rv_bm_removed:'Penanda dibuang', rv_bm_empty:'Belum ada penanda. Ketik ayat, kemudian Tandakan.',
+  rv_note_title:'Al-Quran {ref}', rv_copied:'Disalin', rv_share_fail:'Tidak dapat dikongsi',
+  rv_prev_ayah:'Ayat sebelum', rv_next_ayah:'Ayat seterusnya',
+  rv_tr_none:'Tiada terjemahan dipilih. Anda boleh memilihnya dalam tetapan bacaan.', rv_tr_choose:'Pilih terjemahan',
+  rv_tr_disclaimer:'Terjemahan hanya menyampaikan makna. Ia bukan al-Quran dan tidak menggantikan teks Arab.',
+  rv_search_ph:'Perkataan Arab, 2:255, atau nama surah',
+  rv_search_hint:'Taip perkataan Arab tanpa baris, contohnya الصبر. Anda juga boleh menaip ayat seperti 2:255 atau nama surah seperti Yusuf.',
+  rv_search_none:'Tiada hasil', rv_search_count_one:'{n} hasil', rv_search_count_other:'{n} hasil', rv_search_more:'menunjukkan {n} yang pertama',
+  rv_set_title:'Tetapan bacaan', rv_set_script:'Tulisan al-Quran', rv_set_view:'Paparan bacaan', rv_set_tr:'Terjemahan', rv_set_turn:'Menukar muka surat', rv_set_size:'Saiz teks',
+  rv_view_page:'Muka surat', rv_view_page_sub:'Satu muka penuh yang muat pada skrin anda', rv_view_list:'Senarai dengan terjemahan', rv_view_list_sub:'Ayat demi ayat, dengan terjemahan pilihan anda',
+  rv_turn_mushaf:'Seperti mushaf: leret ke kanan untuk muka seterusnya', rv_turn_book:'Seperti buku: leret ke kiri untuk muka seterusnya',
+  rv_size_note:'Untuk paparan senarai. Muka mushaf sentiasa muat pada skrin.', rv_done:'Selesai',
+  rds_dk:'Mushaf (Madinah, 15 baris)', rds_dk_sub:'Sama seperti Mushaf Madinah bercetak, 1421H',
+  rds_ar:'Uthmani', rds_ar_sub:'Tulisan Uthmani oleh projek Tanzil',
+  rds_min:'Uthmani, tanda lebih sedikit', rds_min_sub:'Tulisan Uthmani dengan tanda kecil lebih sedikit',
+  rds_simple:'Ringkas', rds_simple_sub:'Ejaan moden, paling mudah dibaca',
+  rds_indopak:'Indo-Pak', rds_indopak_sub:'Tulisan yang digunakan di Asia Selatan',
+  rv_font_fail:'Fon mushaf tidak dapat dimuatkan. Teks Uthmani dipaparkan sebagai ganti.',
+  rv_src_dk:'Muka mushaf, tulisan Indo-Pak dan terjemahan Uzbek (Latin): Quranic Universal Library oleh Tarteel. Fon: DigitalKhatt (SIL Open Font License).',
+  rv_src_tanzil:'Teks Uthmani, ringkas dan carian serta terjemahan Saheeh International, Basmeih dan Sodik (Cyrillic): Projek Tanzil (CC BY 3.0).',
+  rv_src_qul:'Quranic Universal Library:',
+  rv_src_note:'Teks al-Quran dan terjemahan dipaparkan tepat seperti diterbitkan dan tidak pernah diubah.',
+  ab_mushaf:'Muka mushaf dan fon', ab_mushaf_src:'Muka Madinah 1421H Digital Khatt, tulisan Indo-Pak dan terjemahan Uzbek (Latin): Quranic Universal Library oleh Tarteel. Fon: DigitalKhatt, SIL Open Font License.'
+});

@@ -349,3 +349,37 @@ Object.assign(I18N.en,{
   sz_s:'Small', sz_m:'Normal', sz_l:'Large', sz_xl:'Extra large',
   sz_preview:'This is how text will look. Bismillah — let’s begin today’s revision.'
 });
+
+/* ---- Step 13: Qur'an tab ---- */
+Object.assign(I18N.en,{
+  nav_quran:'Qur’an',
+  tl_comm_sub:'Study circle, leaderboard and shared lessons', tl_comm_pill:'Study together', tl_comm_pill_nudge:'🔔 {n} new nudge(s)',
+  rv_tip:'Qur’an now has its own tab. Community moved to Tools.', rv_got_it:'Got it',
+  rv_search:'Search', rv_bookmarks:'Bookmarks', rv_menu:'More',
+  rv_menu_goto_sub:'Surah, juz or page', rv_menu_set_sub:'Script, translations, page turning', rv_on:'On', rv_off:'Off', rv_night:'Night mode',
+  rv_sources:'Text sources', rv_sources_sub:'Where the text and fonts come from',
+  rv_ab_bookmark:'Bookmark', rv_ab_bookmarked:'Bookmarked', rv_ab_note:'Note', rv_ab_share:'Share', rv_ab_tr:'Translation',
+  rv_bm_added:'Bookmark added', rv_bm_removed:'Bookmark removed', rv_bm_empty:'No bookmarks yet. Tap an ayah, then Bookmark.',
+  rv_note_title:'Qur’an {ref}', rv_copied:'Copied', rv_share_fail:'Could not share',
+  rv_prev_ayah:'Previous ayah', rv_next_ayah:'Next ayah',
+  rv_tr_none:'No translation is selected. You can choose one in the reading settings.', rv_tr_choose:'Choose translations',
+  rv_tr_disclaimer:'A translation only conveys meaning. It is not the Qur’an and does not replace the Arabic text.',
+  rv_search_ph:'Arabic words, 2:255, or a surah name',
+  rv_search_hint:'Type Arabic words without vowel marks, for example الصبر. You can also type an ayah like 2:255, or a surah name like Yusuf.',
+  rv_search_none:'No results', rv_search_count_one:'{n} result', rv_search_count_other:'{n} results', rv_search_more:'showing the first {n}',
+  rv_set_title:'Reading settings', rv_set_script:'Qur’an script', rv_set_view:'Reading view', rv_set_tr:'Translations', rv_set_turn:'Page turning', rv_set_size:'Text size',
+  rv_view_page:'Page', rv_view_page_sub:'One full page that fits your screen', rv_view_list:'List with translation', rv_view_list_sub:'Ayah by ayah, with the translations you choose',
+  rv_turn_mushaf:'Like a Qur’an: swipe right for the next page', rv_turn_book:'Like a book: swipe left for the next page',
+  rv_size_note:'For the list view. Mushaf pages always fit the screen.', rv_done:'Done',
+  rds_dk:'Mushaf (Madinah, 15 lines)', rds_dk_sub:'Exactly like the printed Madinah Mushaf, 1421H',
+  rds_ar:'Uthmani', rds_ar_sub:'Uthmani script by the Tanzil project',
+  rds_min:'Uthmani, fewer marks', rds_min_sub:'Uthmani script with fewer small marks',
+  rds_simple:'Simple', rds_simple_sub:'Modern spelling, easiest to read',
+  rds_indopak:'Indo-Pak', rds_indopak_sub:'Script used in South Asia',
+  rv_font_fail:'The Mushaf font could not load. Showing the Uthmani text instead.',
+  rv_src_dk:'Mushaf pages, Indo-Pak script and the Uzbek (Latin) translation: Quranic Universal Library by Tarteel. Fonts: DigitalKhatt (SIL Open Font License).',
+  rv_src_tanzil:'Uthmani, simple and search texts and the translations by Saheeh International, Basmeih and Sodik (Cyrillic): Tanzil Project (CC BY 3.0).',
+  rv_src_qul:'Quranic Universal Library:',
+  rv_src_note:'Qur’an text and translations are shown exactly as published and are never edited.',
+  ab_mushaf:'Mushaf pages and fonts', ab_mushaf_src:'Digital Khatt 1421H Madinah pages, Indo-Pak script and Uzbek (Latin) translation: Quranic Universal Library by Tarteel. Fonts: DigitalKhatt, SIL Open Font License.'
+});
